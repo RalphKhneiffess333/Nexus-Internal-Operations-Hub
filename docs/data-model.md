@@ -127,7 +127,7 @@ Stores key-value pairs of values the system uses in its operations (like priorit
 | Ticket Event - Attachment | 1 : N | A ticket event can have multiple attachments but an attachment belongs to only one ticket event|
 
 ## Database Schema
-![Database Schema Diagram](./Diagrams/Database%20Schema.png)
+![Database Schema Diagram](./assets/Database%20Schema.png)
 
 NOTE: Every table additionally has:
 created_at: NOT NULL, DEFAULT CURRENT_TIMESTAMP
