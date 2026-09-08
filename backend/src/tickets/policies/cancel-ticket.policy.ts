@@ -1,0 +1,24 @@
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { TicketStatus } from '../../common/enums/ticket-status.enum';
+import { Ticket } from '../entities/ticket.entity';
+
+@Injectable()
+export class CancelTicketPolicy {
+  assert(ticket: Ticket): void {
+    if (!ticket.active) {
+      throw new BadRequestException('Ticket is already cancelled');
+    }
+
+    if (ticket.status !== TicketStatus.OPEN) {
+      throw new BadRequestException(
+        'A ticket can only be cancelled when its status is OPEN',
+      );
+    }
+
+    if (ticket.agentId !== null) {
+      throw new BadRequestException(
+        'An OPEN ticket must not have an assigned agent',
+      );
+    }
+  }
+}
