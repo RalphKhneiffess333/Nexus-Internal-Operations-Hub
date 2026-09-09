@@ -1,9 +1,11 @@
 import { Global, Module } from '@nestjs/common';
-import { InMemoryDatabase } from './in-memory-database';
+import { ConfigModule } from '@nestjs/config';
+import { PrismaService } from './prisma.service';
 
 @Global()
 @Module({
-  providers: [InMemoryDatabase],
-  exports: [InMemoryDatabase],
+  imports: [ConfigModule.forRoot({ isGlobal: true })],
+  providers: [PrismaService],
+  exports: [PrismaService],
 })
 export class DatabaseModule {}

@@ -1,5 +1,5 @@
 import { IsEnum, IsNotEmpty, IsString } from 'class-validator';
-import { TicketPriority } from '../../common/enums/ticket-priority.enum';
+import { TicketPriority } from '@prisma/client';
 
 export class SubmitTicketDto {
   @IsString()

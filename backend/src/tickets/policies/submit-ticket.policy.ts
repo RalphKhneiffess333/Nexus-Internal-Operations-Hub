@@ -1,10 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Department } from '../../departments/entities/department.entity';
-import { User } from '../../users/entities/user.entity';
+import { Department, User } from '@prisma/client';
 
 @Injectable()
 export class SubmitTicketPolicy {
-  assert(submitter: User | undefined, department: Department | undefined): void {
+  assert(submitter: User | null, department: Department | null): void {
     if (!submitter) {
       throw new NotFoundException('User was not found');
     }

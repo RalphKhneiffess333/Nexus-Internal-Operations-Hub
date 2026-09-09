@@ -1,21 +1,31 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { TicketPriority } from '../common/enums/ticket-priority.enum';
-import { TicketStatus } from '../common/enums/ticket-status.enum';
+import { Ticket, TicketPriority } from '@prisma/client';
 import { DatabaseModule } from '../database/database.module';
+import { PrismaService } from '../database/prisma.service';
+import {
+  AGENT_ID,
+  EMPLOYEE_ID,
+  HR_DEPARTMENT_ID,
+  IT_DEPARTMENT_ID,
+  resetTicketData,
+  seedDatabase,
+} from '../database/seed';
 import { SubmitTicketDto } from './dto/submit-ticket.dto';
-import { Ticket } from './entities/ticket.entity';
 import { TicketsModule } from './tickets.module';
 import { TicketsService } from './tickets.service';
 
-export const EMPLOYEE_ID = 'user-employee-1';
-export const AGENT_ID = 'user-agent-1';
-export const IT_DEPARTMENT_ID = 'dept-it';
-export const HR_DEPARTMENT_ID = 'dept-hr';
+export { AGENT_ID, EMPLOYEE_ID, HR_DEPARTMENT_ID, IT_DEPARTMENT_ID };
 
 export async function createTicketsTestingModule(): Promise<TestingModule> {
-  return Test.createTestingModule({
+  const moduleRef = await Test.createTestingModule({
     imports: [DatabaseModule, TicketsModule],
   }).compile();
+
+  const prisma = moduleRef.get(PrismaService);
+  await prisma.$connect();
+  await seedDatabase(prisma);
+  await resetTicketData(prisma);
+  return moduleRef;
 }
 
 export function submitDto(

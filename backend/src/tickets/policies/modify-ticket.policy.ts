@@ -3,17 +3,15 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Department } from '../../departments/entities/department.entity';
-import { TicketStatus } from '../../common/enums/ticket-status.enum';
+import { Department, Ticket, TicketStatus } from '@prisma/client';
 import { ModifyTicketDto } from '../dto/modify-ticket.dto';
-import { Ticket } from '../entities/ticket.entity';
 
 @Injectable()
 export class ModifyTicketPolicy {
   assert(
     ticket: Ticket,
     dto: ModifyTicketDto,
-    department: Department | undefined,
+    department: Department | null,
   ): void {
     if (!ticket.active) {
       throw new BadRequestException('Inactive tickets cannot be modified');

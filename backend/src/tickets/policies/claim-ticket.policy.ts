@@ -1,11 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { TicketStatus } from '../../common/enums/ticket-status.enum';
-import { User } from '../../users/entities/user.entity';
-import { Ticket } from '../entities/ticket.entity';
+import { Ticket, TicketStatus, User } from '@prisma/client';
 
 @Injectable()
 export class ClaimTicketPolicy {
-  assert(ticket: Ticket, agent: User | undefined): void {
+  assert(ticket: Ticket, agent: User | null): void {
     if (!ticket.active) {
       throw new BadRequestException('Inactive tickets cannot be claimed');
     }

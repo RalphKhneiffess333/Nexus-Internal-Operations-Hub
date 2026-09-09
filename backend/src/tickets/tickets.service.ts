@@ -1,5 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { TicketStatus } from '../common/enums/ticket-status.enum';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { Ticket, TicketStatus } from '@prisma/client';
 import { DepartmentsRepository } from '../departments/repositories/departments.repository';
 import { UsersRepository } from '../users/repositories/users.repository';
 import { ClaimTicketDto } from './dto/claim-ticket.dto';
@@ -7,7 +11,6 @@ import { CloseTicketDto } from './dto/close-ticket.dto';
 import { ModifyTicketDto } from './dto/modify-ticket.dto';
 import { ReopenTicketDto } from './dto/reopen-ticket.dto';
 import { SubmitTicketDto } from './dto/submit-ticket.dto';
-import { Ticket } from './entities/ticket.entity';
 import { CancelTicketPolicy } from './policies/cancel-ticket.policy';
 import { ClaimTicketPolicy } from './policies/claim-ticket.policy';
 import { CloseTicketPolicy } from './policies/close-ticket.policy';
@@ -30,17 +33,20 @@ export class TicketsService {
     private readonly cancelTicketPolicy: CancelTicketPolicy,
   ) {}
 
-  findAll(): Ticket[] {
-    return this.ticketsRepository.findAll().filter((ticket) => ticket.active);
+  async findAll(): Promise<Ticket[]> {
+    const tickets = await this.ticketsRepository.findAll();
+    return tickets.filter((ticket) => ticket.active);
   }
 
-  findOne(ticketId: string): Ticket {
+  async findOne(ticketId: string): Promise<Ticket> {
     return this.getActiveTicket(ticketId);
   }
 
-  submit(dto: SubmitTicketDto): Ticket {
-    const submitter = this.usersRepository.findById(dto.submittedBy);
-    const department = this.departmentsRepository.findById(dto.departmentId);
+  async submit(dto: SubmitTicketDto): Promise<Ticket> {
+    const submitter = await this.usersRepository.findById(dto.submittedBy);
+    const department = await this.departmentsRepository.findById(
+      dto.departmentId,
+    );
     this.submitTicketPolicy.assert(submitter, department);
 
     const now = new Date();
@@ -60,19 +66,26 @@ export class TicketsService {
     });
   }
 
-  claim(ticketId: string, dto: ClaimTicketDto): Ticket {
-    const ticket = this.getActiveTicket(ticketId);
-    const agent = this.usersRepository.findById(dto.agentId);
+  async claim(ticketId: string, dto: ClaimTicketDto): Promise<Ticket> {
+    const ticket = await this.getActiveTicket(ticketId);
+    const agent = await this.usersRepository.findById(dto.agentId);
     this.claimTicketPolicy.assert(ticket, agent);
 
-    ticket.status = TicketStatus.CLAIMED;
-    ticket.agentId = dto.agentId;
-    ticket.updatedAt = new Date();
-    return this.ticketsRepository.save(ticket);
+    const claimed = await this.ticketsRepository.claimIfAvailable(
+      ticketId,
+      dto.agentId,
+    );
+    if (!claimed) {
+      throw new BadRequestException(
+        'A ticket cannot be claimed if it already has an assigned agent',
+      );
+    }
+
+    return claimed;
   }
 
-  close(ticketId: string, dto: CloseTicketDto): Ticket {
-    const ticket = this.getActiveTicket(ticketId);
+  async close(ticketId: string, dto: CloseTicketDto): Promise<Ticket> {
+    const ticket = await this.getActiveTicket(ticketId);
     this.closeTicketPolicy.assert(ticket);
 
     const now = new Date();
@@ -84,8 +97,8 @@ export class TicketsService {
     return this.ticketsRepository.save(ticket);
   }
 
-  reopen(ticketId: string, dto: ReopenTicketDto): Ticket {
-    const ticket = this.getActiveTicket(ticketId);
+  async reopen(ticketId: string, dto: ReopenTicketDto): Promise<Ticket> {
+    const ticket = await this.getActiveTicket(ticketId);
     this.reopenTicketPolicy.assert(ticket);
 
     ticket.status = TicketStatus.REOPENED;
@@ -98,11 +111,11 @@ export class TicketsService {
     return this.ticketsRepository.save(ticket);
   }
 
-  modify(ticketId: string, dto: ModifyTicketDto): Ticket {
-    const ticket = this.getActiveTicket(ticketId);
+  async modify(ticketId: string, dto: ModifyTicketDto): Promise<Ticket> {
+    const ticket = await this.getActiveTicket(ticketId);
     const department = dto.departmentId
-      ? this.departmentsRepository.findById(dto.departmentId)
-      : undefined;
+      ? await this.departmentsRepository.findById(dto.departmentId)
+      : null;
     this.modifyTicketPolicy.assert(ticket, dto, department);
 
     if (dto.departmentId !== undefined) {
@@ -121,8 +134,8 @@ export class TicketsService {
     return this.ticketsRepository.save(ticket);
   }
 
-  cancel(ticketId: string): Ticket {
-    const ticket = this.getActiveTicket(ticketId);
+  async cancel(ticketId: string): Promise<Ticket> {
+    const ticket = await this.getActiveTicket(ticketId);
     this.cancelTicketPolicy.assert(ticket);
 
     ticket.active = false;
@@ -130,8 +143,8 @@ export class TicketsService {
     return this.ticketsRepository.save(ticket);
   }
 
-  private getActiveTicket(ticketId: string): Ticket {
-    const ticket = this.ticketsRepository.findById(ticketId);
+  private async getActiveTicket(ticketId: string): Promise<Ticket> {
+    const ticket = await this.ticketsRepository.findById(ticketId);
     if (!ticket || !ticket.active) {
       throw new NotFoundException(`Ticket ${ticketId} was not found`);
     }
