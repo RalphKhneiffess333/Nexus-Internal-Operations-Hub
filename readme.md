@@ -71,6 +71,8 @@ npm run prisma:seed
 - `prisma:migrate` creates the schema. A fresh database reaches the required tables by running this once.
 - `prisma:seed` upserts the identity provider, IT/HR departments, and sample users. The API does **not** seed on startup. Re-running seed is safe; it will not wipe tickets.
 
+
+
 ## How to run the backend
 
 From the repository root:
@@ -83,19 +85,21 @@ That runs the NestJS app. You should see `Nest application successfully started`
 
 ## What URL does the backend open on
 
-The API listens on http://localhost:3000
+The API listens on [http://localhost:3000](http://localhost:3000)
 
 If PORT is set in the environment, that value is used instead of `3000`. There is no web UI yet.
 
 ## Which folders to look at first
 
-| Path | Why |
-| --- | --- |
-| `docs/` | Product specs, architecture, data model, and the current workflow |
-| `backend/src/tickets/` | Ticket API: controller, service, policies, DTOs, tests |
-| `backend/src/database/` | Prisma connection, error mapping, and seed data |
-| `backend/prisma/` | Schema and migrations |
-| `backend/src/users/` and `backend/src/departments/` | Supporting repositories used by tickets |
+
+| Path                                                | Why                                                               |
+| --------------------------------------------------- | ----------------------------------------------------------------- |
+| `docs/`                                             | Product specs, architecture, data model, and the current workflow |
+| `backend/src/tickets/`                              | Ticket API: controller, service, policies, DTOs, tests            |
+| `backend/src/database/`                             | Prisma connection, error mapping, and seed data                   |
+| `backend/prisma/`                                   | Schema and migrations                                             |
+| `backend/src/users/` and `backend/src/departments/` | Supporting repositories used by tickets                           |
+
 
 Start with `backend/src/tickets/tickets.controller.ts` to see the routes, then `tickets.service.ts` and `tickets/policies/`.
 
@@ -114,20 +118,24 @@ Both require `backend/.env` pointing at a migrated PostgreSQL database. Tests se
 - `npm test` runs unit tests against PostgreSQL. Output lists each test name.
 - `npm run test:e2e` hits the HTTP API with supertest.
 
+
+
 ## Manually testing the backend API (URLs, payloads, data to use)
 
 Base URL: `http://localhost:3000`
 
 Seeded data (loaded by `npm run prisma:seed`, not on every process start):
 
-| Kind | ID | Notes |
-| --- | --- | --- |
-| Department | `dept-it` | Information Technology |
-| Department | `dept-hr` | Human Resources |
-| User | `user-employee-1` | Alex (`alex@company.com`) |
-| User | `user-employee-2` | Sam (`sam@company.com`) |
-| User | `user-agent-1` | Jordan (`jordan@company.com`) |
-| User | `user-agent-2` | Taylor (`taylor@company.com`) |
+
+| Kind       | ID                | Notes                         |
+| ---------- | ----------------- | ----------------------------- |
+| Department | `dept-it`         | Information Technology        |
+| Department | `dept-hr`         | Human Resources               |
+| User       | `user-employee-1` | Alex (`alex@company.com`)     |
+| User       | `user-employee-2` | Sam (`sam@company.com`)       |
+| User       | `user-agent-1`    | Jordan (`jordan@company.com`) |
+| User       | `user-agent-2`    | Taylor (`taylor@company.com`) |
+
 
 Priority must be one of: `LOW`, `MODERATE`, `HIGH`.
 
@@ -150,6 +158,8 @@ Use `Content-Type: application/json` on requests that have a body. Replace `:id`
   "submittedBy": "user-employee-1"
 }
 ```
+
+
 
 ### Get one ticket
 
@@ -179,6 +189,8 @@ All fields are optional, but at least one is required. Only `OPEN` tickets can b
   "agentId": "user-agent-1"
 }
 ```
+
+
 
 ### Close (CLAIMED → CLOSED, agent is cleared)
 
