@@ -115,6 +115,30 @@ describe('Tickets (e2e)', () => {
       });
   });
 
+  it('lists active departments over HTTP', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/departments')
+      .expect(200);
+
+    expect(response.body).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          departmentId: 'dept-hr',
+          code: 'HR',
+          name: 'Human Resources',
+          active: true,
+        }),
+        expect.objectContaining({
+          departmentId: 'dept-it',
+          code: 'IT',
+          name: 'Information Technology',
+          active: true,
+        }),
+      ]),
+    );
+    expect(response.body).toHaveLength(2);
+  });
+
   it('rejects closing an OPEN ticket over HTTP', async () => {
     const submitResponse = await request(app.getHttpServer())
       .post('/tickets')

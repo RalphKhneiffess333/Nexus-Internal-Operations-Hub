@@ -4,6 +4,7 @@ import {
   TicketForm,
   validateTicketFields,
 } from '../../components/tickets/TicketForm'
+import { useDepartments } from '../../features/departments/use-departments'
 import { createTicket } from '../../features/tickets/ticket-api'
 
 export function NewTicketPage() {
@@ -12,6 +13,12 @@ export function NewTicketPage() {
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
   const [createdCode, setCreatedCode] = useState('')
+  const {
+    departments,
+    loading: loadingDepartments,
+    error: departmentsError,
+    reload: reloadDepartments,
+  } = useDepartments()
 
   async function handleSubmit(values) {
     const nextFieldErrors = validateTicketFields(values, {
@@ -54,16 +61,31 @@ export function NewTicketPage() {
       {createdCode ? (
         <p className="banner success">Ticket {createdCode} was created.</p>
       ) : null}
-      <TicketForm
-        includeSubmittedBy
-        submitLabel="Submit ticket"
-        submittingLabel="Submitting..."
-        submitting={submitting}
-        error={error}
-        fieldErrors={fieldErrors}
-        onSubmit={handleSubmit}
-        onCancel={() => navigate('/tickets')}
-      />
+
+      {loadingDepartments ? <p className="muted">Loading departments...</p> : null}
+
+      {!loadingDepartments && departmentsError ? (
+        <div className="banner error">
+          <p>{departmentsError}</p>
+          <button type="button" className="btn ghost" onClick={reloadDepartments}>
+            Try again
+          </button>
+        </div>
+      ) : null}
+
+      {!loadingDepartments && !departmentsError ? (
+        <TicketForm
+          includeSubmittedBy
+          departments={departments}
+          submitLabel="Submit ticket"
+          submittingLabel="Submitting..."
+          submitting={submitting}
+          error={error}
+          fieldErrors={fieldErrors}
+          onSubmit={handleSubmit}
+          onCancel={() => navigate('/tickets')}
+        />
+      ) : null}
     </section>
   )
 }

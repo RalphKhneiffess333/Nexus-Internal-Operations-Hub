@@ -16,4 +16,15 @@ export class DepartmentsRepository {
       mapPrismaError(error);
     }
   }
+
+  async findAllActive(): Promise<Department[]> {
+    try {
+      return await this.prisma.department.findMany({
+        where: { active: true },
+        orderBy: { name: 'asc' },
+      });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }
 }

@@ -11,18 +11,8 @@ export const TicketPriority = {
   HIGH: 'HIGH',
 }
 
-export const DEPARTMENTS = [
-  { id: 'dept-it', label: 'IT' },
-  { id: 'dept-hr', label: 'HR' },
-]
-
 export const CURRENT_USER_ID =
   import.meta.env.VITE_SUBMITTED_BY || 'user-employee-1'
-
-export function departmentLabel(departmentId) {
-  return DEPARTMENTS.find((department) => department.id === departmentId)?.label
-    ?? departmentId
-}
 
 export function formatDate(value) {
   if (!value) {

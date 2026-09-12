@@ -6,6 +6,7 @@ import {
   TicketForm,
   validateTicketFields,
 } from '../../components/tickets/TicketForm'
+import { useDepartments } from '../../features/departments/use-departments'
 import {
   cancelTicket,
   getTicket,
@@ -25,6 +26,12 @@ export function TicketDetailsPage() {
   const [confirmingCancel, setConfirmingCancel] = useState(false)
   const [cancelling, setCancelling] = useState(false)
   const [notice, setNotice] = useState('')
+  const {
+    departments,
+    loading: loadingDepartments,
+    error: departmentsError,
+    reload: reloadDepartments,
+  } = useDepartments()
 
   const loadTicket = useCallback(async () => {
     setLoading(true)
@@ -134,24 +141,38 @@ export function TicketDetailsPage() {
       {formError && !editing ? <p className="banner error">{formError}</p> : null}
 
       {!loading && ticket && editing ? (
-        <TicketForm
-          key={`${ticket.ticketId}-edit`}
-          initialValues={ticket}
-          submitLabel="Save changes"
-          submittingLabel="Saving..."
-          submitting={saving}
-          error={formError}
-          fieldErrors={fieldErrors}
-          onSubmit={handleUpdate}
-          onCancel={() => {
-            setEditing(false)
-            setFormError('')
-            setFieldErrors({})
-          }}
-        />
+        loadingDepartments ? (
+          <p className="muted">Loading departments...</p>
+        ) : departmentsError ? (
+          <div className="banner error">
+            <p>{departmentsError}</p>
+            <button type="button" className="btn ghost" onClick={reloadDepartments}>
+              Try again
+            </button>
+          </div>
+        ) : (
+          <TicketForm
+            key={`${ticket.ticketId}-edit`}
+            initialValues={ticket}
+            departments={departments}
+            submitLabel="Save changes"
+            submittingLabel="Saving..."
+            submitting={saving}
+            error={formError}
+            fieldErrors={fieldErrors}
+            onSubmit={handleUpdate}
+            onCancel={() => {
+              setEditing(false)
+              setFormError('')
+              setFieldErrors({})
+            }}
+          />
+        )
       ) : null}
 
-      {!loading && ticket && !editing ? <TicketDetails ticket={ticket} /> : null}
+      {!loading && ticket && !editing ? (
+        <TicketDetails ticket={ticket} departments={departments} />
+      ) : null}
 
       {confirmingCancel && ticket ? (
         <ConfirmDialog

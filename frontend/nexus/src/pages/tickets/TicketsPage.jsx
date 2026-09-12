@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { TicketList } from '../../components/tickets/TicketList'
+import { useDepartments } from '../../features/departments/use-departments'
 import { getTickets } from '../../features/tickets/ticket-api'
 
 export function TicketsPage() {
   const [tickets, setTickets] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const { departments } = useDepartments()
 
   const loadTickets = useCallback(async () => {
     setLoading(true)
@@ -60,7 +62,7 @@ export function TicketsPage() {
       ) : null}
 
       {!loading && !error && tickets.length > 0 ? (
-        <TicketList tickets={tickets} />
+          <TicketList tickets={tickets} departments={departments} />
       ) : null}
     </section>
   )

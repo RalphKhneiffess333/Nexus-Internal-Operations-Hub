@@ -1,8 +1,5 @@
-import {
-  departmentLabel,
-  formatDate,
-  TicketPriority,
-} from '../../features/tickets/ticket-types'
+import { departmentLabel } from '../../features/departments/use-departments'
+import { formatDate, TicketPriority } from '../../features/tickets/ticket-types'
 import { TicketStatusBadge } from './TicketStatusBadge'
 
 const PRIORITY_LABELS = {
@@ -24,7 +21,7 @@ function DetailRow({ label, value }) {
   )
 }
 
-export function TicketDetails({ ticket }) {
+export function TicketDetails({ ticket, departments = [] }) {
   const submitted = formatDate(ticket.createdAt)
   const updated = formatDate(ticket.updatedAt)
   const closed = formatDate(ticket.closedAt)
@@ -48,7 +45,7 @@ export function TicketDetails({ ticket }) {
         />
         <DetailRow
           label="Department"
-          value={departmentLabel(ticket.departmentId)}
+          value={departmentLabel(ticket.departmentId, departments)}
         />
         <DetailRow label="Assigned agent" value={ticket.agentId} />
         <DetailRow label="Completion notes" value={ticket.completionNotes} />

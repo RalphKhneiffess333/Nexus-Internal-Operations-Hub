@@ -1,9 +1,6 @@
 import { Link } from 'react-router-dom'
-import {
-  departmentLabel,
-  formatDate,
-  TicketPriority,
-} from '../../features/tickets/ticket-types'
+import { departmentLabel } from '../../features/departments/use-departments'
+import { formatDate, TicketPriority } from '../../features/tickets/ticket-types'
 import { TicketStatusBadge } from './TicketStatusBadge'
 
 const PRIORITY_LABELS = {
@@ -12,7 +9,7 @@ const PRIORITY_LABELS = {
   [TicketPriority.HIGH]: 'High',
 }
 
-export function TicketListItem({ ticket }) {
+export function TicketListItem({ ticket, departments = [] }) {
   return (
     <Link to={`/tickets/${ticket.ticketId}`} className="ticket-row">
       <div className="ticket-row-top">
@@ -27,7 +24,7 @@ export function TicketListItem({ ticket }) {
         </div>
         <div>
           <dt>Department</dt>
-          <dd>{departmentLabel(ticket.departmentId)}</dd>
+          <dd>{departmentLabel(ticket.departmentId, departments)}</dd>
         </div>
         <div>
           <dt>Submitted</dt>

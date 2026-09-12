@@ -1,8 +1,4 @@
-import {
-  CURRENT_USER_ID,
-  DEPARTMENTS,
-  TicketPriority,
-} from '../../features/tickets/ticket-types'
+import { CURRENT_USER_ID, TicketPriority } from '../../features/tickets/ticket-types'
 
 const PRIORITY_OPTIONS = [
   { value: TicketPriority.LOW, label: 'Low' },
@@ -12,6 +8,7 @@ const PRIORITY_OPTIONS = [
 
 export function TicketForm({
   initialValues,
+  departments = [],
   submitLabel,
   submittingLabel,
   submitting,
@@ -21,6 +18,8 @@ export function TicketForm({
   onCancel,
   includeSubmittedBy = false,
 }) {
+  const defaultDepartmentId =
+    initialValues?.departmentId ?? departments[0]?.departmentId ?? ''
   return (
     <form
       className="ticket-form clay-card"
@@ -86,12 +85,16 @@ export function TicketForm({
         <span>Department</span>
         <select
           name="departmentId"
-          defaultValue={initialValues?.departmentId ?? DEPARTMENTS[0].id}
+          defaultValue={defaultDepartmentId}
           required
+          disabled={departments.length === 0}
         >
-          {DEPARTMENTS.map((department) => (
-            <option key={department.id} value={department.id}>
-              {department.label}
+          {departments.length === 0 ? (
+            <option value="">No departments available</option>
+          ) : null}
+          {departments.map((department) => (
+            <option key={department.departmentId} value={department.departmentId}>
+              {department.name}
             </option>
           ))}
         </select>
@@ -115,7 +118,7 @@ export function TicketForm({
             Cancel
           </button>
         ) : null}
-        <button type="submit" className="btn primary" disabled={submitting}>
+        <button type="submit" className="btn primary" disabled={submitting || departments.length === 0}>
           {submitting ? submittingLabel : submitLabel}
         </button>
       </div>

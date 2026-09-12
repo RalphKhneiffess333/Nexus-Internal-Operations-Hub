@@ -22,7 +22,7 @@ function userFacingMessage(status, payload) {
   }
 
   if (status === 404) {
-    return 'This ticket could not be found.'
+    return 'This resource could not be found.'
   }
 
   if (status === 400) {
