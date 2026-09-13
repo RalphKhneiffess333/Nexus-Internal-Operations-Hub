@@ -2,6 +2,12 @@
   "name": "nexus",
   "private": true,
   "scripts": {
-    "start": "npm --prefix backend run start:dev"
+    "start": "concurrently \"npm --prefix backend run start:dev\" \"npm --prefix frontend/nexus run dev\"",
+    "start:backend": "npm --prefix backend run start:dev",
+    "start:frontend": "npm --prefix frontend/nexus run dev",
+    "db:setup": "npm --prefix backend run prisma:migrate && npm --prefix backend run prisma:seed"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
   }
 }
