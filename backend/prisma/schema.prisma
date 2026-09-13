@@ -1,0 +1,96 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  Employee
+  Agent
+  Admin
+}
+
+enum TicketPriority {
+  LOW
+  MODERATE
+  HIGH
+}
+
+enum TicketStatus {
+  OPEN
+  CLAIMED
+  CLOSED
+  REOPENED
+}
+
+model IdentityProvider {
+  identityProviderId String   @id @map("identity_provider_id")
+  code               String
+  name               String
+  active             Boolean  @default(true)
+  createdAt          DateTime @default(now()) @map("created_at")
+  users              User[]
+
+  @@map("identity_providers")
+}
+
+model User {
+  userId             String           @id @map("user_id")
+  email              String           @unique
+  fullName           String           @map("full_name")
+  phoneNumber        String?          @map("phone_number")
+  role               UserRole         @default(Employee)
+  isActive           Boolean          @default(true) @map("is_active")
+  hasLogged          Boolean          @map("has_logged")
+  identityProviderId String           @map("identity_provider_id")
+  identityProvider   IdentityProvider @relation(fields: [identityProviderId], references: [identityProviderId])
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+  submittedTickets   Ticket[]         @relation("TicketSubmitter")
+  assignedTickets    Ticket[]         @relation("TicketAgent")
+
+  @@map("users")
+}
+
+model Department {
+  departmentId String   @id @map("department_id")
+  code         String   @unique
+  name         String
+  desc         String
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  tickets      Ticket[]
+
+  @@map("departments")
+}
+
+model Ticket {
+  ticketId        String         @id @map("ticket_id")
+  ticketCode      String         @unique @map("ticket_code")
+  title           String
+  description     String
+  priority        TicketPriority
+  status          TicketStatus   @default(OPEN)
+  departmentId    String         @map("department_id")
+  submittedBy     String         @map("submitted_by")
+  agentId         String?        @map("agent_id")
+  active          Boolean        @default(true)
+  completionNotes String?        @map("completion_notes")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+  closedAt        DateTime?      @map("closed_at")
+  department      Department     @relation(fields: [departmentId], references: [departmentId])
+  submitter       User           @relation("TicketSubmitter", fields: [submittedBy], references: [userId])
+  agent           User?          @relation("TicketAgent", fields: [agentId], references: [userId])
+
+  @@index([submittedBy])
+  @@index([departmentId])
+  @@index([agentId])
+  @@index([status])
+  @@index([departmentId, status, createdAt])
+  @@map("tickets")
+}

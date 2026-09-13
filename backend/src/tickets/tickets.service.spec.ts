@@ -1,7 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
-import { describe, it, beforeEach, expect } from "@jest/globals"
-import { TicketPriority } from '../common/enums/ticket-priority.enum';
-import { TicketStatus } from '../common/enums/ticket-status.enum';
+import { describe, it, beforeEach, afterEach, expect } from "@jest/globals"
+import { TicketPriority, TicketStatus } from '@prisma/client';
 import { TicketsService } from './tickets.service';
 import {
   AGENT_ID,
@@ -15,10 +14,15 @@ import {
 
 describe('TicketsService valid operations', () => {
   let service: TicketsService;
+  let moduleRef: Awaited<ReturnType<typeof createTicketsTestingModule>>;
 
   beforeEach(async () => {
-    const moduleRef = await createTicketsTestingModule();
+    moduleRef = await createTicketsTestingModule();
     service = moduleRef.get(TicketsService);
+  });
+
+  afterEach(async () => {
+    await moduleRef.close();
   });
 
   it('submits a ticket as OPEN with no assigned agent', async () => {
@@ -37,14 +41,16 @@ describe('TicketsService valid operations', () => {
   it('retrieves submitted tickets', async () => {
     const created = await submitOpenTicket(service);
 
-    expect(service.findAll()).toHaveLength(1);
-    expect(service.findOne(created.ticketId).ticketId).toBe(created.ticketId);
+    expect(await service.findAll()).toHaveLength(1);
+    expect((await service.findOne(created.ticketId)).ticketId).toBe(
+      created.ticketId,
+    );
   });
 
   it('modifies an OPEN ticket', async () => {
     const created = await submitOpenTicket(service);
 
-    const updated = service.modify(created.ticketId, {
+    const updated = await service.modify(created.ticketId, {
       title: 'VPN access request',
       description: 'Need VPN for remote work',
       priority: TicketPriority.LOW,
@@ -61,26 +67,30 @@ describe('TicketsService valid operations', () => {
   it('cancels an OPEN ticket with a soft delete', async () => {
     const created = await submitOpenTicket(service);
 
-    const cancelled = service.cancel(created.ticketId);
+    const cancelled = await service.cancel(created.ticketId);
 
     expect(cancelled.active).toBe(false);
-    expect(service.findAll()).toHaveLength(0);
-    expect(() => service.findOne(created.ticketId)).toThrow(NotFoundException);
+    expect(await service.findAll()).toHaveLength(0);
+    await expect(service.findOne(created.ticketId)).rejects.toThrow(
+      NotFoundException,
+    );
   });
 
   it('rejects submission when the submitter or department does not exist', async () => {
-    expect(() =>
+    await expect(
       service.submit(submitDto({ submittedBy: 'missing-user' })),
-    ).toThrow(NotFoundException);
-    expect(() =>
+    ).rejects.toThrow(NotFoundException);
+    await expect(
       service.submit(submitDto({ departmentId: 'missing-dept' })),
-    ).toThrow(NotFoundException);
+    ).rejects.toThrow(NotFoundException);
   });
 
-  it('returns not found for an unknown ticket', () => {
-    expect(() => service.findOne('missing-ticket')).toThrow(NotFoundException);
-    expect(() =>
+  it('returns not found for an unknown ticket', async () => {
+    await expect(service.findOne('missing-ticket')).rejects.toThrow(
+      NotFoundException,
+    );
+    await expect(
       service.claim('missing-ticket', { agentId: AGENT_ID }),
-    ).toThrow(NotFoundException);
+    ).rejects.toThrow(NotFoundException);
   });
 });

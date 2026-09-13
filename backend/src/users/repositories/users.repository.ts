@@ -1,12 +1,19 @@
 import { Injectable } from '@nestjs/common';
-import { InMemoryDatabase } from '../../database/in-memory-database';
-import { User } from '../entities/user.entity';
+import { User } from '@prisma/client';
+import { PrismaService } from '../../database/prisma.service';
+import { mapPrismaError } from '../../database/prisma-error';
 
 @Injectable()
 export class UsersRepository {
-  constructor(private readonly database: InMemoryDatabase) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  findById(userId: string): User | undefined {
-    return this.database.users.find((user) => user.userId === userId);
+  async findById(userId: string): Promise<User | null> {
+    try {
+      return await this.prisma.user.findUnique({
+        where: { userId },
+      });
+    } catch (error) {
+      mapPrismaError(error);
+    }
   }
 }
