@@ -28,6 +28,79 @@ export class TicketsRepository {
     }
   }
 
+  async findActive(): Promise<Ticket[]> {
+    try {
+      return await this.prisma.ticket.findMany({
+        where: { active: true },
+        orderBy: { createdAt: 'desc' },
+      });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }
+
+  async findActiveBySubmitter(submittedBy: string): Promise<Ticket[]> {
+    try {
+      return await this.prisma.ticket.findMany({
+        where: {
+          active: true,
+          submittedBy,
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }
+
+  async findActiveByDepartmentIds(departmentIds: string[]): Promise<Ticket[]> {
+    if (departmentIds.length === 0) {
+      return [];
+    }
+
+    try {
+      return await this.prisma.ticket.findMany({
+        where: {
+          active: true,
+          departmentId: {
+            in: departmentIds,
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }
+
+  async findTicketPool(departmentIds?: string[]): Promise<Ticket[]> {
+    if (departmentIds && departmentIds.length === 0) {
+      return [];
+    }
+
+    try {
+      return await this.prisma.ticket.findMany({
+        where: {
+          active: true,
+          agentId: null,
+          status: {
+            in: [TicketStatus.OPEN, TicketStatus.REOPENED],
+          },
+          ...(departmentIds
+            ? {
+                departmentId: {
+                  in: departmentIds,
+                },
+              }
+            : {}),
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }
+
   async create(ticket: CreateTicketInput): Promise<Ticket> {
     try {
       return await this.prisma.$transaction(async (tx) => {

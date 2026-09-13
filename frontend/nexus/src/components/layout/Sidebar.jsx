@@ -1,8 +1,10 @@
 import { NavLink } from 'react-router-dom'
 import { useAuthentication } from '../../features/authentication/use-authentication'
+import { canWorkTickets } from '../../features/tickets/ticket-types'
 
 export function Sidebar({ open, onNavigate }) {
   const { user, logoutCurrentSession } = useAuthentication()
+  const showWorkQueues = canWorkTickets(user)
 
   return (
     <aside className={`sidebar ${open ? 'is-open' : ''}`}>
@@ -19,13 +21,43 @@ export function Sidebar({ open, onNavigate }) {
           className={({ isActive }) =>
             `nav-item ${isActive ? 'is-active' : ''}`
           }
+          end
           onClick={onNavigate}
         >
           <span className="nav-icon" aria-hidden="true">
             ▣
           </span>
-          Tickets
+          My tickets
         </NavLink>
+
+        {showWorkQueues ? (
+          <>
+            <NavLink
+              to="/tickets/department"
+              className={({ isActive }) =>
+                `nav-item ${isActive ? 'is-active' : ''}`
+              }
+              onClick={onNavigate}
+            >
+              <span className="nav-icon" aria-hidden="true">
+                ◫
+              </span>
+              Department
+            </NavLink>
+            <NavLink
+              to="/tickets/pool"
+              className={({ isActive }) =>
+                `nav-item ${isActive ? 'is-active' : ''}`
+              }
+              onClick={onNavigate}
+            >
+              <span className="nav-icon" aria-hidden="true">
+                ⊞
+              </span>
+              Ticket pool
+            </NavLink>
+          </>
+        ) : null}
       </nav>
 
       <div className="sidebar-account">

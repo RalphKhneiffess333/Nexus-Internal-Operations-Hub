@@ -1,6 +1,6 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { describe, it, beforeEach, afterEach, expect } from '@jest/globals';
-import { TicketPriority, TicketStatus, UserRole } from '@prisma/client';
+import { TicketPriority, TicketStatus } from '@prisma/client';
 import { TicketsService } from './tickets.service';
 import {
   AGENT_ID,
@@ -163,5 +163,41 @@ describe('TicketsService valid operations', () => {
         }),
       ),
     ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('returns submitted, department, and pool ticket scopes with action permissions', async () => {
+    const employeeTicket = await submitOpenTicket(service);
+    const hrTicket = await submitOpenTicket(
+      service,
+      { departmentId: HR_DEPARTMENT_ID },
+      requestUser({
+        userId: EMPLOYEE_2_ID,
+        email: 'sam@company.com',
+        identityProviderUserId: EMPLOYEE_2_ID,
+      }),
+    );
+
+    const submittedTickets = await service.findSubmitted(requestUser());
+    expect(submittedTickets).toHaveLength(1);
+    expect(submittedTickets[0].ticketId).toBe(employeeTicket.ticketId);
+    expect(submittedTickets[0].permissions.canModify).toBe(true);
+    expect(submittedTickets[0].permissions.canCancel).toBe(true);
+
+    const agentDepartmentTickets = await service.findDepartmentTickets(
+      agentUser(AGENT_ID),
+    );
+    expect(agentDepartmentTickets).toHaveLength(1);
+    expect(agentDepartmentTickets[0].ticketId).toBe(employeeTicket.ticketId);
+    expect(agentDepartmentTickets[0].permissions.canClaim).toBe(true);
+    expect(agentDepartmentTickets[0].permissions.canModify).toBe(false);
+
+    const agentPoolTickets = await service.findPool(agentUser(AGENT_ID));
+    expect(agentPoolTickets).toHaveLength(1);
+    expect(agentPoolTickets[0].ticketId).toBe(employeeTicket.ticketId);
+
+    const adminPoolTickets = await service.findPool(adminUser());
+    expect(adminPoolTickets.map((ticket) => ticket.ticketId).sort()).toEqual(
+      [employeeTicket.ticketId, hrTicket.ticketId].sort(),
+    );
   });
 });

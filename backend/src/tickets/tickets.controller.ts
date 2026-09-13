@@ -25,6 +25,24 @@ export class TicketsController {
   }
 
   @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
+  @Get('submitted')
+  findSubmitted(@Req() request: AuthenticatedRequest) {
+    return this.ticketsService.findSubmitted(request.user!);
+  }
+
+  @Roles(UserRole.Agent, UserRole.Admin)
+  @Get('department')
+  findDepartmentTickets(@Req() request: AuthenticatedRequest) {
+    return this.ticketsService.findDepartmentTickets(request.user!);
+  }
+
+  @Roles(UserRole.Agent, UserRole.Admin)
+  @Get('pool')
+  findPool(@Req() request: AuthenticatedRequest) {
+    return this.ticketsService.findPool(request.user!);
+  }
+
+  @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
   @Get(':id')
   findOne(@Param('id') id: string, @Req() request: AuthenticatedRequest) {
     return this.ticketsService.findOne(id, request.user!);
