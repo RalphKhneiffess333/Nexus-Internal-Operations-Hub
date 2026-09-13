@@ -46,12 +46,14 @@ model User {
   isActive           Boolean          @default(true) @map("is_active")
   hasLogged          Boolean          @map("has_logged")
   identityProviderId String           @map("identity_provider_id")
+  identityProviderUserId String       @map("identity_provider_user_id")
   identityProvider   IdentityProvider @relation(fields: [identityProviderId], references: [identityProviderId])
   createdAt          DateTime         @default(now()) @map("created_at")
   updatedAt          DateTime         @updatedAt @map("updated_at")
   submittedTickets   Ticket[]         @relation("TicketSubmitter")
   assignedTickets    Ticket[]         @relation("TicketAgent")
 
+  @@unique([identityProviderId, identityProviderUserId])
   @@map("users")
 }
 

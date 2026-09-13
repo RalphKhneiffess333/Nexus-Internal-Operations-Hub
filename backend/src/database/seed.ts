@@ -11,10 +11,14 @@ export const HR_DEPARTMENT_ID = 'dept-hr';
 export async function seedDatabase(prisma: PrismaClient): Promise<void> {
   await prisma.identityProvider.upsert({
     where: { identityProviderId: SEED_IDENTITY_PROVIDER_ID },
-    update: {},
+    update: {
+      code: 'MICROSOFT_ENTRA_ID',
+      name: 'Microsoft Entra ID',
+      active: true,
+    },
     create: {
       identityProviderId: SEED_IDENTITY_PROVIDER_ID,
-      code: 'ENTRA',
+      code: 'MICROSOFT_ENTRA_ID',
       name: 'Microsoft Entra ID',
       active: true,
     },
@@ -89,6 +93,7 @@ export async function seedDatabase(prisma: PrismaClient): Promise<void> {
         isActive: true,
         hasLogged: false,
         identityProviderId: SEED_IDENTITY_PROVIDER_ID,
+        identityProviderUserId: user.userId,
       },
     });
   }
