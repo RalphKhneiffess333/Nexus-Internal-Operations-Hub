@@ -4,7 +4,7 @@
 
 Nexus is an internal operations service hub. Employees submit requests to departments such as IT and HR. Those requests become tickets that can be claimed, tracked, closed, reopened, modified, or cancelled.
 
-As of now, this repository currently contains the backend only. Ticket, user, and department data is stored in PostgreSQL. Authentication, authorization, chat, attachments, handoffs, and admin features are not implemented yet.
+This repository contains a NestJS backend and a React/Vite frontend. Ticket, user, department, and identity-provider data is stored in PostgreSQL. Authentication currently uses Microsoft Entra ID with a server-side session cookie.
 
 ## What do I need installed
 
@@ -16,20 +16,24 @@ Optional: an API client such as Postman for manual testing.
 
 ## How to install dependencies
 
-From the repository root:
+Run all install commands from the repository root:
 
 ```bash
+npm install
 npm --prefix backend install
+npm --prefix frontend/nexus install
 ```
 
-Or from the backend folder:
+This installs the root tooling, backend dependencies, and frontend dependencies. The backend install also generates the Prisma client.
+
+If you prefer to step into each app folder, run:
 
 ```bash
 cd backend
 npm install
+cd ../frontend/nexus
+npm install
 ```
-
-`npm install` also generates the Prisma client.
 
 ## How to set up PostgreSQL
 
@@ -58,9 +62,58 @@ DATABASE_PASSWORD=your_password
 DATABASE_URL=postgresql://your_user:your_password@localhost:5432/nexus
 ```
 
+## How to configure Microsoft Entra ID
+
+Nexus uses Microsoft Entra ID as its third-party identity provider. Create or use an Entra app registration and add this web redirect URI:
+
+```
+http://localhost:3000/authentication/microsoft/callback
+```
+
+Then add the Microsoft configuration to `backend/.env`:
+
+```
+MICROSOFT_ENTRA_TENANT_ID=your_tenant_id
+MICROSOFT_ENTRA_CLIENT_ID=your_client_id
+MICROSOFT_ENTRA_CLIENT_SECRET=your_client_secret
+MICROSOFT_ENTRA_REDIRECT_URI=http://localhost:3000/authentication/microsoft/callback
+MICROSOFT_ENTRA_SCOPES=openid profile email
+FRONTEND_URL=http://localhost:5173
+```
+
+The seeded identity-provider record uses the code `MICROSOFT_ENTRA_ID`. Users are linked to Microsoft accounts by `identity_provider_id` and `identity_provider_user_id` after login.
+
+For the frontend, copy `frontend/nexus/.env.example` if you need to override the API origin:
+
+```bash
+cd frontend/nexus
+cp .env.example .env
+```
+
+On Windows PowerShell:
+
+```powershell
+cd frontend/nexus
+Copy-Item .env.example .env
+```
+
+In local Vite development you can leave this empty because `/api` is proxied to the backend:
+
+```
+VITE_API_URL=
+```
+
 Do not commit `.env`. `.env.example` is the template without real credentials.
 
-From `backend`, apply migrations, then load sample users and departments:
+From the repository root, apply migrations and load sample users/departments in one go:
+
+```bash
+npm run db:setup
+```
+
+That root command runs the backend Prisma migrate script and then the seed script.
+
+You can also run the backend commands manually:
 
 ```bash
 cd backend
@@ -73,21 +126,30 @@ npm run prisma:seed
 
 
 
-## How to run the backend
+## How to run the app
 
 From the repository root:
 
 ```bash
-npm start
+npm run start
 ```
 
-That runs the NestJS app. You should see `Nest application successfully started`. Run migrate and seed first, or the API will fail when it talks to PostgreSQL.
+That runs the NestJS backend and the Vite frontend at the same time. Run migrate and seed first, or the API will fail when it talks to PostgreSQL.
 
-## What URL does the backend open on
+You can also run each app separately:
+
+```bash
+npm run start:backend
+npm run start:frontend
+```
+
+## What URLs does the app open on
 
 The API listens on [http://localhost:3000](http://localhost:3000)
 
-If PORT is set in the environment, that value is used instead of `3000`. There is no web UI yet.
+The frontend listens on [http://localhost:5173](http://localhost:5173)
+
+If `PORT` is set in the backend environment, that value is used instead of `3000`.
 
 ## Which folders to look at first
 
@@ -96,8 +158,10 @@ If PORT is set in the environment, that value is used instead of `3000`. There i
 | --------------------------------------------------- | ----------------------------------------------------------------- |
 | `docs/`                                             | Product specs, architecture, data model, and the current workflow |
 | `backend/src/tickets/`                              | Ticket API: controller, service, policies, DTOs, tests            |
+| `backend/src/authentication/`                       | Microsoft Entra login, session handling, and request auth         |
 | `backend/src/database/`                             | Prisma connection, error mapping, and seed data                   |
 | `backend/prisma/`                                   | Schema and migrations                                             |
+| `frontend/nexus/src/`                               | React frontend pages, ticket views, API client, and layout        |
 | `backend/src/users/` and `backend/src/departments/` | Supporting repositories used by tickets                           |
 
 
@@ -125,17 +189,6 @@ Both require `backend/.env` pointing at a migrated PostgreSQL database. Tests se
 Base URL: `http://localhost:3000`
 
 Seeded data (loaded by `npm run prisma:seed`, not on every process start):
-
-
-| Kind       | ID                | Notes                         |
-| ---------- | ----------------- | ----------------------------- |
-| Department | `dept-it`         | Information Technology        |
-| Department | `dept-hr`         | Human Resources               |
-| User       | `user-employee-1` | Alex (`alex@company.com`)     |
-| User       | `user-employee-2` | Sam (`sam@company.com`)       |
-| User       | `user-agent-1`    | Jordan (`jordan@company.com`) |
-| User       | `user-agent-2`    | Taylor (`taylor@company.com`) |
-
 
 Priority must be one of: `LOW`, `MODERATE`, `HIGH`.
 
