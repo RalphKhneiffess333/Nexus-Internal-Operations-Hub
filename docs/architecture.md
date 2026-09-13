@@ -50,6 +50,7 @@ Example: An IT (Department) agent (Role) can close a ticket if he claimed it (Re
 - Administration Module: Manages system configurations like configuring reminder periods, and managing departments and account linking to roles.
 
 - Ticket Management Module: Core module responsible for request submission, automatic routing to department ticket pool, ticket claiming, status tracking (open, claimed, closed, reopened), modifications, deletions, closings with completion notes, reopenings, and ticket handoffs. This module enforces lifecycle validation rules for tickets, modifications and deletions for tickets are rejected if the ticket is anything other "Open".
+The authorization module provides the check for roles but not resources as resources are specific to their specialized modules.
 
 - Chat Module: Main module for ticket specific chats between employees and agents, including managing file and message chats and locking on ticket closure.
 

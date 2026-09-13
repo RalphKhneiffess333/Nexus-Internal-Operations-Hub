@@ -1,9 +1,18 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Ticket, TicketStatus, User } from '@prisma/client';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
+import { Ticket, TicketStatus, UserRole } from '@prisma/client';
+import type { AuthenticatedRequestUser } from '../../authentication/request-user';
 
 @Injectable()
 export class ClaimTicketPolicy {
-  assert(ticket: Ticket, agent: User | null): void {
+  assert(
+    ticket: Ticket,
+    actor: AuthenticatedRequestUser,
+    actorDepartmentIds: string[],
+  ): void {
     if (!ticket.active) {
       throw new BadRequestException('Inactive tickets cannot be claimed');
     }
@@ -23,8 +32,13 @@ export class ClaimTicketPolicy {
       );
     }
 
-    if (!agent) {
-      throw new NotFoundException('User was not found');
+    if (
+      actor.role !== UserRole.Admin &&
+      !actorDepartmentIds.includes(ticket.departmentId)
+    ) {
+      throw new ForbiddenException(
+        'You do not have permission to access this resource',
+      );
     }
   }
 }

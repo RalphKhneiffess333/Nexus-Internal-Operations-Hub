@@ -52,6 +52,7 @@ model User {
   updatedAt          DateTime         @updatedAt @map("updated_at")
   submittedTickets   Ticket[]         @relation("TicketSubmitter")
   assignedTickets    Ticket[]         @relation("TicketAgent")
+  departmentMembers  DepartmentMember[]
 
   @@unique([identityProviderId, identityProviderUserId])
   @@map("users")
@@ -66,8 +67,22 @@ model Department {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
   tickets      Ticket[]
+  members      DepartmentMember[]
 
   @@map("departments")
+}
+
+model DepartmentMember {
+  departmentMemberId String     @id @map("department_member_id")
+  userId             String     @map("user_id")
+  departmentId       String     @map("department_id")
+  createdAt          DateTime   @default(now()) @map("created_at")
+  user               User       @relation(fields: [userId], references: [userId])
+  department         Department @relation(fields: [departmentId], references: [departmentId])
+
+  @@unique([userId, departmentId])
+  @@index([departmentId])
+  @@map("department_members")
 }
 
 model Ticket {

@@ -1,9 +1,14 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
 import { Ticket, TicketStatus } from '@prisma/client';
+import type { AuthenticatedRequestUser } from '../../authentication/request-user';
 
 @Injectable()
 export class CloseTicketPolicy {
-  assert(ticket: Ticket): void {
+  assert(ticket: Ticket, actor: AuthenticatedRequestUser): void {
     if (!ticket.active) {
       throw new BadRequestException('Inactive tickets cannot be closed');
     }
@@ -17,6 +22,12 @@ export class CloseTicketPolicy {
     if (ticket.agentId === null) {
       throw new BadRequestException(
         'A CLAIMED ticket must have exactly one assigned agent',
+      );
+    }
+
+    if (ticket.agentId !== actor.userId) {
+      throw new ForbiddenException(
+        'You do not have permission to access this resource',
       );
     }
   }

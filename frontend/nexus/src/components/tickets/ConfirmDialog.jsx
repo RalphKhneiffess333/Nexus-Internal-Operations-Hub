@@ -2,6 +2,9 @@ export function ConfirmDialog({
   title,
   message,
   confirmLabel,
+  busyLabel = confirmLabel,
+  dismissLabel = 'Dismiss',
+  confirmClassName = 'btn danger',
   busy,
   onConfirm,
   onDismiss,
@@ -19,15 +22,15 @@ export function ConfirmDialog({
         <p>{message}</p>
         <div className="form-actions">
           <button type="button" className="btn ghost" onClick={onDismiss} disabled={busy}>
-            Keep Ticket
+            {dismissLabel}
           </button>
           <button
             type="button"
-            className="btn danger"
+            className={confirmClassName}
             onClick={onConfirm}
             disabled={busy}
           >
-            {busy ? 'Cancelling...' : confirmLabel}
+            {busy ? busyLabel : confirmLabel}
           </button>
         </div>
       </div>

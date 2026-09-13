@@ -11,6 +11,12 @@ export const TicketPriority = {
   HIGH: 'HIGH',
 }
 
+export const UserRole = {
+  EMPLOYEE: 'Employee',
+  AGENT: 'Agent',
+  ADMIN: 'Admin',
+}
+
 export function formatDate(value) {
   if (!value) {
     return ''
@@ -30,4 +36,8 @@ export function formatDate(value) {
 
 export function isOpenTicket(ticket) {
   return ticket?.status === TicketStatus.OPEN && ticket.active !== false
+}
+
+export function canWorkTickets(user) {
+  return user?.role === UserRole.AGENT || user?.role === UserRole.ADMIN
 }

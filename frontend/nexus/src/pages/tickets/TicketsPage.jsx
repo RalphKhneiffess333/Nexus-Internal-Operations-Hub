@@ -2,9 +2,47 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { TicketList } from '../../components/tickets/TicketList'
 import { useDepartments } from '../../features/departments/use-departments'
-import { getTickets } from '../../features/tickets/ticket-api'
+import {
+  getDepartmentTickets,
+  getSubmittedTickets,
+  getTicketPool,
+} from '../../features/tickets/ticket-api'
 
-export function TicketsPage() {
+const TICKET_VIEWS = {
+  submitted: {
+    eyebrow: 'Submitted requests',
+    title: 'My tickets',
+    loading: 'Loading your tickets...',
+    error: 'Unable to load your tickets. Please try again.',
+    emptyTitle: 'No tickets yet',
+    emptyText: 'Submit a request and it will show up here.',
+    showEmptyAction: true,
+    loader: getSubmittedTickets,
+  },
+  department: {
+    eyebrow: 'Department workspace',
+    title: 'Department tickets',
+    loading: 'Loading department tickets...',
+    error: 'Unable to load department tickets. Please try again.',
+    emptyTitle: 'No department tickets',
+    emptyText: 'Tickets for your department will show up here.',
+    showEmptyAction: false,
+    loader: getDepartmentTickets,
+  },
+  pool: {
+    eyebrow: 'Open queue',
+    title: 'Ticket pool',
+    loading: 'Loading the ticket pool...',
+    error: 'Unable to load the ticket pool. Please try again.',
+    emptyTitle: 'The pool is clear',
+    emptyText: 'Open department tickets waiting to be claimed will show up here.',
+    showEmptyAction: false,
+    loader: getTicketPool,
+  },
+}
+
+export function TicketsPage({ view = 'submitted' }) {
+  const config = TICKET_VIEWS[view] ?? TICKET_VIEWS.submitted
   const [tickets, setTickets] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -14,22 +52,22 @@ export function TicketsPage() {
     setLoading(true)
     setError('')
     try {
-      const result = await getTickets()
+      const result = await config.loader()
       setTickets(Array.isArray(result) ? result : [])
     } catch (loadError) {
-      setError(loadError.message || 'Unable to load your tickets. Please try again.')
+      setError(loadError.message || config.error)
       setTickets([])
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [config])
 
   useEffect(() => {
     let active = true
 
     async function loadInitialTickets() {
       try {
-        const result = await getTickets()
+        const result = await config.loader()
         if (active) {
           setTickets(Array.isArray(result) ? result : [])
         }
@@ -37,7 +75,7 @@ export function TicketsPage() {
         if (active) {
           setError(
             loadError.message ||
-              'Unable to load your tickets. Please try again.',
+              config.error,
           )
           setTickets([])
         }
@@ -53,21 +91,21 @@ export function TicketsPage() {
     return () => {
       active = false
     }
-  }, [])
+  }, [config])
 
   return (
     <section className="page">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Workspace</p>
-          <h1>Tickets</h1>
+          <p className="eyebrow">{config.eyebrow}</p>
+          <h1>{config.title}</h1>
         </div>
         <Link to="/tickets/new" className="btn primary">
           New ticket
         </Link>
       </header>
 
-      {loading ? <p className="muted">Loading tickets...</p> : null}
+      {loading ? <p className="muted">{config.loading}</p> : null}
 
       {!loading && error ? (
         <div className="banner error">
@@ -80,11 +118,13 @@ export function TicketsPage() {
 
       {!loading && !error && tickets.length === 0 ? (
         <div className="empty-state clay-card">
-          <h2>No tickets yet</h2>
-          <p>Submit a request and it will show up here.</p>
-          <Link to="/tickets/new" className="btn primary">
-            Submit a ticket
-          </Link>
+          <h2>{config.emptyTitle}</h2>
+          <p>{config.emptyText}</p>
+          {config.showEmptyAction ? (
+            <Link to="/tickets/new" className="btn primary">
+              Submit a ticket
+            </Link>
+          ) : null}
         </div>
       ) : null}
 

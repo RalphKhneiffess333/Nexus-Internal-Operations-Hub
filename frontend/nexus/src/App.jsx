@@ -26,7 +26,12 @@ export default function App() {
     <Routes>
       <Route element={<AppShell />}>
         <Route path="/" element={<Navigate to="/tickets" replace />} />
-        <Route path="/tickets" element={<TicketsPage />} />
+        <Route path="/tickets" element={<TicketsPage view="submitted" />} />
+        <Route
+          path="/tickets/department"
+          element={<TicketsPage view="department" />}
+        />
+        <Route path="/tickets/pool" element={<TicketsPage view="pool" />} />
         <Route path="/tickets/new" element={<NewTicketPage />} />
         <Route path="/tickets/:ticketId" element={<TicketDetailsPage />} />
       </Route>

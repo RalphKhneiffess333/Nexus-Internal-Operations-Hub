@@ -5,6 +5,7 @@ export const EMPLOYEE_ID = 'user-employee-1';
 export const EMPLOYEE_2_ID = 'user-employee-2';
 export const AGENT_ID = 'user-agent-1';
 export const AGENT_2_ID = 'user-agent-2';
+export const ADMIN_ID = 'user-admin-1';
 export const IT_DEPARTMENT_ID = 'dept-it';
 export const HR_DEPARTMENT_ID = 'dept-hr';
 
@@ -78,6 +79,12 @@ export async function seedDatabase(prisma: PrismaClient): Promise<void> {
       fullName: 'Taylor Agent',
       role: UserRole.Agent,
     },
+    {
+      userId: ADMIN_ID,
+      email: 'morgan@company.com',
+      fullName: 'Morgan Admin',
+      role: UserRole.Admin,
+    },
   ];
 
   for (const user of users) {
@@ -97,6 +104,36 @@ export async function seedDatabase(prisma: PrismaClient): Promise<void> {
       },
     });
   }
+
+  await prisma.departmentMember.upsert({
+    where: {
+      userId_departmentId: {
+        userId: AGENT_ID,
+        departmentId: IT_DEPARTMENT_ID,
+      },
+    },
+    update: {},
+    create: {
+      departmentMemberId: 'dept-member-agent-it',
+      userId: AGENT_ID,
+      departmentId: IT_DEPARTMENT_ID,
+    },
+  });
+
+  await prisma.departmentMember.upsert({
+    where: {
+      userId_departmentId: {
+        userId: AGENT_2_ID,
+        departmentId: HR_DEPARTMENT_ID,
+      },
+    },
+    update: {},
+    create: {
+      departmentMemberId: 'dept-member-agent-hr',
+      userId: AGENT_2_ID,
+      departmentId: HR_DEPARTMENT_ID,
+    },
+  });
 }
 
 export async function resetTicketData(prisma: PrismaClient): Promise<void> {

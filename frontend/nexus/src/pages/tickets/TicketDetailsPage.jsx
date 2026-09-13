@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ConfirmDialog } from '../../components/tickets/ConfirmDialog'
 import { TicketDetails } from '../../components/tickets/TicketDetails'
+import { TicketMessageDialog } from '../../components/tickets/TicketMessageDialog'
 import {
   TicketForm,
 } from '../../components/tickets/TicketForm'
@@ -9,10 +10,12 @@ import { validateTicketFields } from '../../components/tickets/ticket-validation
 import { useDepartments } from '../../features/departments/use-departments'
 import {
   cancelTicket,
+  claimTicket,
+  closeTicket,
   getTicket,
+  reopenTicket,
   updateTicket,
 } from '../../features/tickets/ticket-api'
-import { isOpenTicket } from '../../features/tickets/ticket-types'
 
 export function TicketDetailsPage() {
   const { ticketId } = useParams()
@@ -25,6 +28,14 @@ export function TicketDetailsPage() {
   const [fieldErrors, setFieldErrors] = useState({})
   const [confirmingCancel, setConfirmingCancel] = useState(false)
   const [cancelling, setCancelling] = useState(false)
+  const [confirmingClaim, setConfirmingClaim] = useState(false)
+  const [claiming, setClaiming] = useState(false)
+  const [closing, setClosing] = useState(false)
+  const [showingCloseDialog, setShowingCloseDialog] = useState(false)
+  const [closeError, setCloseError] = useState('')
+  const [reopening, setReopening] = useState(false)
+  const [showingReopenDialog, setShowingReopenDialog] = useState(false)
+  const [reopenError, setReopenError] = useState('')
   const [notice, setNotice] = useState('')
   const {
     departments,
@@ -126,7 +137,68 @@ export function TicketDetailsPage() {
     }
   }
 
-  const canMutate = ticket ? isOpenTicket(ticket) : false
+  async function handleClaim() {
+    setClaiming(true)
+    setFormError('')
+    try {
+      const claimed = await claimTicket(ticketId)
+      setTicket(claimed)
+      setConfirmingClaim(false)
+      setNotice('Ticket claimed.')
+    } catch (claimError) {
+      setFormError(
+        claimError.message ||
+          'Unable to claim this ticket. It may have changed since you opened it.',
+      )
+    } finally {
+      setClaiming(false)
+    }
+  }
+
+  async function handleClose(completionNotes) {
+    setClosing(true)
+    setCloseError('')
+    try {
+      const closed = await closeTicket(ticketId, { completionNotes })
+      setTicket(closed)
+      setShowingCloseDialog(false)
+      setNotice('Ticket closed.')
+    } catch (closeTicketError) {
+      setCloseError(
+        closeTicketError.message ||
+          'Unable to close this ticket. It may have changed since you opened it.',
+      )
+    } finally {
+      setClosing(false)
+    }
+  }
+
+  async function handleReopen(description) {
+    setReopening(true)
+    setReopenError('')
+    try {
+      const reopened = await reopenTicket(ticketId, { description })
+      setTicket(reopened)
+      setShowingReopenDialog(false)
+      setNotice('Ticket reopened.')
+    } catch (reopenTicketError) {
+      setReopenError(
+        reopenTicketError.message ||
+          'Unable to reopen this ticket. It may have changed since you opened it.',
+      )
+    } finally {
+      setReopening(false)
+    }
+  }
+
+  const permissions = ticket?.permissions ?? {}
+  const canEdit = Boolean(permissions.canModify)
+  const canCancel = Boolean(permissions.canCancel)
+  const canClaim = Boolean(permissions.canClaim)
+  const canClose = Boolean(permissions.canClose)
+  const canReopen = Boolean(permissions.canReopen)
+  const showHeaderActions =
+    ticket && !editing && (canEdit || canCancel || canClaim || canClose || canReopen)
 
   return (
     <section className="page">
@@ -137,18 +209,55 @@ export function TicketDetailsPage() {
           </Link>
           <h1>Ticket details</h1>
         </div>
-        {canMutate && !editing ? (
+        {showHeaderActions ? (
           <div className="header-actions">
-            <button type="button" className="btn ghost" onClick={() => setEditing(true)}>
-              Edit
-            </button>
-            <button
-              type="button"
-              className="btn danger"
-              onClick={() => setConfirmingCancel(true)}
-            >
-              Cancel ticket
-            </button>
+            {canEdit ? (
+              <button type="button" className="btn ghost" onClick={() => setEditing(true)}>
+                Edit
+              </button>
+            ) : null}
+            {canCancel ? (
+              <button
+                type="button"
+                className="btn danger"
+                onClick={() => setConfirmingCancel(true)}
+              >
+                Cancel ticket
+              </button>
+            ) : null}
+            {canClaim ? (
+              <button
+                type="button"
+                className="btn primary"
+                onClick={() => setConfirmingClaim(true)}
+              >
+                Claim ticket
+              </button>
+            ) : null}
+            {canClose ? (
+              <button
+                type="button"
+                className="btn primary"
+                onClick={() => {
+                  setCloseError('')
+                  setShowingCloseDialog(true)
+                }}
+              >
+                Close ticket
+              </button>
+            ) : null}
+            {canReopen ? (
+              <button
+                type="button"
+                className="btn ghost"
+                onClick={() => {
+                  setReopenError('')
+                  setShowingReopenDialog(true)
+                }}
+              >
+                Reopen ticket
+              </button>
+            ) : null}
           </div>
         ) : null}
       </header>
@@ -206,13 +315,68 @@ export function TicketDetailsPage() {
           title="Cancel ticket?"
           message={`Are you sure you want to cancel ${ticket.ticketCode}? This action cannot be undone.`}
           confirmLabel="Cancel Ticket"
+          busyLabel="Cancelling..."
+          dismissLabel="Keep Ticket"
           busy={cancelling}
           onConfirm={handleCancel}
           onDismiss={() => setConfirmingCancel(false)}
         />
       ) : null}
 
-      {!loading && ticket && !canMutate && ticket.active === false ? (
+      {confirmingClaim && ticket ? (
+        <ConfirmDialog
+          title="Claim ticket?"
+          message={`Claim ${ticket.ticketCode} and assign it to yourself?`}
+          confirmLabel="Claim Ticket"
+          busyLabel="Claiming..."
+          dismissLabel="Not now"
+          confirmClassName="btn primary"
+          busy={claiming}
+          onConfirm={handleClaim}
+          onDismiss={() => setConfirmingClaim(false)}
+        />
+      ) : null}
+
+      {showingCloseDialog && ticket ? (
+        <TicketMessageDialog
+          title="Close ticket"
+          message={`Add a closing message for ${ticket.ticketCode}.`}
+          label="Closing message"
+          placeholder="Summarize the resolution for the submitter."
+          confirmLabel="Close Ticket"
+          busyLabel="Closing..."
+          dismissLabel="Keep open"
+          busy={closing}
+          required
+          error={closeError}
+          onConfirm={handleClose}
+          onDismiss={() => {
+            setCloseError('')
+            setShowingCloseDialog(false)
+          }}
+        />
+      ) : null}
+
+      {showingReopenDialog && ticket ? (
+        <TicketMessageDialog
+          title="Reopen ticket"
+          message={`Describe what still needs attention on ${ticket.ticketCode}.`}
+          label="Updated description"
+          placeholder="Add context for the next agent."
+          confirmLabel="Reopen Ticket"
+          busyLabel="Reopening..."
+          dismissLabel="Keep closed"
+          busy={reopening}
+          error={reopenError}
+          onConfirm={handleReopen}
+          onDismiss={() => {
+            setReopenError('')
+            setShowingReopenDialog(false)
+          }}
+        />
+      ) : null}
+
+      {!loading && ticket && ticket.active === false ? (
         <p className="muted">This ticket can no longer be edited or cancelled.</p>
       ) : null}
     </section>
