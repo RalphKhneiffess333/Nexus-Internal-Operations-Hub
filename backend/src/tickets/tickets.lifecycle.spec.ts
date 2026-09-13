@@ -1,12 +1,16 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { describe, beforeEach, afterEach, expect, it } from '@jest/globals';
-import { TicketStatus } from '@prisma/client';
+import { TicketStatus, UserRole } from '@prisma/client';
 import { TicketsService } from './tickets.service';
 import {
   AGENT_ID,
+  AGENT_2_ID,
+  EMPLOYEE_2_ID,
+  agentUser,
   claimTicket,
   closeTicket,
   createTicketsTestingModule,
+  requestUser,
   submitOpenTicket,
 } from './tickets.test-utils';
 
@@ -38,9 +42,13 @@ describe('Ticket lifecycle', () => {
     expect(closed.completionNotes).toBe('Replaced the power adapter');
     expect(closed.closedAt).toBeInstanceOf(Date);
 
-    const reopened = await service.reopen(closed.ticketId, {
-      description: 'The issue came back after a day',
-    });
+    const reopened = await service.reopen(
+      closed.ticketId,
+      {
+        description: 'The issue came back after a day',
+      },
+      requestUser(),
+    );
     expect(reopened.status).toBe(TicketStatus.REOPENED);
     expect(reopened.agentId).toBeNull();
     expect(reopened.description).toBe('The issue came back after a day');
@@ -55,39 +63,39 @@ describe('Ticket lifecycle', () => {
     await claimTicket(service, open.ticketId);
 
     await expect(
-      service.claim(open.ticketId, { agentId: 'user-agent-2' }),
+      service.claim(open.ticketId, agentUser(AGENT_2_ID)),
     ).rejects.toThrow(BadRequestException);
   });
 
   it('rejects closing an unclaimed ticket', async () => {
     const open = await submitOpenTicket(service);
 
-    await expect(service.close(open.ticketId, {})).rejects.toThrow(
+    await expect(service.close(open.ticketId, {}, agentUser())).rejects.toThrow(
       BadRequestException,
     );
   });
 
   it('rejects reopening a ticket that is not closed', async () => {
     const open = await submitOpenTicket(service);
-    await expect(service.reopen(open.ticketId, {})).rejects.toThrow(
-      BadRequestException,
-    );
+    await expect(
+      service.reopen(open.ticketId, {}, requestUser()),
+    ).rejects.toThrow(BadRequestException);
 
     await claimTicket(service, open.ticketId);
-    await expect(service.reopen(open.ticketId, {})).rejects.toThrow(
-      BadRequestException,
-    );
+    await expect(
+      service.reopen(open.ticketId, {}, requestUser()),
+    ).rejects.toThrow(BadRequestException);
   });
 
   it('rejects OPEN -> CLOSED and OPEN -> REOPENED', async () => {
     const open = await submitOpenTicket(service);
 
-    await expect(service.close(open.ticketId, {})).rejects.toThrow(
+    await expect(service.close(open.ticketId, {}, agentUser())).rejects.toThrow(
       BadRequestException,
     );
-    await expect(service.reopen(open.ticketId, {})).rejects.toThrow(
-      BadRequestException,
-    );
+    await expect(
+      service.reopen(open.ticketId, {}, requestUser()),
+    ).rejects.toThrow(BadRequestException);
   });
 
   it('rejects CLOSED -> CLAIMED and CLOSED -> CLOSED', async () => {
@@ -95,10 +103,10 @@ describe('Ticket lifecycle', () => {
     await claimTicket(service, open.ticketId);
     await closeTicket(service, open.ticketId);
 
-    await expect(
-      service.claim(open.ticketId, { agentId: AGENT_ID }),
-    ).rejects.toThrow(BadRequestException);
-    await expect(service.close(open.ticketId, {})).rejects.toThrow(
+    await expect(service.claim(open.ticketId, agentUser())).rejects.toThrow(
+      BadRequestException,
+    );
+    await expect(service.close(open.ticketId, {}, agentUser())).rejects.toThrow(
       BadRequestException,
     );
   });
@@ -107,9 +115,9 @@ describe('Ticket lifecycle', () => {
     const open = await submitOpenTicket(service);
     await claimTicket(service, open.ticketId);
 
-    await expect(
-      service.claim(open.ticketId, { agentId: AGENT_ID }),
-    ).rejects.toThrow(BadRequestException);
+    await expect(service.claim(open.ticketId, agentUser())).rejects.toThrow(
+      BadRequestException,
+    );
   });
 
   it('rejects modifying or cancelling a ticket that is not OPEN', async () => {
@@ -117,26 +125,62 @@ describe('Ticket lifecycle', () => {
     await claimTicket(service, open.ticketId);
 
     await expect(
-      service.modify(open.ticketId, { title: 'New title' }),
+      service.modify(open.ticketId, { title: 'New title' }, requestUser()),
     ).rejects.toThrow(BadRequestException);
-    await expect(service.cancel(open.ticketId)).rejects.toThrow(
+    await expect(service.cancel(open.ticketId, requestUser())).rejects.toThrow(
       BadRequestException,
     );
 
     await closeTicket(service, open.ticketId);
     await expect(
-      service.modify(open.ticketId, { title: 'New title' }),
+      service.modify(open.ticketId, { title: 'New title' }, requestUser()),
     ).rejects.toThrow(BadRequestException);
-    await expect(service.cancel(open.ticketId)).rejects.toThrow(
+    await expect(service.cancel(open.ticketId, requestUser())).rejects.toThrow(
       BadRequestException,
     );
   });
 
-  it('rejects claiming with an unknown agent', async () => {
+  it('rejects claiming a ticket outside the agent department', async () => {
     const open = await submitOpenTicket(service);
 
     await expect(
-      service.claim(open.ticketId, { agentId: 'missing-agent' }),
-    ).rejects.toThrow(NotFoundException);
+      service.claim(open.ticketId, agentUser(AGENT_2_ID)),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('rejects closing by an agent who did not claim the ticket', async () => {
+    const open = await submitOpenTicket(service);
+    await claimTicket(service, open.ticketId);
+
+    await expect(
+      service.close(
+        open.ticketId,
+        {},
+        requestUser({
+          userId: AGENT_2_ID,
+          role: UserRole.Agent,
+          email: 'taylor@company.com',
+          identityProviderUserId: AGENT_2_ID,
+        }),
+      ),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('rejects reopening by someone other than the submitter', async () => {
+    const open = await submitOpenTicket(service);
+    await claimTicket(service, open.ticketId);
+    await closeTicket(service, open.ticketId);
+
+    await expect(
+      service.reopen(
+        open.ticketId,
+        {},
+        requestUser({
+          userId: EMPLOYEE_2_ID,
+          email: 'sam@company.com',
+          identityProviderUserId: EMPLOYEE_2_ID,
+        }),
+      ),
+    ).rejects.toThrow(ForbiddenException);
   });
 });

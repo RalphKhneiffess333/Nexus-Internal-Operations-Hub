@@ -34,9 +34,9 @@ describe('DepartmentsService', () => {
   it('lists active departments from the database', async () => {
     const departments = await service.findAll();
 
-    expect(departments.map((department) => department.departmentId).sort()).toEqual(
-      [HR_DEPARTMENT_ID, IT_DEPARTMENT_ID].sort(),
-    );
+    expect(
+      departments.map((department) => department.departmentId).sort(),
+    ).toEqual([HR_DEPARTMENT_ID, IT_DEPARTMENT_ID].sort());
     expect(departments.every((department) => department.active)).toBe(true);
     expect(departments.map((department) => department.name).sort()).toEqual([
       'Human Resources',

@@ -1,52 +1,48 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import {
-  TicketForm,
-} from '../../components/tickets/TicketForm'
-import { validateTicketFields } from '../../components/tickets/ticket-validation'
-import { useAuthentication } from '../../features/authentication/use-authentication'
-import { useDepartments } from '../../features/departments/use-departments'
-import { createTicket } from '../../features/tickets/ticket-api'
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { TicketForm } from "../../components/tickets/TicketForm";
+import { validateTicketFields } from "../../components/tickets/ticket-validation";
+import { useDepartments } from "../../features/departments/use-departments";
+import { createTicket } from "../../features/tickets/ticket-api";
 
 export function NewTicketPage() {
-  const navigate = useNavigate()
-  const { user } = useAuthentication()
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState('')
-  const [fieldErrors, setFieldErrors] = useState({})
-  const [createdCode, setCreatedCode] = useState('')
+  const navigate = useNavigate();
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [createdCode, setCreatedCode] = useState("");
   const {
     departments,
     loading: loadingDepartments,
     error: departmentsError,
     reload: reloadDepartments,
-  } = useDepartments()
+  } = useDepartments();
 
   async function handleSubmit(values) {
-    const nextFieldErrors = validateTicketFields(values)
-    setFieldErrors(nextFieldErrors)
+    const nextFieldErrors = validateTicketFields(values);
+    setFieldErrors(nextFieldErrors);
     if (Object.keys(nextFieldErrors).length > 0) {
-      return
+      return;
     }
 
-    setSubmitting(true)
-    setError('')
+    setSubmitting(true);
+    setError("");
     try {
       const ticket = await createTicket({
         title: values.title,
         description: values.description,
         priority: values.priority,
         departmentId: values.departmentId,
-        submittedBy: user.userId,
-      })
-      setCreatedCode(ticket.ticketCode)
-      navigate(`/tickets/${ticket.ticketId}`)
+      });
+      setCreatedCode(ticket.ticketCode);
+      navigate(`/tickets/${ticket.ticketId}`);
     } catch (submitError) {
       setError(
-        submitError.message || 'Unable to submit this ticket. Please try again.',
-      )
+        submitError.message ||
+          "Unable to submit this ticket. Please try again.",
+      );
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
   }
 
@@ -62,12 +58,18 @@ export function NewTicketPage() {
         <p className="banner success">Ticket {createdCode} was created.</p>
       ) : null}
 
-      {loadingDepartments ? <p className="muted">Loading departments...</p> : null}
+      {loadingDepartments ? (
+        <p className="muted">Loading departments...</p>
+      ) : null}
 
       {!loadingDepartments && departmentsError ? (
         <div className="banner error">
           <p>{departmentsError}</p>
-          <button type="button" className="btn ghost" onClick={reloadDepartments}>
+          <button
+            type="button"
+            className="btn ghost"
+            onClick={reloadDepartments}
+          >
             Try again
           </button>
         </div>
@@ -82,9 +84,9 @@ export function NewTicketPage() {
           error={error}
           fieldErrors={fieldErrors}
           onSubmit={handleSubmit}
-          onCancel={() => navigate('/tickets')}
+          onCancel={() => navigate("/tickets")}
         />
       ) : null}
     </section>
-  )
+  );
 }

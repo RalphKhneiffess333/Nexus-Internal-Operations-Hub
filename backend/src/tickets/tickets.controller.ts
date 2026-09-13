@@ -1,5 +1,7 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
-import { ClaimTicketDto } from './dto/claim-ticket.dto';
+import { Body, Controller, Get, Param, Patch, Post, Req } from '@nestjs/common';
+import { UserRole } from '@prisma/client';
+import { Roles } from '../authorization/decorators/roles.decorator';
+import type { AuthenticatedRequest } from '../authentication/request-user';
 import { CloseTicketDto } from './dto/close-ticket.dto';
 import { ModifyTicketDto } from './dto/modify-ticket.dto';
 import { ReopenTicketDto } from './dto/reopen-ticket.dto';
@@ -10,43 +12,63 @@ import { TicketsService } from './tickets.service';
 export class TicketsController {
   constructor(private readonly ticketsService: TicketsService) {}
 
+  @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
   @Post()
-  submit(@Body() dto: SubmitTicketDto) {
-    return this.ticketsService.submit(dto);
+  submit(@Body() dto: SubmitTicketDto, @Req() request: AuthenticatedRequest) {
+    return this.ticketsService.submit(dto, request.user!);
   }
 
+  @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
   @Get()
-  findAll() {
-    return this.ticketsService.findAll();
+  findAll(@Req() request: AuthenticatedRequest) {
+    return this.ticketsService.findAll(request.user!);
   }
 
+  @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.ticketsService.findOne(id);
+  findOne(@Param('id') id: string, @Req() request: AuthenticatedRequest) {
+    return this.ticketsService.findOne(id, request.user!);
   }
 
+  @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
   @Patch(':id')
-  modify(@Param('id') id: string, @Body() dto: ModifyTicketDto) {
-    return this.ticketsService.modify(id, dto);
+  modify(
+    @Param('id') id: string,
+    @Body() dto: ModifyTicketDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.ticketsService.modify(id, dto, request.user!);
   }
 
+  @Roles(UserRole.Agent, UserRole.Admin)
   @Post(':id/claim')
-  claim(@Param('id') id: string, @Body() dto: ClaimTicketDto) {
-    return this.ticketsService.claim(id, dto);
+  claim(@Param('id') id: string, @Req() request: AuthenticatedRequest) {
+    return this.ticketsService.claim(id, request.user!);
   }
 
+  @Roles(UserRole.Agent, UserRole.Admin)
   @Post(':id/close')
-  close(@Param('id') id: string, @Body() dto: CloseTicketDto) {
-    return this.ticketsService.close(id, dto);
+  close(
+    @Param('id') id: string,
+    @Body() dto: CloseTicketDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.ticketsService.close(id, dto, request.user!);
   }
 
+  @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
   @Post(':id/reopen')
-  reopen(@Param('id') id: string, @Body() dto: ReopenTicketDto) {
-    return this.ticketsService.reopen(id, dto);
+  reopen(
+    @Param('id') id: string,
+    @Body() dto: ReopenTicketDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.ticketsService.reopen(id, dto, request.user!);
   }
 
+  @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
   @Post(':id/cancel')
-  cancel(@Param('id') id: string) {
-    return this.ticketsService.cancel(id);
+  cancel(@Param('id') id: string, @Req() request: AuthenticatedRequest) {
+    return this.ticketsService.cancel(id, request.user!);
   }
 }
