@@ -16,7 +16,6 @@ import {
 } from './authentication.constants';
 import { AuthenticationService } from './authentication.service';
 import { buildCookie, parseCookieHeader } from './cookies';
-import { toAuthenticatedRequestUser } from './request-user';
 import type { AuthenticatedRequest } from './request-user';
 import type { SessionDevice } from './sessions/session.entity';
 
@@ -36,8 +35,8 @@ export class AuthenticationController {
     @Query('code') code: string,
     @Query('state') state: string | undefined,
     @Req() request: AuthenticatedRequest,
-    @Res({ passthrough: true }) response: Response,
-  ) {
+    @Res() response: Response,
+  ): Promise<void> {
     const cookies = parseCookieHeader(request.headers.cookie);
     const login = await this.authenticationService.completeMicrosoftLogin(
       code,
@@ -55,10 +54,7 @@ export class AuthenticationController {
       ),
     ]);
 
-    return {
-      user: toAuthenticatedRequestUser(login.user),
-      sessionExpiresAt: login.session.expiresAt,
-    };
+    response.redirect(this.getFrontendUrl());
   }
 
   @Get('me')
@@ -136,5 +132,9 @@ export class AuthenticationController {
       userAgent: Array.isArray(userAgent) ? userAgent.join(' ') : userAgent,
       ip: request.ip,
     };
+  }
+
+  private getFrontendUrl(): string {
+    return process.env.FRONTEND_URL ?? 'http://localhost:5173';
   }
 }

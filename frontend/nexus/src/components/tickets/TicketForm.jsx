@@ -1,4 +1,4 @@
-import { CURRENT_USER_ID, TicketPriority } from '../../features/tickets/ticket-types'
+import { TicketPriority } from '../../features/tickets/ticket-types'
 
 const PRIORITY_OPTIONS = [
   { value: TicketPriority.LOW, label: 'Low' },
@@ -32,7 +32,7 @@ export function TicketForm({
           priority: String(form.get('priority') ?? ''),
           departmentId: String(form.get('departmentId') ?? ''),
           submittedBy: includeSubmittedBy
-            ? String(form.get('submittedBy') ?? CURRENT_USER_ID)
+            ? String(form.get('submittedBy') ?? '')
             : undefined,
         })
       }}
@@ -106,7 +106,7 @@ export function TicketForm({
       {includeSubmittedBy ? (
         <label className="field">
           <span>Submitted by</span>
-          <input name="submittedBy" defaultValue={CURRENT_USER_ID} readOnly />
+          <input name="submittedBy" readOnly />
         </label>
       ) : null}
 
@@ -126,24 +126,3 @@ export function TicketForm({
   )
 }
 
-export function validateTicketFields(values, { requireSubmittedBy = false } = {}) {
-  const fieldErrors = {}
-
-  if (!values.title) {
-    fieldErrors.title = 'Title is required.'
-  }
-  if (!values.description) {
-    fieldErrors.description = 'Description is required.'
-  }
-  if (!values.priority) {
-    fieldErrors.priority = 'Priority is required.'
-  }
-  if (!values.departmentId) {
-    fieldErrors.departmentId = 'Department is required.'
-  }
-  if (requireSubmittedBy && !values.submittedBy) {
-    fieldErrors.submittedBy = 'Submitted by is required.'
-  }
-
-  return fieldErrors
-}

@@ -1,4 +1,5 @@
-const API_BASE_URL = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
+const configuredApiUrl = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
+const API_BASE_URL = configuredApiUrl || '/api'
 
 export class ApiError extends Error {
   constructor(message, status) {
@@ -45,6 +46,7 @@ export async function apiRequest(path, options = {}) {
     response = await fetch(`${API_BASE_URL}${path}`, {
       method,
       headers,
+      credentials: 'include',
       body: body === undefined ? undefined : JSON.stringify(body),
     })
   } catch {
@@ -75,4 +77,8 @@ export async function apiRequest(path, options = {}) {
   }
 
   return payload
+}
+
+export function apiUrl(path) {
+  return `${API_BASE_URL}${path}`
 }

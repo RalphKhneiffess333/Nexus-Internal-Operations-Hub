@@ -2,13 +2,15 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   TicketForm,
-  validateTicketFields,
 } from '../../components/tickets/TicketForm'
+import { validateTicketFields } from '../../components/tickets/ticket-validation'
+import { useAuthentication } from '../../features/authentication/use-authentication'
 import { useDepartments } from '../../features/departments/use-departments'
 import { createTicket } from '../../features/tickets/ticket-api'
 
 export function NewTicketPage() {
   const navigate = useNavigate()
+  const { user } = useAuthentication()
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
@@ -21,9 +23,7 @@ export function NewTicketPage() {
   } = useDepartments()
 
   async function handleSubmit(values) {
-    const nextFieldErrors = validateTicketFields(values, {
-      requireSubmittedBy: true,
-    })
+    const nextFieldErrors = validateTicketFields(values)
     setFieldErrors(nextFieldErrors)
     if (Object.keys(nextFieldErrors).length > 0) {
       return
@@ -37,7 +37,7 @@ export function NewTicketPage() {
         description: values.description,
         priority: values.priority,
         departmentId: values.departmentId,
-        submittedBy: values.submittedBy,
+        submittedBy: user.userId,
       })
       setCreatedCode(ticket.ticketCode)
       navigate(`/tickets/${ticket.ticketId}`)
@@ -75,7 +75,6 @@ export function NewTicketPage() {
 
       {!loadingDepartments && !departmentsError ? (
         <TicketForm
-          includeSubmittedBy
           departments={departments}
           submitLabel="Submit ticket"
           submittingLabel="Submitting..."

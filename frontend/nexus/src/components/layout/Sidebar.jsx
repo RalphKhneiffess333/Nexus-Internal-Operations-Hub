@@ -1,6 +1,9 @@
 import { NavLink } from 'react-router-dom'
+import { useAuthentication } from '../../features/authentication/use-authentication'
 
 export function Sidebar({ open, onNavigate }) {
+  const { user, logoutCurrentSession } = useAuthentication()
+
   return (
     <aside className={`sidebar ${open ? 'is-open' : ''}`}>
       <div className="sidebar-brand">
@@ -24,6 +27,16 @@ export function Sidebar({ open, onNavigate }) {
           Tickets
         </NavLink>
       </nav>
+
+      <div className="sidebar-account">
+        <div>
+          <p>{user?.fullName ?? 'Signed in'}</p>
+          <span>{user?.email}</span>
+        </div>
+        <button type="button" className="sidebar-logout" onClick={logoutCurrentSession}>
+          Sign out
+        </button>
+      </div>
     </aside>
   )
 }

@@ -21,8 +21,35 @@ export function useDepartments() {
   }, [])
 
   useEffect(() => {
-    loadDepartments()
-  }, [loadDepartments])
+    let active = true
+
+    async function loadInitialDepartments() {
+      try {
+        const result = await getDepartments()
+        if (active) {
+          setDepartments(Array.isArray(result) ? result : [])
+        }
+      } catch (loadError) {
+        if (active) {
+          setError(
+            loadError.message ||
+              'Unable to load departments. Please try again.',
+          )
+          setDepartments([])
+        }
+      } finally {
+        if (active) {
+          setLoading(false)
+        }
+      }
+    }
+
+    void loadInitialDepartments()
+
+    return () => {
+      active = false
+    }
+  }, [])
 
   return { departments, loading, error, reload: loadDepartments }
 }

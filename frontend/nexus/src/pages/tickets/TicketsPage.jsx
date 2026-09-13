@@ -25,8 +25,35 @@ export function TicketsPage() {
   }, [])
 
   useEffect(() => {
-    loadTickets()
-  }, [loadTickets])
+    let active = true
+
+    async function loadInitialTickets() {
+      try {
+        const result = await getTickets()
+        if (active) {
+          setTickets(Array.isArray(result) ? result : [])
+        }
+      } catch (loadError) {
+        if (active) {
+          setError(
+            loadError.message ||
+              'Unable to load your tickets. Please try again.',
+          )
+          setTickets([])
+        }
+      } finally {
+        if (active) {
+          setLoading(false)
+        }
+      }
+    }
+
+    void loadInitialTickets()
+
+    return () => {
+      active = false
+    }
+  }, [])
 
   return (
     <section className="page">
