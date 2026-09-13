@@ -11,9 +11,6 @@ export const TicketPriority = {
   HIGH: 'HIGH',
 }
 
-export const CURRENT_USER_ID =
-  import.meta.env.VITE_SUBMITTED_BY || 'user-employee-1'
-
 export function formatDate(value) {
   if (!value) {
     return ''

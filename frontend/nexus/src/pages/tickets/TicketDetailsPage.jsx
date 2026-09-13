@@ -4,8 +4,8 @@ import { ConfirmDialog } from '../../components/tickets/ConfirmDialog'
 import { TicketDetails } from '../../components/tickets/TicketDetails'
 import {
   TicketForm,
-  validateTicketFields,
 } from '../../components/tickets/TicketForm'
+import { validateTicketFields } from '../../components/tickets/ticket-validation'
 import { useDepartments } from '../../features/departments/use-departments'
 import {
   cancelTicket,
@@ -48,8 +48,35 @@ export function TicketDetailsPage() {
   }, [ticketId])
 
   useEffect(() => {
-    loadTicket()
-  }, [loadTicket])
+    let active = true
+
+    async function loadInitialTicket() {
+      try {
+        const result = await getTicket(ticketId)
+        if (active) {
+          setTicket(result)
+        }
+      } catch (loadError) {
+        if (active) {
+          setTicket(null)
+          setError(
+            loadError.message ||
+              'Unable to load this ticket. Please try again.',
+          )
+        }
+      } finally {
+        if (active) {
+          setLoading(false)
+        }
+      }
+    }
+
+    void loadInitialTicket()
+
+    return () => {
+      active = false
+    }
+  }, [ticketId])
 
   async function handleUpdate(values) {
     const nextFieldErrors = validateTicketFields(values)
