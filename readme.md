@@ -190,17 +190,6 @@ Base URL: `http://localhost:3000`
 
 Seeded data (loaded by `npm run prisma:seed`, not on every process start):
 
-
-| Kind       | ID                | Notes                         |
-| ---------- | ----------------- | ----------------------------- |
-| Department | `dept-it`         | Information Technology        |
-| Department | `dept-hr`         | Human Resources               |
-| User       | `user-employee-1` | Alex (`alex@company.com`)     |
-| User       | `user-employee-2` | Sam (`sam@company.com`)       |
-| User       | `user-agent-1`    | Jordan (`jordan@company.com`) |
-| User       | `user-agent-2`    | Taylor (`taylor@company.com`) |
-
-
 Priority must be one of: `LOW`, `MODERATE`, `HIGH`.
 
 Use `Content-Type: application/json` on requests that have a body. Replace `:id` with the `ticketId` returned on submit.
