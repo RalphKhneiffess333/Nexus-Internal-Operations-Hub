@@ -56,12 +56,14 @@ export class UsersService {
   ): Promise<User> {
     if (
       user.identityProviderId === identityProviderId &&
-      user.identityProviderUserId === identityProviderUserId
+      user.identityProviderUserId === identityProviderUserId &&
+      user.hasLogged
     ) {
       return user;
     }
 
     return this.usersRepository.update(user.userId, {
+      hasLogged: true,
       identityProvider: {
         connect: { identityProviderId },
       },
@@ -72,6 +74,12 @@ export class UsersService {
   async markAsLoggedIn(user: User): Promise<User> {
     if (user.hasLogged) {
       return user;
+    }
+
+    if (!user.identityProviderUserId) {
+      throw new NotFoundException(
+        'User account is not linked to an authenticated identity',
+      );
     }
 
     return this.usersRepository.update(user.userId, {

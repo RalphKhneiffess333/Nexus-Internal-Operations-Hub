@@ -12,7 +12,7 @@ import {
   HR_DEPARTMENT_ID,
   IT_DEPARTMENT_ID,
   resetTicketData,
-  seedDatabase,
+  seedTestDatabase,
 } from '../database/seed';
 import { SubmitTicketDto } from './dto/submit-ticket.dto';
 import { TicketsModule } from './tickets.module';
@@ -35,7 +35,7 @@ export async function createTicketsTestingModule(): Promise<TestingModule> {
 
   const prisma = moduleRef.get(PrismaService);
   await prisma.$connect();
-  await seedDatabase(prisma);
+  await seedTestDatabase(prisma);
   await resetTicketData(prisma);
   return moduleRef;
 }

@@ -10,7 +10,7 @@ import { Public } from '../src/authorization/decorators/public.decorator';
 import { SESSION_COOKIE_NAME } from '../src/authentication/authentication.constants';
 import { SessionService } from '../src/authentication/sessions/session.service';
 import { PrismaService } from '../src/database/prisma.service';
-import { resetTicketData, seedDatabase } from '../src/database/seed';
+import { resetTicketData, seedTestDatabase } from '../src/database/seed';
 
 const envPath = resolve(__dirname, '../.env.integration');
 if (!existsSync(envPath)) {
@@ -65,7 +65,7 @@ async function bootstrap() {
 
   const prisma = app.get(PrismaService);
   await prisma.$connect();
-  await seedDatabase(prisma);
+  await seedTestDatabase(prisma);
   await resetTicketData(prisma);
 
   await app.listen(Number(process.env.PORT));

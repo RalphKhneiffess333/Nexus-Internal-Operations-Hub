@@ -7,7 +7,7 @@ import {
   EMPLOYEE_ID,
   IT_DEPARTMENT_ID,
   resetTicketData,
-  seedDatabase,
+  seedTestDatabase,
 } from '../../src/database/seed';
 
 config({ path: resolve(__dirname, '../../.env.integration'), override: true });
@@ -24,7 +24,7 @@ export function installSeededDatabaseHooks<TestArgs, WorkerArgs>(
   });
 
   test.beforeEach(async () => {
-    await seedDatabase(prisma);
+    await seedTestDatabase(prisma);
     await resetTicketData(prisma);
   });
 

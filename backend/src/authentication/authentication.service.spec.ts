@@ -116,14 +116,13 @@ describe('AuthenticationService', () => {
   it('links a preconfigured active user found by email', async () => {
     const preconfiguredUser = user({
       hasLogged: false,
-      identityProviderUserId: 'placeholder-user-id',
+      identityProviderUserId: null,
     });
-    const linkedUser = user({ hasLogged: false });
-    const loggedUser = user({ hasLogged: true });
+    const linkedUser = user({ hasLogged: true });
     usersService.findByIdentity.mockResolvedValue(null);
     usersService.findByEmail.mockResolvedValue(preconfiguredUser);
     usersService.linkIdentity.mockResolvedValue(linkedUser);
-    usersService.markAsLoggedIn.mockResolvedValue(loggedUser);
+    usersService.markAsLoggedIn.mockResolvedValue(linkedUser);
 
     const login = service.startMicrosoftLogin();
     await service.completeMicrosoftLogin(
@@ -298,19 +297,25 @@ describe('AuthenticationService', () => {
   });
 
   function user(overrides: Partial<User> = {}): User {
-    return {
+    const candidate = {
       userId: 'user-1',
       email: identity.email,
       fullName: identity.displayName,
       phoneNumber: null,
       role: UserRole.Employee,
       isActive: true,
-      hasLogged: false,
+      hasLogged: true,
       identityProviderId: 'idp-entra',
       identityProviderUserId: identity.providerUserId,
       createdAt: new Date(),
       updatedAt: new Date(),
       ...overrides,
     };
+
+    if (!candidate.hasLogged && overrides.identityProviderUserId === undefined) {
+      candidate.identityProviderUserId = null;
+    }
+
+    return candidate;
   }
 });

@@ -10,7 +10,7 @@ export interface AuthenticatedRequestUser {
   isActive: boolean;
   hasLogged: boolean;
   identityProviderId: string;
-  identityProviderUserId: string;
+  identityProviderUserId: string | null;
 }
 
 export interface AuthenticatedRequest extends Request {

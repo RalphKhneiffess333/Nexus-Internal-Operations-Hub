@@ -6,11 +6,21 @@ Nexus is an internal operations service hub. Employees submit requests to depart
 
 This repository contains a NestJS backend and a React/Vite frontend. Ticket, user, department, and identity-provider data is stored in PostgreSQL. Authentication currently uses Microsoft Entra ID with a server-side session cookie.
 
-## What do I need installed
+## Setup CLI
+It is recommended to run the setup CLI to help you with installation.
+To run the setup CLI, from the root, call:
+
+```bash
+npm run setup
+```
+If setup CLI fails to run, continue reading this file for step by step initialization.
+
+## What do I need
 
 - Node.js v20+
 - npm
 - PostgreSQL (a local database you can create and connect to)
+- An identity provider organization (Microsoft Entra ID tenant for now)
 
 Optional: an API client such as Postman for manual testing.
 
@@ -19,9 +29,7 @@ Optional: an API client such as Postman for manual testing.
 Run all install commands from the repository root:
 
 ```bash
-npm install
-npm --prefix backend install
-npm --prefix frontend/nexus install
+npm run install
 ```
 
 This installs the root tooling, backend dependencies, and frontend dependencies. The backend install also generates the Prisma client.
@@ -29,6 +37,7 @@ This installs the root tooling, backend dependencies, and frontend dependencies.
 If you prefer to step into each app folder, run:
 
 ```bash
+npm install
 cd backend
 npm install
 cd ../frontend/nexus
@@ -62,6 +71,9 @@ DATABASE_PASSWORD=your_password
 DATABASE_URL=postgresql://your_user:your_password@localhost:5432/nexus
 ```
 
+### Testing Environment
+Tests use a separate database from the one used in production. Create another database in your PostgreSQL and link it in `backend/.env.integration`, use `backend/.env.integration.example` for the template.
+
 ## How to configure Microsoft Entra ID
 
 Nexus uses Microsoft Entra ID as its third-party identity provider. Create or use an Entra app registration and add this web redirect URI:
@@ -71,6 +83,7 @@ http://localhost:3000/authentication/microsoft/callback
 ```
 
 Then add the Microsoft configuration to `backend/.env`:
+NOTICE: For Eurisko Academy instructors, check your emails for Microsoft tenant credentials.
 
 ```
 MICROSOFT_ENTRA_TENANT_ID=your_tenant_id
@@ -83,7 +96,8 @@ FRONTEND_URL=http://localhost:5173
 
 The seeded identity-provider record uses the code `MICROSOFT_ENTRA_ID`. Users are linked to Microsoft accounts by `identity_provider_id` and `identity_provider_user_id` after login.
 
-In the organization-locked setup, users are checked through the configured Microsoft tenant. For current testing, the backend uses Microsoft's `common` login endpoint so any Microsoft work, school, or personal account can be used.
+In the organization-locked setup, users are checked through the configured Microsoft tenant to ensure only internal accounts can use the app. 
+For current testing, the backend uses Microsoft's `common` login endpoint so any Microsoft work, school, or personal account can be used.
 
 For the frontend, copy `frontend/nexus/.env.example` if you need to override the API origin:
 
@@ -161,6 +175,7 @@ If `PORT` is set in the backend environment, that value is used instead of `3000
 | `docs/`                                             | Product specs, architecture, data model, and the current workflow |
 | `backend/src/tickets/`                              | Ticket API: controller, service, policies, DTOs, tests            |
 | `backend/src/authentication/`                       | Microsoft Entra login, session handling, and request auth         |
+| `backend/src/authorization/`                        | Global authorization guard, public routes, and role decorators    |
 | `backend/src/database/`                             | Prisma connection, error mapping, and seed data                   |
 | `backend/prisma/`                                   | Schema and migrations                                             |
 | `frontend/nexus/src/`                               | React frontend pages, ticket views, API client, and layout        |
@@ -169,22 +184,74 @@ If `PORT` is set in the backend environment, that value is used instead of `3000
 
 Start with `backend/src/tickets/tickets.controller.ts` to see the routes, then `tickets.service.ts` and `tickets/policies/`.
 
-## Testing the backend with commands
+## Managing users and roles
 
-From the `backend` folder:
+When someone signs in with Microsoft Entra ID and no matching Nexus user exists yet, Nexus automatically creates a local user record with the `Employee` role.
+
+Use the interactive users CLI when you need to preconfigure users, promote a user to `Agent` or `Admin`, or assign an agent/admin to departments:
+
+```bash
+npm run seed:users
+```
+
+The CLI uses `backend/.env`, connects to the configured `DATABASE_URL`, and can:
+
+- Add a new user before their first login.
+- Modify an existing user.
+- Change a user's role between `Employee`, `Agent`, and `Admin`.
+- Assign departments to `Agent` and `Admin` users.
+
+This is especially useful for manual testing because ticket pool and department views depend on the signed-in user's role and department memberships.
+
+## Testing with commands
+
+To run all unit, integration, API E2E, and browser E2E tests, from the root, run:
+
+```bash
+npm run test
+```
+
+To individually run the tests, from the `backend` folder:
 
 ```bash
 cd backend
 npm test
+npm run test:integration
+npm run test:api:e2e
+npm run test:browser:e2e
 npm run test:e2e
 ```
 
-Both require `backend/.env` pointing at a migrated PostgreSQL database. Tests seed sample users/departments and reset ticket rows themselves.
+All require `backend/.env.integration` pointing at a migrated PostgreSQL database. Tests seed sample users/departments and reset ticket rows themselves.
 
-- `npm test` runs unit tests against PostgreSQL. Output lists each test name.
-- `npm run test:e2e` hits the HTTP API with supertest.
+- `npm test` runs Jest unit tests and any `.spec.ts` tests in `backend/src`.
+- `npm run test:integration` runs the Jest integration suite.
+- `npm run test:api:e2e` runs Playwright API E2E tests against a built Nest app.
+- `npm run test:browser:e2e` runs Playwright browser E2E tests against the backend and frontend.
+- `npm run test:e2e` runs both API E2E and browser E2E tests.
 
 
+
+## Manual browser testing flow
+
+For a simple end-to-end manual test, start with two Microsoft accounts:
+
+1. Configure an employee user.
+   - Either let the first account sign in normally, which creates an `Employee` record automatically, or preconfigure it with `npm run seed:users`.
+2. Configure an agent user.
+   - Run `npm run seed:users`.
+   - Add or modify the second account.
+   - Set its role to `Agent`.
+   - Assign it to a department, for example `Information Technology (IT)`.
+3. Start the app with `npm run start`.
+4. Sign in as the employee account.
+5. Submit a ticket to the agent's department.
+6. Sign out.
+7. Sign in as the agent account.
+8. Open the ticket pool or department tickets view.
+9. Claim the employee's ticket, then try closing it with completion notes.
+
+This flow verifies Microsoft login, local user resolution, role-based navigation, department-based ticket visibility, ticket submission, claiming, and closing.
 
 ## Manually testing the backend API (URLs, payloads, data to use)
 
@@ -195,6 +262,8 @@ Seeded data (loaded by `npm run prisma:seed`, not on every process start):
 Priority must be one of: `LOW`, `MODERATE`, `HIGH`.
 
 Use `Content-Type: application/json` on requests that have a body. Replace `:id` with the `ticketId` returned on submit.
+
+Authenticated routes require the `nexus_session` cookie created by signing in through Microsoft. For most manual testing, the browser flow above is the easiest path because it creates the session cookie for you.
 
 ### List tickets
 
@@ -209,8 +278,7 @@ Use `Content-Type: application/json` on requests that have a body. Replace `:id`
   "title": "Laptop will not start",
   "description": "Black screen on boot",
   "priority": "HIGH",
-  "departmentId": "dept-it",
-  "submittedBy": "user-employee-1"
+  "departmentId": "dept-it"
 }
 ```
 
@@ -239,11 +307,7 @@ All fields are optional, but at least one is required. Only `OPEN` tickets can b
 
 `POST /tickets/:id/claim`
 
-```json
-{
-  "agentId": "user-agent-1"
-}
-```
+No request body is required. The ticket is assigned to the authenticated agent/admin.
 
 
 

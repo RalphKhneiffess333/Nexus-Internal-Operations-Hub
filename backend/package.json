@@ -21,6 +21,7 @@
     "test:api:e2e": "npm run build && playwright test --config ./test/playwright.api.config.ts",
     "test:browser:e2e": "playwright test --config ./test/playwright.config.ts",
     "test:e2e": "npm run test:api:e2e && npm run test:browser:e2e",
+    "seed:users": "ts-node --project tsconfig.scripts.json src/database/users-cli.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
     "prisma:migrate:dev": "prisma migrate dev",
@@ -28,7 +29,7 @@
     "postinstall": "prisma generate"
   },
   "prisma": {
-    "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
+    "seed": "ts-node --project tsconfig.scripts.json prisma/seed.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
@@ -47,6 +48,7 @@
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.1",
+    "@inquirer/prompts": "^7.10.1",
     "@playwright/test": "^1.63.0",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
