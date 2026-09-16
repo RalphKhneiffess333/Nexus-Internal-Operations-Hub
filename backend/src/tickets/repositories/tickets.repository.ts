@@ -6,40 +6,63 @@ import { mapPrismaError } from '../../database/prisma-error';
 
 export type CreateTicketInput = Omit<Ticket, 'ticketId' | 'ticketCode'>;
 
+const ticketInclude = {
+  submitter: {
+    select: {
+      fullName: true,
+      email: true,
+    },
+  },
+  agent: {
+    select: {
+      fullName: true,
+      email: true,
+    },
+  },
+} satisfies Prisma.TicketInclude;
+
+export type TicketRecord = Prisma.TicketGetPayload<{
+  include: typeof ticketInclude;
+}>;
+
 @Injectable()
 export class TicketsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findById(ticketId: string): Promise<Ticket | null> {
+  async findById(ticketId: string): Promise<TicketRecord | null> {
     try {
       return await this.prisma.ticket.findUnique({
         where: { ticketId },
+        include: ticketInclude,
       });
     } catch (error) {
       mapPrismaError(error);
     }
   }
 
-  async findAll(): Promise<Ticket[]> {
+  async findAll(): Promise<TicketRecord[]> {
     try {
-      return await this.prisma.ticket.findMany();
+      return await this.prisma.ticket.findMany({
+        include: ticketInclude,
+      });
     } catch (error) {
       mapPrismaError(error);
     }
   }
 
-  async findActive(): Promise<Ticket[]> {
+  async findActive(): Promise<TicketRecord[]> {
     try {
       return await this.prisma.ticket.findMany({
         where: { active: true },
         orderBy: { createdAt: 'desc' },
+        include: ticketInclude,
       });
     } catch (error) {
       mapPrismaError(error);
     }
   }
 
-  async findActiveBySubmitter(submittedBy: string): Promise<Ticket[]> {
+  async findActiveBySubmitter(submittedBy: string): Promise<TicketRecord[]> {
     try {
       return await this.prisma.ticket.findMany({
         where: {
@@ -47,13 +70,16 @@ export class TicketsRepository {
           submittedBy,
         },
         orderBy: { createdAt: 'desc' },
+        include: ticketInclude,
       });
     } catch (error) {
       mapPrismaError(error);
     }
   }
 
-  async findActiveByDepartmentIds(departmentIds: string[]): Promise<Ticket[]> {
+  async findActiveByDepartmentIds(
+    departmentIds: string[],
+  ): Promise<TicketRecord[]> {
     if (departmentIds.length === 0) {
       return [];
     }
@@ -67,13 +93,14 @@ export class TicketsRepository {
           },
         },
         orderBy: { createdAt: 'desc' },
+        include: ticketInclude,
       });
     } catch (error) {
       mapPrismaError(error);
     }
   }
 
-  async findTicketPool(departmentIds?: string[]): Promise<Ticket[]> {
+  async findTicketPool(departmentIds?: string[]): Promise<TicketRecord[]> {
     if (departmentIds && departmentIds.length === 0) {
       return [];
     }
@@ -95,13 +122,14 @@ export class TicketsRepository {
             : {}),
         },
         orderBy: { createdAt: 'desc' },
+        include: ticketInclude,
       });
     } catch (error) {
       mapPrismaError(error);
     }
   }
 
-  async create(ticket: CreateTicketInput): Promise<Ticket> {
+  async create(ticket: CreateTicketInput): Promise<TicketRecord> {
     try {
       return await this.prisma.$transaction(async (tx) => {
         const sequence = await this.nextTicketSequence(tx);
@@ -124,6 +152,7 @@ export class TicketsRepository {
             updatedAt: ticket.updatedAt,
             closedAt: ticket.closedAt,
           },
+          include: ticketInclude,
         });
       });
     } catch (error) {
@@ -131,7 +160,7 @@ export class TicketsRepository {
     }
   }
 
-  async save(ticket: Ticket): Promise<Ticket> {
+  async save(ticket: Ticket): Promise<TicketRecord> {
     try {
       return await this.prisma.ticket.update({
         where: { ticketId: ticket.ticketId },
@@ -148,6 +177,7 @@ export class TicketsRepository {
           updatedAt: ticket.updatedAt,
           closedAt: ticket.closedAt,
         },
+        include: ticketInclude,
       });
     } catch (error) {
       mapPrismaError(error);
@@ -157,7 +187,7 @@ export class TicketsRepository {
   async claimIfAvailable(
     ticketId: string,
     agentId: string,
-  ): Promise<Ticket | null> {
+  ): Promise<TicketRecord | null> {
     try {
       const result = await this.prisma.ticket.updateMany({
         where: {
@@ -180,6 +210,7 @@ export class TicketsRepository {
 
       return this.prisma.ticket.findUnique({
         where: { ticketId },
+        include: ticketInclude,
       });
     } catch (error) {
       mapPrismaError(error);

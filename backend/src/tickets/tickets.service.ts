@@ -17,7 +17,10 @@ import { ModifyTicketPolicy } from './policies/modify-ticket.policy';
 import { ReopenTicketPolicy } from './policies/reopen-ticket.policy';
 import { SubmitTicketPolicy } from './policies/submit-ticket.policy';
 import { ViewTicketPolicy } from './policies/view-ticket.policy';
-import { TicketsRepository } from './repositories/tickets.repository';
+import {
+  TicketRecord,
+  TicketsRepository,
+} from './repositories/tickets.repository';
 
 export interface TicketActionPermissions {
   canModify: boolean;
@@ -27,7 +30,9 @@ export interface TicketActionPermissions {
   canReopen: boolean;
 }
 
-export type TicketWithPermissions = Ticket & {
+export type TicketWithPermissions = TicketRecord & {
+  submittedByName: string;
+  agentName: string | null;
   permissions: TicketActionPermissions;
 };
 
@@ -243,7 +248,7 @@ export class TicketsService {
     );
   }
 
-  private async getActiveTicket(ticketId: string): Promise<Ticket> {
+  private async getActiveTicket(ticketId: string): Promise<TicketRecord> {
     const ticket = await this.ticketsRepository.findById(ticketId);
     if (!ticket || !ticket.active) {
       throw new NotFoundException(`Ticket ${ticketId} was not found`);
@@ -252,7 +257,7 @@ export class TicketsService {
   }
 
   private withPermissions(
-    tickets: Ticket[],
+    tickets: TicketRecord[],
     actor: AuthenticatedRequestUser,
     actorDepartmentIds: string[],
   ): TicketWithPermissions[] {
@@ -262,12 +267,14 @@ export class TicketsService {
   }
 
   private withPermission(
-    ticket: Ticket,
+    ticket: TicketRecord,
     actor: AuthenticatedRequestUser,
     actorDepartmentIds: string[],
   ): TicketWithPermissions {
     return {
       ...ticket,
+      submittedByName: ticket.submitter.fullName,
+      agentName: ticket.agent?.fullName ?? null,
       permissions: {
         canModify: this.canModify(ticket, actor),
         canCancel: this.canCancel(ticket, actor),

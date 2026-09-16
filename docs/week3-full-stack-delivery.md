@@ -181,6 +181,17 @@ The authorization test coverage includes authentication requirements, role restr
 - `backend/test/browser/tickets-lifecycle.browser.e2e-spec.ts` tests employee reopen, edit, and cancel flows from the browser.
 - `backend/test/browser/golden-path.browser.e2e-spec.ts` tests the full employee-to-agent-to-employee flow: submit, claim, close, and employee closure visibility.
 
+#### 6. Regression Protection
+Regression protection was established to ensure that ongoing code changes, database migrations, and feature expansions do not inadvertently break existing core functionalities, workflow rules, or security boundaries.
+
+The implementation includes:
+
+Automated execution of the entire test suite (unit, integration, API E2E, and browser E2E) on every code change to catch regressions early.
+
+Isolated test database setups ensuring migration safety, constraint enforcement, and data integrity across updates.
+
+Automated safety nets guarding critical business logic, such as ticket lifecycle state transitions, role-based access control (RBAC), and session handling.
+
 ## Result
 
 By the end of Week 3, Nexus had progressed from a backend-oriented prototype to a connected full-stack application:
