@@ -25,6 +25,9 @@ export function TicketDetails({ ticket, departments = [] }) {
   const submitted = formatDate(ticket.createdAt)
   const updated = formatDate(ticket.updatedAt)
   const closed = formatDate(ticket.closedAt)
+  const submittedBy =
+    ticket.submittedByName ?? ticket.submitter?.fullName ?? ticket.submittedBy
+  const assignedAgent = ticket.agentName ?? ticket.agent?.fullName ?? ticket.agentId
 
   return (
     <article className="ticket-details clay-card">
@@ -47,7 +50,7 @@ export function TicketDetails({ ticket, departments = [] }) {
           label="Department"
           value={departmentLabel(ticket.departmentId, departments)}
         />
-        <DetailRow label="Assigned agent" value={ticket.agentId} />
+        <DetailRow label="Assigned agent" value={assignedAgent} />
         <DetailRow label="Completion notes" value={ticket.completionNotes} />
         <DetailRow label="Closed" value={closed} />
       </dl>
@@ -58,7 +61,7 @@ export function TicketDetails({ ticket, departments = [] }) {
       </section>
 
       <dl className="detail-grid">
-        <DetailRow label="Submitted by" value={ticket.submittedBy} />
+        <DetailRow label="Submitted by" value={submittedBy} />
         <DetailRow label="Submitted" value={submitted} />
         <DetailRow label="Last updated" value={updated} />
       </dl>
