@@ -5,6 +5,7 @@ node_modules/
 dist/
 build/
 coverage/
+test-results/
 .nyc_output/
 *.tsbuildinfo
 
@@ -38,3 +39,6 @@ Desktop.ini
 .temp/
 .tmp/
 .turbo/
+
+# tests
+test-results
