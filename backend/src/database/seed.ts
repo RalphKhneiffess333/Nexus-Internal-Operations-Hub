@@ -48,7 +48,16 @@ export async function seedDatabase(prisma: PrismaClient): Promise<void> {
       active: true,
     },
   });
+}
 
+export async function seedTestDatabase(prisma: PrismaClient): Promise<void> {
+  await seedDatabase(prisma);
+
+  await seedTestUsers(prisma);
+  await seedTestDepartmentMembers(prisma);
+}
+
+async function seedTestUsers(prisma: PrismaClient): Promise<void> {
   const users: Array<{
     userId: string;
     email: string;
@@ -100,11 +109,13 @@ export async function seedDatabase(prisma: PrismaClient): Promise<void> {
         isActive: true,
         hasLogged: false,
         identityProviderId: SEED_IDENTITY_PROVIDER_ID,
-        identityProviderUserId: user.userId,
+        identityProviderUserId: null,
       },
     });
   }
+}
 
+async function seedTestDepartmentMembers(prisma: PrismaClient): Promise<void> {
   await prisma.departmentMember.upsert({
     where: {
       userId_departmentId: {

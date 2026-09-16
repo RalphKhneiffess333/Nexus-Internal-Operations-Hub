@@ -29,7 +29,7 @@ export const {
   EMPLOYEE_ID,
   EMPLOYEE_2_ID,
   resetTicketData,
-  seedDatabase,
+  seedTestDatabase,
 } = seed;
 
 export type E2eApp = {
@@ -53,7 +53,7 @@ type ApiFixture = {
 export const test = base.extend<{ e2e: ApiFixture }>({
   e2e: async ({}, use) => {
     let current = await startE2eApp();
-    await seedDatabase(current.prisma);
+    await seedTestDatabase(current.prisma);
     await resetTicketData(current.prisma);
 
     const fixture: ApiFixture = {

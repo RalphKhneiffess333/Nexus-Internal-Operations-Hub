@@ -32,12 +32,10 @@ export class UsersRepository {
     identityProviderUserId: string,
   ): Promise<User | null> {
     try {
-      return await this.prisma.user.findUnique({
+      return await this.prisma.user.findFirst({
         where: {
-          identityProviderId_identityProviderUserId: {
-            identityProviderId,
-            identityProviderUserId,
-          },
+          identityProviderId,
+          identityProviderUserId,
         },
       });
     } catch (error) {

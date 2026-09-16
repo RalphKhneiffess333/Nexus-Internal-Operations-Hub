@@ -2,12 +2,15 @@
   "name": "nexus",
   "private": true,
   "scripts": {
+    "setup": "node scripts/setup.js",
     "start": "concurrently \"npm --prefix backend run start:dev\" \"npm --prefix frontend/nexus run dev\"",
     "start:backend": "npm --prefix backend run start:dev",
     "start:frontend": "npm --prefix frontend/nexus run dev",
     "db:setup": "npm --prefix backend run prisma:migrate && npm --prefix backend run prisma:seed",
+    "seed:users": "npm --prefix backend run seed:users",
     "install": "npm install --ignore-scripts && npm --prefix backend install && npm --prefix frontend/nexus install",
-    "test": "npm --prefix backend test && npm --prefix backend run test:integration && npm --prefix backend run test:e2e"
+    "test": "npm --prefix backend test && npm --prefix backend run test:integration && npm --prefix backend run test:e2e",
+    "test:setup": "node --test scripts/setup.test.js"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
