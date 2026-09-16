@@ -16,16 +16,16 @@ describe('AuthenticationGuard', () => {
 
   beforeEach(() => {
     sessionService = {
-      findById: jest.fn(),
-      refreshSession: jest.fn(),
-      deleteSession: jest.fn(),
+      findById: jest.fn<SessionService['findById']>(),
+      refreshSession: jest.fn<SessionService['refreshSession']>(),
+      deleteSession: jest.fn<SessionService['deleteSession']>(),
     };
     usersService = {
-      findById: jest.fn(),
+      findById: jest.fn<UsersService['findById']>(),
     };
     guard = new AuthenticationGuard(
-      sessionService as SessionService,
-      usersService as UsersService,
+      sessionService as unknown as SessionService,
+      usersService as unknown as UsersService,
     );
   });
 

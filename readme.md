@@ -83,6 +83,8 @@ FRONTEND_URL=http://localhost:5173
 
 The seeded identity-provider record uses the code `MICROSOFT_ENTRA_ID`. Users are linked to Microsoft accounts by `identity_provider_id` and `identity_provider_user_id` after login.
 
+In the organization-locked setup, users are checked through the configured Microsoft tenant. For current testing, the backend uses Microsoft's `common` login endpoint so any Microsoft work, school, or personal account can be used.
+
 For the frontend, copy `frontend/nexus/.env.example` if you need to override the API origin:
 
 ```bash

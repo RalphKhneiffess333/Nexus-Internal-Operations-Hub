@@ -16,9 +16,9 @@ describe('AuthorizationGuard', () => {
 
   beforeEach(() => {
     reflector = {
-      getAllAndOverride: jest.fn(),
+      getAllAndOverride: jest.fn<Reflector['getAllAndOverride']>(),
     };
-    guard = new AuthorizationGuard(reflector as Reflector);
+    guard = new AuthorizationGuard(reflector as unknown as Reflector);
   });
 
   it('allows public endpoints without an authenticated user', () => {
