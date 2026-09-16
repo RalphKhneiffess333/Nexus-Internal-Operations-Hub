@@ -175,6 +175,7 @@ If `PORT` is set in the backend environment, that value is used instead of `3000
 | `docs/`                                             | Product specs, architecture, data model, and the current workflow |
 | `backend/src/tickets/`                              | Ticket API: controller, service, policies, DTOs, tests            |
 | `backend/src/authentication/`                       | Microsoft Entra login, session handling, and request auth         |
+| `backend/src/authorization/`                        | Global authorization guard, public routes, and role decorators    |
 | `backend/src/database/`                             | Prisma connection, error mapping, and seed data                   |
 | `backend/prisma/`                                   | Schema and migrations                                             |
 | `frontend/nexus/src/`                               | React frontend pages, ticket views, API client, and layout        |
@@ -183,8 +184,32 @@ If `PORT` is set in the backend environment, that value is used instead of `3000
 
 Start with `backend/src/tickets/tickets.controller.ts` to see the routes, then `tickets.service.ts` and `tickets/policies/`.
 
-## Testing the backend with commands
-To run all unit, integration and E2E tests, from the root, run `npm run test`.
+## Managing users and roles
+
+When someone signs in with Microsoft Entra ID and no matching Nexus user exists yet, Nexus automatically creates a local user record with the `Employee` role.
+
+Use the interactive users CLI when you need to preconfigure users, promote a user to `Agent` or `Admin`, or assign an agent/admin to departments:
+
+```bash
+npm run seed:users
+```
+
+The CLI uses `backend/.env`, connects to the configured `DATABASE_URL`, and can:
+
+- Add a new user before their first login.
+- Modify an existing user.
+- Change a user's role between `Employee`, `Agent`, and `Admin`.
+- Assign departments to `Agent` and `Admin` users.
+
+This is especially useful for manual testing because ticket pool and department views depend on the signed-in user's role and department memberships.
+
+## Testing with commands
+
+To run all unit, integration, API E2E, and browser E2E tests, from the root, run:
+
+```bash
+npm run test
+```
 
 To individually run the tests, from the `backend` folder:
 
@@ -192,16 +217,41 @@ To individually run the tests, from the `backend` folder:
 cd backend
 npm test
 npm run test:integration
+npm run test:api:e2e
+npm run test:browser:e2e
 npm run test:e2e
 ```
 
 All require `backend/.env.integration` pointing at a migrated PostgreSQL database. Tests seed sample users/departments and reset ticket rows themselves.
 
-- `npm test` runs unit tests against PostgreSQL. Output lists each test name.
-- `npm run test:integration` runs integration tests.
-- `npm run test:e2e` hits the HTTP API with supertest.
+- `npm test` runs Jest unit tests and any `.spec.ts` tests in `backend/src`.
+- `npm run test:integration` runs the Jest integration suite.
+- `npm run test:api:e2e` runs Playwright API E2E tests against a built Nest app.
+- `npm run test:browser:e2e` runs Playwright browser E2E tests against the backend and frontend.
+- `npm run test:e2e` runs both API E2E and browser E2E tests.
 
 
+
+## Manual browser testing flow
+
+For a simple end-to-end manual test, start with two Microsoft accounts:
+
+1. Configure an employee user.
+   - Either let the first account sign in normally, which creates an `Employee` record automatically, or preconfigure it with `npm run seed:users`.
+2. Configure an agent user.
+   - Run `npm run seed:users`.
+   - Add or modify the second account.
+   - Set its role to `Agent`.
+   - Assign it to a department, for example `Information Technology (IT)`.
+3. Start the app with `npm run start`.
+4. Sign in as the employee account.
+5. Submit a ticket to the agent's department.
+6. Sign out.
+7. Sign in as the agent account.
+8. Open the ticket pool or department tickets view.
+9. Claim the employee's ticket, then try closing it with completion notes.
+
+This flow verifies Microsoft login, local user resolution, role-based navigation, department-based ticket visibility, ticket submission, claiming, and closing.
 
 ## Manually testing the backend API (URLs, payloads, data to use)
 
@@ -213,7 +263,7 @@ Priority must be one of: `LOW`, `MODERATE`, `HIGH`.
 
 Use `Content-Type: application/json` on requests that have a body. Replace `:id` with the `ticketId` returned on submit.
 
-Authenticated user session cookie needs to be included in the request.
+Authenticated routes require the `nexus_session` cookie created by signing in through Microsoft. For most manual testing, the browser flow above is the easiest path because it creates the session cookie for you.
 
 ### List tickets
 
@@ -228,8 +278,7 @@ Authenticated user session cookie needs to be included in the request.
   "title": "Laptop will not start",
   "description": "Black screen on boot",
   "priority": "HIGH",
-  "departmentId": "dept-it",
-  "submittedBy": "user-employee-1"
+  "departmentId": "dept-it"
 }
 ```
 
@@ -258,11 +307,7 @@ All fields are optional, but at least one is required. Only `OPEN` tickets can b
 
 `POST /tickets/:id/claim`
 
-```json
-{
-  "agentId": "user-agent-1"
-}
-```
+No request body is required. The ticket is assigned to the authenticated agent/admin.
 
 
 
