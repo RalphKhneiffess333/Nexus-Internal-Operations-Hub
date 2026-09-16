@@ -1,30 +1,37 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { describe, it, beforeEach, expect, jest } from '@jest/globals';
 import { User, UserRole } from '@prisma/client';
+import { AUTH_STATE_LIFETIME_MS } from './authentication.constants';
 import { AuthenticationService } from './authentication.service';
 import { AuthenticatedIdentity } from './strategies/authenticated-identity';
 import { MicrosoftAuthStrategy } from './strategies/microsoft-auth.strategy';
 import { SessionService } from './sessions/session.service';
 import { UsersService } from '../users/users.service';
 
+type MicrosoftAuthStrategyMock = jest.Mocked<
+  Pick<MicrosoftAuthStrategy, 'getAuthorizationUrl' | 'authenticate'>
+>;
+
+type UsersServiceMock = jest.Mocked<
+  Pick<
+    UsersService,
+    | 'findIdentityProviderByCode'
+    | 'findByIdentity'
+    | 'findByEmail'
+    | 'create'
+    | 'linkIdentity'
+    | 'markAsLoggedIn'
+  >
+>;
+
+type SessionServiceMock = jest.Mocked<
+  Pick<SessionService, 'createSession' | 'deleteSession'>
+>;
+
 describe('AuthenticationService', () => {
-  let microsoftAuthStrategy: jest.Mocked<
-    Pick<MicrosoftAuthStrategy, 'getAuthorizationUrl' | 'authenticate'>
-  >;
-  let usersService: jest.Mocked<
-    Pick<
-      UsersService,
-      | 'findIdentityProviderByCode'
-      | 'findByIdentity'
-      | 'findByEmail'
-      | 'create'
-      | 'linkIdentity'
-      | 'markAsLoggedIn'
-    >
-  >;
-  let sessionService: jest.Mocked<
-    Pick<SessionService, 'createSession' | 'deleteSession'>
-  >;
+  let microsoftAuthStrategy: MicrosoftAuthStrategyMock;
+  let usersService: UsersServiceMock;
+  let sessionService: SessionServiceMock;
   let service: AuthenticationService;
 
   const identity: AuthenticatedIdentity = {
@@ -36,39 +43,47 @@ describe('AuthenticationService', () => {
 
   beforeEach(() => {
     microsoftAuthStrategy = {
-      getAuthorizationUrl: jest.fn((state) => `https://login.test/${state}`),
-      authenticate: jest.fn().mockResolvedValue(identity),
+      getAuthorizationUrl: jest.fn<MicrosoftAuthStrategy['getAuthorizationUrl']>(
+        (state) => `https://login.test/${state}`,
+      ),
+      authenticate: jest
+        .fn<MicrosoftAuthStrategy['authenticate']>()
+        .mockResolvedValue(identity),
     };
     usersService = {
-      findIdentityProviderByCode: jest.fn().mockResolvedValue({
-        identityProviderId: 'idp-entra',
-        code: 'MICROSOFT_ENTRA_ID',
-        name: 'Microsoft Entra ID',
-        active: true,
-        createdAt: new Date(),
-      }),
-      findByIdentity: jest.fn(),
-      findByEmail: jest.fn(),
-      create: jest.fn(),
-      linkIdentity: jest.fn(),
-      markAsLoggedIn: jest.fn(),
+      findIdentityProviderByCode: jest
+        .fn<UsersService['findIdentityProviderByCode']>()
+        .mockResolvedValue({
+          identityProviderId: 'idp-entra',
+          code: 'MICROSOFT_ENTRA_ID',
+          name: 'Microsoft Entra ID',
+          active: true,
+          createdAt: new Date(),
+        }),
+      findByIdentity: jest.fn<UsersService['findByIdentity']>(),
+      findByEmail: jest.fn<UsersService['findByEmail']>(),
+      create: jest.fn<UsersService['create']>(),
+      linkIdentity: jest.fn<UsersService['linkIdentity']>(),
+      markAsLoggedIn: jest.fn<UsersService['markAsLoggedIn']>(),
     };
     sessionService = {
-      deleteSession: jest.fn(),
-      createSession: jest.fn().mockReturnValue({
-        sessionId: 'session-1',
-        userId: 'user-1',
-        device: {},
-        createdAt: new Date(),
-        lastAccessedAt: new Date(),
-        expiresAt: new Date(),
-      }),
+      deleteSession: jest.fn<SessionService['deleteSession']>(),
+      createSession: jest
+        .fn<SessionService['createSession']>()
+        .mockReturnValue({
+          sessionId: 'session-1',
+          userId: 'user-1',
+          device: {},
+          createdAt: new Date(),
+          lastAccessedAt: new Date(),
+          expiresAt: new Date(),
+        }),
     };
 
     service = new AuthenticationService(
-      microsoftAuthStrategy as MicrosoftAuthStrategy,
-      usersService as UsersService,
-      sessionService as SessionService,
+      microsoftAuthStrategy as unknown as MicrosoftAuthStrategy,
+      usersService as unknown as UsersService,
+      sessionService as unknown as SessionService,
     );
   });
 
@@ -145,6 +160,122 @@ describe('AuthenticationService', () => {
       ),
     ).rejects.toThrow(UnauthorizedException);
     expect(usersService.linkIdentity).not.toHaveBeenCalled();
+    expect(sessionService.createSession).not.toHaveBeenCalled();
+  });
+
+  it('rejects login completion when the state is missing', async () => {
+    const login = service.startMicrosoftLogin();
+
+    await expect(
+      service.completeMicrosoftLogin(
+        'code',
+        undefined,
+        login.state,
+        undefined,
+        {},
+      ),
+    ).rejects.toThrow(UnauthorizedException);
+    expect(microsoftAuthStrategy.authenticate).not.toHaveBeenCalled();
+    expect(sessionService.createSession).not.toHaveBeenCalled();
+  });
+
+  it('rejects login completion when the state cookie does not match', async () => {
+    const login = service.startMicrosoftLogin();
+
+    await expect(
+      service.completeMicrosoftLogin(
+        'code',
+        login.state,
+        'different-state',
+        undefined,
+        {},
+      ),
+    ).rejects.toThrow(UnauthorizedException);
+    expect(microsoftAuthStrategy.authenticate).not.toHaveBeenCalled();
+    expect(sessionService.createSession).not.toHaveBeenCalled();
+  });
+
+  it('rejects login completion when the state has expired', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-09-16T00:00:00.000Z'));
+
+    try {
+      const login = service.startMicrosoftLogin();
+      jest.setSystemTime(new Date(Date.now() + AUTH_STATE_LIFETIME_MS + 1));
+
+      await expect(
+        service.completeMicrosoftLogin(
+          'code',
+          login.state,
+          login.state,
+          undefined,
+          {},
+        ),
+      ).rejects.toThrow(UnauthorizedException);
+    } finally {
+      jest.useRealTimers();
+    }
+
+    expect(microsoftAuthStrategy.authenticate).not.toHaveBeenCalled();
+    expect(sessionService.createSession).not.toHaveBeenCalled();
+  });
+
+  it('does not create a session when the Microsoft strategy rejects authentication', async () => {
+    microsoftAuthStrategy.authenticate.mockRejectedValue(
+      new UnauthorizedException('Microsoft token exchange was rejected'),
+    );
+    const login = service.startMicrosoftLogin();
+
+    await expect(
+      service.completeMicrosoftLogin(
+        'code',
+        login.state,
+        login.state,
+        undefined,
+        {},
+      ),
+    ).rejects.toThrow(UnauthorizedException);
+    expect(usersService.findIdentityProviderByCode).not.toHaveBeenCalled();
+    expect(sessionService.createSession).not.toHaveBeenCalled();
+  });
+
+  it('rejects an inactive user found by identity', async () => {
+    usersService.findByIdentity.mockResolvedValue(user({ isActive: false }));
+
+    const login = service.startMicrosoftLogin();
+
+    await expect(
+      service.completeMicrosoftLogin(
+        'code',
+        login.state,
+        login.state,
+        undefined,
+        {},
+      ),
+    ).rejects.toThrow(UnauthorizedException);
+    expect(usersService.markAsLoggedIn).not.toHaveBeenCalled();
+    expect(sessionService.createSession).not.toHaveBeenCalled();
+  });
+
+  it('rejects an inactive preconfigured user found by email', async () => {
+    usersService.findByIdentity.mockResolvedValue(null);
+    usersService.findByEmail.mockResolvedValue(
+      user({ isActive: false, hasLogged: false }),
+    );
+
+    const login = service.startMicrosoftLogin();
+
+    await expect(
+      service.completeMicrosoftLogin(
+        'code',
+        login.state,
+        login.state,
+        undefined,
+        {},
+      ),
+    ).rejects.toThrow(UnauthorizedException);
+    expect(usersService.linkIdentity).not.toHaveBeenCalled();
+    expect(usersService.markAsLoggedIn).not.toHaveBeenCalled();
     expect(sessionService.createSession).not.toHaveBeenCalled();
   });
 
