@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { departmentLabel } from '../../features/departments/use-departments'
 import { formatDate, TicketPriority } from '../../features/tickets/ticket-types'
 import { TicketStatusBadge } from './TicketStatusBadge'
@@ -10,8 +10,14 @@ const PRIORITY_LABELS = {
 }
 
 export function TicketListItem({ ticket, departments = [] }) {
+  const location = useLocation()
+
   return (
-    <Link to={`/tickets/${ticket.ticketId}`} className="ticket-row">
+    <Link
+      to={`/tickets/${ticket.ticketId}`}
+      state={{ from: `${location.pathname}${location.search}` }}
+      className={`ticket-row ticket-row-${ticket.status?.toLowerCase() ?? 'unknown'}`}
+    >
       <div className="ticket-row-top">
         <span className="ticket-code">{ticket.ticketCode}</span>
         <TicketStatusBadge status={ticket.status} />

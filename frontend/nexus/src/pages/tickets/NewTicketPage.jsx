@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { TicketForm } from "../../components/tickets/TicketForm";
+import { LoadingState } from "../../components/ui/LoadingState";
 import { validateTicketFields } from "../../components/tickets/ticket-validation";
 import { useDepartments } from "../../features/departments/use-departments";
 import { createTicket } from "../../features/tickets/ticket-api";
@@ -52,6 +53,9 @@ export function NewTicketPage() {
         <div>
           <p className="eyebrow">New request</p>
           <h1>Submit a ticket</h1>
+          <p className="page-description">
+            Tell us what you need help with and we’ll route it to the right team.
+          </p>
         </div>
       </header>
       {createdCode ? (
@@ -59,7 +63,7 @@ export function NewTicketPage() {
       ) : null}
 
       {loadingDepartments ? (
-        <p className="muted">Loading departments...</p>
+        <LoadingState>Loading departments...</LoadingState>
       ) : null}
 
       {!loadingDepartments && departmentsError ? (

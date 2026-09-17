@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router-dom'
 import { ConfirmDialog } from '../../components/tickets/ConfirmDialog'
 import { TicketDetails } from '../../components/tickets/TicketDetails'
 import { TicketMessageDialog } from '../../components/tickets/TicketMessageDialog'
+import { LoadingState } from '../../components/ui/LoadingState'
 import {
   TicketForm,
 } from '../../components/tickets/TicketForm'
@@ -19,6 +20,7 @@ import {
 
 export function TicketDetailsPage() {
   const { ticketId } = useParams()
+  const location = useLocation()
   const [ticket, setTicket] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -204,10 +206,13 @@ export function TicketDetailsPage() {
     <section className="page">
       <header className="page-header">
         <div>
-          <Link to="/tickets" className="back-link">
-            ← All tickets
+          <Link to={location.state?.from ?? '/tickets'} className="back-link">
+            ← {location.state?.from?.startsWith('/tickets/pool') ? 'Ticket pools' : 'All tickets'}
           </Link>
           <h1>Ticket details</h1>
+          <p className="page-description">
+            Review the request, follow its progress, and take the next action.
+          </p>
         </div>
         {showHeaderActions ? (
           <div className="header-actions">
@@ -262,7 +267,7 @@ export function TicketDetailsPage() {
         ) : null}
       </header>
 
-      {loading ? <p className="muted">Loading ticket...</p> : null}
+      {loading ? <LoadingState>Loading ticket...</LoadingState> : null}
 
       {!loading && error ? (
         <div className="banner error">
@@ -278,7 +283,7 @@ export function TicketDetailsPage() {
 
       {!loading && ticket && editing ? (
         loadingDepartments ? (
-          <p className="muted">Loading departments...</p>
+          <LoadingState>Loading departments...</LoadingState>
         ) : departmentsError ? (
           <div className="banner error">
             <p>{departmentsError}</p>

@@ -24,26 +24,11 @@ export function Sidebar({ open, onNavigate }) {
           end
           onClick={onNavigate}
         >
-          <span className="nav-icon" aria-hidden="true">
-            ▣
-          </span>
           My tickets
         </NavLink>
 
         {showWorkQueues ? (
           <>
-            <NavLink
-              to="/tickets/department"
-              className={({ isActive }) =>
-                `nav-item ${isActive ? 'is-active' : ''}`
-              }
-              onClick={onNavigate}
-            >
-              <span className="nav-icon" aria-hidden="true">
-                ◫
-              </span>
-              Department
-            </NavLink>
             <NavLink
               to="/tickets/pool"
               className={({ isActive }) =>
@@ -51,10 +36,7 @@ export function Sidebar({ open, onNavigate }) {
               }
               onClick={onNavigate}
             >
-              <span className="nav-icon" aria-hidden="true">
-                ⊞
-              </span>
-              Ticket pool
+              Ticket pools
             </NavLink>
           </>
         ) : null}

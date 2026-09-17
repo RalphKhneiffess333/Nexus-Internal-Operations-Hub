@@ -29,7 +29,7 @@ export function TicketDetails({ ticket, departments = [] }) {
   const assignedAgent = ticket.agent?.fullName
 
   return (
-    <article className="ticket-details clay-card">
+    <article className="ticket-details clay-card content-reveal">
       <p className="ticket-code">{ticket.ticketCode}</p>
       <h1>{ticket.title}</h1>
       <hr className="soft-rule" />

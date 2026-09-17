@@ -22,7 +22,7 @@ export function TicketForm({
     initialValues?.departmentId ?? departments[0]?.departmentId ?? ''
   return (
     <form
-      className="ticket-form clay-card"
+      className="ticket-form clay-card content-reveal"
       onSubmit={(event) => {
         event.preventDefault()
         const form = new FormData(event.currentTarget)
