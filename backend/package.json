@@ -85,6 +85,7 @@
     "coverageDirectory": "../coverage",
     "testEnvironment": "node",
     "verbose": true,
-    "maxWorkers": 1
+    "maxWorkers": 1,
+    "setupFiles": ["<rootDir>/../test/setup-integration-env.ts"]
   }
 }

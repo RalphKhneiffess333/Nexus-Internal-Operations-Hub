@@ -25,9 +25,8 @@ export function TicketDetails({ ticket, departments = [] }) {
   const submitted = formatDate(ticket.createdAt)
   const updated = formatDate(ticket.updatedAt)
   const closed = formatDate(ticket.closedAt)
-  const submittedBy =
-    ticket.submittedByName ?? ticket.submitter?.fullName ?? ticket.submittedBy
-  const assignedAgent = ticket.agentName ?? ticket.agent?.fullName ?? ticket.agentId
+  const submittedBy = ticket.submittedBy.fullName
+  const assignedAgent = ticket.agent?.fullName
 
   return (
     <article className="ticket-details clay-card">

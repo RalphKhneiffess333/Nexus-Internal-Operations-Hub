@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { Ticket, TicketPriority, TicketStatus, UserRole } from '@prisma/client';
 import {
+  ADMIN_ID,
   EMPLOYEE_2_ID,
   EMPLOYEE_ID,
   AGENT_ID,
@@ -174,6 +175,45 @@ describe('TicketsService invalid transitions', () => {
     expect(ticketsRepository.claimIfAvailable).not.toHaveBeenCalled();
   });
 
+  it('allows admins to claim tickets in their own department', async () => {
+    const existing = ticket();
+    const claimed = ticket({
+      status: TicketStatus.CLAIMED,
+      agentId: ADMIN_ID,
+    }) as Awaited<ReturnType<TicketsRepository['claimIfAvailable']>>;
+    claimed!.submitter = {
+      fullName: 'Alex Employee',
+      email: 'alex@company.com',
+    };
+    claimed!.agent = {
+      fullName: 'Morgan Admin',
+      email: 'morgan@company.com',
+    };
+    ticketsRepository.findById.mockResolvedValue(existing);
+    ticketsRepository.claimIfAvailable.mockResolvedValue(claimed);
+
+    await expect(
+      service.claim(existing.ticketId, adminUser()),
+    ).resolves.toMatchObject({
+      agent: { userId: ADMIN_ID },
+      status: TicketStatus.CLAIMED,
+    });
+  });
+
+  it('rejects admins claiming outside their department without claiming', async () => {
+    const existing = ticket();
+    ticketsRepository.findById.mockResolvedValue(existing);
+    departmentsRepository.findActiveDepartmentIdsByUserId.mockResolvedValue([
+      HR_DEPARTMENT_ID,
+    ]);
+
+    await expect(service.claim(existing.ticketId, adminUser())).rejects.toThrow(
+      ForbiddenException,
+    );
+
+    expect(ticketsRepository.claimIfAvailable).not.toHaveBeenCalled();
+  });
+
   it('rejects closing by an agent who did not claim the ticket without saving', async () => {
     const existing = ticket({
       status: TicketStatus.CLAIMED,
@@ -251,6 +291,16 @@ describe('TicketsService invalid transitions', () => {
       fullName: userId,
       role: UserRole.Agent,
       identityProviderUserId: userId,
+    });
+  }
+
+  function adminUser(): AuthenticatedRequestUser {
+    return requestUser({
+      userId: ADMIN_ID,
+      email: 'morgan@company.com',
+      fullName: 'Morgan Admin',
+      role: UserRole.Admin,
+      identityProviderUserId: ADMIN_ID,
     });
   }
 });

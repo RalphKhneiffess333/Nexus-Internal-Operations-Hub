@@ -1,13 +1,15 @@
 # Nexus
 
-## What is Nexus
+## 1. What is Nexus
 
 Nexus is an internal operations service hub. Employees submit requests to departments such as IT and HR. Those requests become tickets that can be claimed, tracked, closed, reopened, modified, or cancelled.
 
 This repository contains a NestJS backend and a React/Vite frontend. Ticket, user, department, and identity-provider data is stored in PostgreSQL. Authentication currently uses Microsoft Entra ID with a server-side session cookie.
 
-## Setup CLI
-It is recommended to run the setup CLI to help you with installation.
+Sections 2 to 12 cover app setup while sections 13 to 16 cover app behavior and testing workflow.
+
+## 2. Setup CLI
+It is recommended to run the setup CLI to help you with installation then skip to section 13.
 To run the setup CLI, from the root, call:
 
 ```bash
@@ -15,7 +17,7 @@ npm run setup
 ```
 If setup CLI fails to run, continue reading this file for step by step initialization.
 
-## What do I need
+## 3. What do I need
 
 - Node.js v20+
 - npm
@@ -24,7 +26,7 @@ If setup CLI fails to run, continue reading this file for step by step initializ
 
 Optional: an API client such as Postman for manual testing.
 
-## How to install dependencies
+## 4. How to install dependencies
 
 Run all install commands from the repository root:
 
@@ -44,7 +46,7 @@ cd ../frontend/nexus
 npm install
 ```
 
-## How to set up PostgreSQL
+## 5. How to set up PostgreSQL
 
 Create an empty PostgreSQL database (for example `nexus`). Then copy the example env file and fill in your connection details:
 
@@ -71,10 +73,10 @@ DATABASE_PASSWORD=your_password
 DATABASE_URL=postgresql://your_user:your_password@localhost:5432/nexus
 ```
 
-### Testing Environment
+## 6. Testing Environment
 Tests use a separate database from the one used in production. Create another database in your PostgreSQL and link it in `backend/.env.integration`, use `backend/.env.integration.example` for the template.
 
-## How to configure Microsoft Entra ID
+## 7. How to configure Microsoft Entra ID
 
 Nexus uses Microsoft Entra ID as its third-party identity provider. Create or use an Entra app registration and add this web redirect URI:
 
@@ -99,6 +101,7 @@ The seeded identity-provider record uses the code `MICROSOFT_ENTRA_ID`. Users ar
 In the organization-locked setup, users are checked through the configured Microsoft tenant to ensure only internal accounts can use the app. 
 For current testing, the backend uses Microsoft's `common` login endpoint so any Microsoft work, school, or personal account can be used.
 
+## 8. Frontend Optional Configuration
 For the frontend, copy `frontend/nexus/.env.example` if you need to override the API origin:
 
 ```bash
@@ -121,7 +124,8 @@ VITE_API_URL=
 
 Do not commit `.env`. `.env.example` is the template without real credentials.
 
-From the repository root, apply migrations and load sample users/departments in one go:
+## 9. Initializing Database
+From the repository root, apply migrations and load sample departments in one go:
 
 ```bash
 npm run db:setup
@@ -140,51 +144,7 @@ npm run prisma:seed
 - `prisma:migrate` creates the schema. A fresh database reaches the required tables by running this once.
 - `prisma:seed` upserts the identity provider, IT/HR departments, and sample users. The API does **not** seed on startup. Re-running seed is safe; it will not wipe tickets.
 
-
-
-## How to run the app
-
-From the repository root:
-
-```bash
-npm run start
-```
-
-That runs the NestJS backend and the Vite frontend at the same time. Run migrate and seed first, or the API will fail when it talks to PostgreSQL.
-
-You can also run each app separately:
-
-```bash
-npm run start:backend
-npm run start:frontend
-```
-
-## What URLs does the app open on
-
-The API listens on [http://localhost:3000](http://localhost:3000)
-
-The frontend listens on [http://localhost:5173](http://localhost:5173)
-
-If `PORT` is set in the backend environment, that value is used instead of `3000`.
-
-## Which folders to look at first
-
-
-| Path                                                | Why                                                               |
-| --------------------------------------------------- | ----------------------------------------------------------------- |
-| `docs/`                                             | Product specs, architecture, data model, and the current workflow |
-| `backend/src/tickets/`                              | Ticket API: controller, service, policies, DTOs, tests            |
-| `backend/src/authentication/`                       | Microsoft Entra login, session handling, and request auth         |
-| `backend/src/authorization/`                        | Global authorization guard, public routes, and role decorators    |
-| `backend/src/database/`                             | Prisma connection, error mapping, and seed data                   |
-| `backend/prisma/`                                   | Schema and migrations                                             |
-| `frontend/nexus/src/`                               | React frontend pages, ticket views, API client, and layout        |
-| `backend/src/users/` and `backend/src/departments/` | Supporting repositories used by tickets                           |
-
-
-Start with `backend/src/tickets/tickets.controller.ts` to see the routes, then `tickets.service.ts` and `tickets/policies/`.
-
-## Managing users and roles
+## 10. Managing users and roles
 
 When someone signs in with Microsoft Entra ID and no matching Nexus user exists yet, Nexus automatically creates a local user record with the `Employee` role.
 
@@ -203,7 +163,7 @@ The CLI uses `backend/.env`, connects to the configured `DATABASE_URL`, and can:
 
 This is especially useful for manual testing because ticket pool and department views depend on the signed-in user's role and department memberships.
 
-## Testing with commands
+## 11. Testing with commands
 
 To run all unit, integration, API E2E, and browser E2E tests, from the root, run:
 
@@ -222,7 +182,7 @@ npm run test:browser:e2e
 npm run test:e2e
 ```
 
-All require `backend/.env.integration` pointing at a migrated PostgreSQL database. Tests seed sample users/departments and reset ticket rows themselves.
+All require `backend/.env.integration` pointing at a separate PostgreSQL database. Test startup applies Prisma migrations to that database, then seeds sample users/departments and resets ticket rows.
 
 - `npm test` runs Jest unit tests and any `.spec.ts` tests in `backend/src`.
 - `npm run test:integration` runs the Jest integration suite.
@@ -230,9 +190,49 @@ All require `backend/.env.integration` pointing at a migrated PostgreSQL databas
 - `npm run test:browser:e2e` runs Playwright browser E2E tests against the backend and frontend.
 - `npm run test:e2e` runs both API E2E and browser E2E tests.
 
+## 12. How to run the app
+
+From the repository root:
+
+```bash
+npm run start
+```
+
+That runs the NestJS backend and the Vite frontend at the same time. Run migrate and seed first, or the API will fail when it talks to PostgreSQL.
+
+You can also run each app separately:
+
+```bash
+npm run start:backend
+npm run start:frontend
+```
+
+## 13. What URLs does the app open on
+
+The API listens on [http://localhost:3000](http://localhost:3000)
+
+The frontend listens on [http://localhost:5173](http://localhost:5173)
+
+If `PORT` is set in the backend environment, that value is used instead of `3000`.
+
+## 14. Which folders to look at first
 
 
-## Manual browser testing flow
+| Path                                                | Why                                                               |
+| --------------------------------------------------- | ----------------------------------------------------------------- |
+| `docs/`                                             | Product specs, architecture, data model, and the current workflow |
+| `backend/src/tickets/`                              | Ticket API: controller, service, policies, DTOs, tests            |
+| `backend/src/authentication/`                       | Microsoft Entra login, session handling, and request auth         |
+| `backend/src/authorization/`                        | Global authorization guard, public routes, and role decorators    |
+| `backend/src/database/`                             | Prisma connection, error mapping, and seed data                   |
+| `backend/prisma/`                                   | Schema and migrations                                             |
+| `frontend/nexus/src/`                               | React frontend pages, ticket views, API client, and layout        |
+| `backend/src/users/` and `backend/src/departments/` | Supporting repositories used by tickets                           |
+
+
+Start with `backend/src/tickets/tickets.controller.ts` to see the routes, then `tickets.service.ts` and `tickets/policies/`.
+
+## 15. Manual browser testing flow
 
 For a simple end-to-end manual test, start with two Microsoft accounts:
 
@@ -253,7 +253,7 @@ For a simple end-to-end manual test, start with two Microsoft accounts:
 
 This flow verifies Microsoft login, local user resolution, role-based navigation, department-based ticket visibility, ticket submission, claiming, and closing.
 
-## Manually testing the backend API (URLs, payloads, data to use)
+## 16. Manually testing the backend API (URLs, payloads, data to use)
 
 Base URL: `http://localhost:3000`
 
@@ -263,7 +263,23 @@ Priority must be one of: `LOW`, `MODERATE`, `HIGH`.
 
 Use `Content-Type: application/json` on requests that have a body. Replace `:id` with the `ticketId` returned on submit.
 
-Authenticated routes require the `nexus_session` cookie created by signing in through Microsoft. For most manual testing, the browser flow above is the easiest path because it creates the session cookie for you.
+Authenticated routes require the `nexus_session` cookie created by signing in through Microsoft.
+
+### Authenticate Postman requests
+
+To query authenticated endpoints in Postman:
+
+1. Log in to the app normally using the browser.
+2. While logged in, open the browser DevTools and copy the `nexus_session` cookie information.
+3. In Postman, add the cookie to the cookie jar for `localhost` so Postman sends it with every request.
+
+**Notice:** Postman needs the cookie in this format:
+
+```text
+nexus_session=SESSION_CODE; Path=/; Expires=Thu, 24 Sep 2026 09:06:43 GMT; HttpOnly; Secure; SameSite=Lax;
+```
+
+Replace `SESSION_CODE` with the value of the `nexus_session` cookie from DevTools. The expiration date should match the cookie currently issued by the backend (7 days after interaction).
 
 ### List tickets
 

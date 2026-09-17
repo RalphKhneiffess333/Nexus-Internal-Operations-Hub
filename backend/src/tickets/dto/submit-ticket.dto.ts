@@ -1,4 +1,4 @@
-import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsString } from 'class-validator';
 import { TicketPriority } from '@prisma/client';
 
 export class SubmitTicketDto {
@@ -16,8 +16,4 @@ export class SubmitTicketDto {
   @IsString()
   @IsNotEmpty()
   departmentId!: string;
-
-  @IsOptional()
-  @IsString()
-  submittedBy?: string;
 }

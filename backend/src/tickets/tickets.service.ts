@@ -30,9 +30,18 @@ export interface TicketActionPermissions {
   canReopen: boolean;
 }
 
-export type TicketWithPermissions = TicketRecord & {
-  submittedByName: string;
-  agentName: string | null;
+export interface TicketUserProfile {
+  userId: string;
+  fullName: string;
+  email: string;
+}
+
+export type TicketWithPermissions = Omit<
+  TicketRecord,
+  'submittedBy' | 'agentId' | 'submitter' | 'agent'
+> & {
+  submittedBy: TicketUserProfile;
+  agent: TicketUserProfile | null;
   permissions: TicketActionPermissions;
 };
 
@@ -271,10 +280,29 @@ export class TicketsService {
     actor: AuthenticatedRequestUser,
     actorDepartmentIds: string[],
   ): TicketWithPermissions {
+    const {
+      submittedBy,
+      agentId,
+      submitter,
+      agent,
+      ...ticketFields
+    } = ticket;
+
     return {
-      ...ticket,
-      submittedByName: ticket.submitter.fullName,
-      agentName: ticket.agent?.fullName ?? null,
+      ...ticketFields,
+      submittedBy: {
+        userId: submittedBy,
+        fullName: submitter.fullName,
+        email: submitter.email,
+      },
+      agent:
+        agent && agentId
+          ? {
+              userId: agentId,
+              fullName: agent.fullName,
+              email: agent.email,
+            }
+          : null,
       permissions: {
         canModify: this.canModify(ticket, actor),
         canCancel: this.canCancel(ticket, actor),
@@ -304,9 +332,8 @@ export class TicketsService {
     actorDepartmentIds: string[],
   ): boolean {
     const canWorkTickets =
-      actor.role === UserRole.Admin ||
-      (actor.role === UserRole.Agent &&
-        actorDepartmentIds.includes(ticket.departmentId));
+      (actor.role === UserRole.Admin || actor.role === UserRole.Agent) &&
+      actorDepartmentIds.includes(ticket.departmentId);
 
     return (
       canWorkTickets &&

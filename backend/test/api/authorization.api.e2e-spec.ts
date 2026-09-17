@@ -34,15 +34,16 @@ test('rejects disallowed endpoint roles before reaching ticket policies', async 
   expect(claimResponse.status()).toBe(403);
 });
 
-test('does not trust frontend supplied submitter identity', async ({ e2e }) => {
+test('rejects frontend supplied ticket ownership fields', async ({ e2e }) => {
   const tamperedResponse = await e2e.api.post('/tickets', {
     headers: { Cookie: e2e.sessionCookie(EMPLOYEE_ID) },
     data: {
       title: 'Tampered owner',
-      description: 'The submittedBy field should be ignored',
+      description: 'Ownership and assignment fields should be rejected',
       priority: TicketPriority.LOW,
       departmentId: 'dept-it',
       submittedBy: EMPLOYEE_2_ID,
+      agentId: EMPLOYEE_2_ID,
       createdById: EMPLOYEE_2_ID,
       ownerId: EMPLOYEE_2_ID,
     },
@@ -51,22 +52,10 @@ test('does not trust frontend supplied submitter identity', async ({ e2e }) => {
   const tampered = await tamperedResponse.json();
   expect(tampered.message).toEqual(
     expect.arrayContaining([
+      'property submittedBy should not exist',
+      'property agentId should not exist',
       'property createdById should not exist',
       'property ownerId should not exist',
     ]),
   );
-
-  const createdResponse = await e2e.api.post('/tickets', {
-    headers: { Cookie: e2e.sessionCookie(EMPLOYEE_ID) },
-    data: {
-      title: 'Ignored submitter',
-      description: 'Only submittedBy is currently tolerated for compatibility',
-      priority: TicketPriority.LOW,
-      departmentId: 'dept-it',
-      submittedBy: EMPLOYEE_2_ID,
-    },
-  });
-  expect(createdResponse.status()).toBe(201);
-  const created = await createdResponse.json();
-  expect(created.submittedBy).toBe(EMPLOYEE_ID);
 });

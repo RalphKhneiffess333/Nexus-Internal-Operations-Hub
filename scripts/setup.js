@@ -696,7 +696,7 @@ async function runUsersStage() {
 
 async function runTestsStage() {
   section(6, 'Run Tests');
-  info('The backend test suite requires PostgreSQL and a migrated database.');
+  info('The backend test suite requires PostgreSQL. It applies Prisma migrations to the database in backend/.env.integration before seeding.');
   info('Running it now verifies that the environment is working before starting the application.');
 
   const effect = await askStageDecision('Would you like to run npm run test now?');

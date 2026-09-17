@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { Ticket, TicketPriority, UserRole } from '@prisma/client';
+import { TicketPriority, UserRole } from '@prisma/client';
 import type { AuthenticatedRequestUser } from '../authentication/request-user';
 import { DatabaseModule } from '../database/database.module';
 import { PrismaService } from '../database/prisma.service';
@@ -16,7 +16,7 @@ import {
 } from '../database/seed';
 import { SubmitTicketDto } from './dto/submit-ticket.dto';
 import { TicketsModule } from './tickets.module';
-import { TicketsService } from './tickets.service';
+import { TicketsService, type TicketWithPermissions } from './tickets.service';
 
 export {
   ADMIN_ID,
@@ -93,7 +93,7 @@ export async function submitOpenTicket(
   service: TicketsService,
   overrides: Partial<SubmitTicketDto> = {},
   actor = requestUser(),
-): Promise<Ticket> {
+): Promise<TicketWithPermissions> {
   return service.submit(submitDto(overrides), actor);
 }
 
@@ -101,7 +101,7 @@ export async function claimTicket(
   service: TicketsService,
   ticketId: string,
   actor = agentUser(),
-): Promise<Ticket> {
+): Promise<TicketWithPermissions> {
   return service.claim(ticketId, actor);
 }
 
@@ -109,7 +109,7 @@ export async function closeTicket(
   service: TicketsService,
   ticketId: string,
   actor = agentUser(),
-): Promise<Ticket> {
+): Promise<TicketWithPermissions> {
   return service.close(
     ticketId,
     {

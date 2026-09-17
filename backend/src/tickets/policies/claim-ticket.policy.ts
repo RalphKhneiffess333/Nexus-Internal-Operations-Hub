@@ -3,7 +3,7 @@ import {
   ForbiddenException,
   Injectable,
 } from '@nestjs/common';
-import { Ticket, TicketStatus, UserRole } from '@prisma/client';
+import { Ticket, TicketStatus } from '@prisma/client';
 import type { AuthenticatedRequestUser } from '../../authentication/request-user';
 
 @Injectable()
@@ -32,10 +32,7 @@ export class ClaimTicketPolicy {
       );
     }
 
-    if (
-      actor.role !== UserRole.Admin &&
-      !actorDepartmentIds.includes(ticket.departmentId)
-    ) {
+    if (!actorDepartmentIds.includes(ticket.departmentId)) {
       throw new ForbiddenException(
         'You do not have permission to access this resource',
       );

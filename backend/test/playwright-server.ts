@@ -1,10 +1,7 @@
-import { Body, Controller, Post } from '@nestjs/common';
-import { NestFactory } from '@nestjs/core';
+import './setup-integration-env';
+
+import { Body, Controller, Post, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { ValidationPipe } from '@nestjs/common';
-import { existsSync } from 'fs';
-import { resolve } from 'path';
-import { config } from 'dotenv';
 import { AppModule } from '../src/app.module';
 import { Public } from '../src/authorization/decorators/public.decorator';
 import { SESSION_COOKIE_NAME } from '../src/authentication/authentication.constants';
@@ -12,15 +9,6 @@ import { SessionService } from '../src/authentication/sessions/session.service';
 import { PrismaService } from '../src/database/prisma.service';
 import { resetTicketData, seedTestDatabase } from '../src/database/seed';
 
-const envPath = resolve(__dirname, '../.env.integration');
-if (!existsSync(envPath)) {
-  throw new Error(
-    'Playwright E2E needs backend/.env.integration. Copy backend/.env.integration.example and point it at the test database.',
-  );
-}
-
-config({ path: envPath, override: true });
-process.env.NODE_ENV = 'test';
 process.env.PORT = process.env.PORT ?? '3000';
 process.env.FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:5173';
 

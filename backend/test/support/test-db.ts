@@ -1,7 +1,6 @@
 import type { TestType } from '@playwright/test';
 import { PrismaClient } from '@prisma/client';
-import { config } from 'dotenv';
-import { resolve } from 'path';
+import '../setup-integration-env';
 import {
   AGENT_ID,
   EMPLOYEE_ID,
@@ -9,8 +8,6 @@ import {
   resetTicketData,
   seedTestDatabase,
 } from '../../src/database/seed';
-
-config({ path: resolve(__dirname, '../../.env.integration'), override: true });
 
 export { AGENT_ID, EMPLOYEE_ID, IT_DEPARTMENT_ID };
 

@@ -145,6 +145,21 @@ async function seedTestDepartmentMembers(prisma: PrismaClient): Promise<void> {
       departmentId: HR_DEPARTMENT_ID,
     },
   });
+
+  await prisma.departmentMember.upsert({
+    where: {
+      userId_departmentId: {
+        userId: ADMIN_ID,
+        departmentId: IT_DEPARTMENT_ID,
+      },
+    },
+    update: {},
+    create: {
+      departmentMemberId: 'dept-member-admin-it',
+      userId: ADMIN_ID,
+      departmentId: IT_DEPARTMENT_ID,
+    },
+  });
 }
 
 export async function resetTicketData(prisma: PrismaClient): Promise<void> {

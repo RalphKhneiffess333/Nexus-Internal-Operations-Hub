@@ -35,11 +35,11 @@ describe('TicketsService integration', () => {
     const ticket = await submitOpenTicket(service);
 
     expect(ticket.status).toBe(TicketStatus.OPEN);
-    expect(ticket.agentId).toBeNull();
+    expect(ticket.agent).toBeNull();
     expect(ticket.active).toBe(true);
     expect(ticket.ticketCode).toMatch(/^TKT-\d{4}$/);
     expect(ticket.title).toBe('Laptop will not start');
-    expect(ticket.submittedBy).toBe(EMPLOYEE_ID);
+    expect(ticket.submittedBy.userId).toBe(EMPLOYEE_ID);
     expect(ticket.departmentId).toBe(IT_DEPARTMENT_ID);
     expect(ticket.createdAt).toBeInstanceOf(Date);
   });
@@ -86,13 +86,10 @@ describe('TicketsService integration', () => {
     ).rejects.toThrow(NotFoundException);
   });
 
-  it('uses the authenticated user as the submitter even when the body is tampered with', async () => {
-    const ticket = await service.submit(
-      submitDto({ submittedBy: EMPLOYEE_2_ID }),
-      requestUser(),
-    );
+  it('uses the authenticated user as the submitter', async () => {
+    const ticket = await service.submit(submitDto(), requestUser());
 
-    expect(ticket.submittedBy).toBe(EMPLOYEE_ID);
+    expect(ticket.submittedBy.userId).toBe(EMPLOYEE_ID);
   });
 
   it('rejects submission when the department does not exist', async () => {
@@ -190,6 +187,28 @@ describe('TicketsService integration', () => {
     ).rejects.toThrow(ForbiddenException);
   });
 
+  it('allows admins to view outside their department but not claim there', async () => {
+    const hrTicket = await submitOpenTicket(
+      service,
+      { departmentId: HR_DEPARTMENT_ID },
+      requestUser({
+        userId: EMPLOYEE_2_ID,
+        email: 'sam@company.com',
+        identityProviderUserId: EMPLOYEE_2_ID,
+      }),
+    );
+
+    await expect(
+      service.findOne(hrTicket.ticketId, adminUser()),
+    ).resolves.toMatchObject({
+      ticketId: hrTicket.ticketId,
+      departmentId: HR_DEPARTMENT_ID,
+    });
+    await expect(service.claim(hrTicket.ticketId, adminUser())).rejects.toThrow(
+      ForbiddenException,
+    );
+  });
+
   it('returns submitted, department, and pool ticket scopes with action permissions', async () => {
     const employeeTicket = await submitOpenTicket(service);
     const hrTicket = await submitOpenTicket(
@@ -224,5 +243,13 @@ describe('TicketsService integration', () => {
     expect(adminPoolTickets.map((ticket) => ticket.ticketId).sort()).toEqual(
       [employeeTicket.ticketId, hrTicket.ticketId].sort(),
     );
+    const adminClaimPermissions = new Map(
+      adminPoolTickets.map((ticket) => [
+        ticket.ticketId,
+        ticket.permissions.canClaim,
+      ]),
+    );
+    expect(adminClaimPermissions.get(employeeTicket.ticketId)).toBe(true);
+    expect(adminClaimPermissions.get(hrTicket.ticketId)).toBe(false);
   });
 });

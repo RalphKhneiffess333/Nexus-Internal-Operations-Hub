@@ -32,15 +32,15 @@ describe('Ticket lifecycle integration', () => {
   it('follows OPEN -> CLAIMED -> CLOSED -> REOPENED -> CLAIMED', async () => {
     const open = await submitOpenTicket(service);
     expect(open.status).toBe(TicketStatus.OPEN);
-    expect(open.agentId).toBeNull();
+    expect(open.agent).toBeNull();
 
     const claimed = await claimTicket(service, open.ticketId);
     expect(claimed.status).toBe(TicketStatus.CLAIMED);
-    expect(claimed.agentId).toBe(AGENT_ID);
+    expect(claimed.agent?.userId).toBe(AGENT_ID);
 
     const closed = await closeTicket(service, claimed.ticketId);
     expect(closed.status).toBe(TicketStatus.CLOSED);
-    expect(closed.agentId).toBeNull();
+    expect(closed.agent).toBeNull();
     expect(closed.completionNotes).toBe('Replaced the power adapter');
     expect(closed.closedAt).toBeInstanceOf(Date);
 
@@ -52,12 +52,12 @@ describe('Ticket lifecycle integration', () => {
       requestUser(),
     );
     expect(reopened.status).toBe(TicketStatus.REOPENED);
-    expect(reopened.agentId).toBeNull();
+    expect(reopened.agent).toBeNull();
     expect(reopened.description).toBe('The issue came back after a day');
 
     const claimedAgain = await claimTicket(service, reopened.ticketId);
     expect(claimedAgain.status).toBe(TicketStatus.CLAIMED);
-    expect(claimedAgain.agentId).toBe(AGENT_ID);
+    expect(claimedAgain.agent?.userId).toBe(AGENT_ID);
   });
 
   it('keeps the persisted ticket unchanged when a duplicate claim is rejected', async () => {

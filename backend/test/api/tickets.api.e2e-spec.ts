@@ -23,6 +23,14 @@ test('submits, claims, closes, and reopens a ticket over HTTP', async ({
   expect(submitResponse.status()).toBe(201);
   const submitted = await submitResponse.json();
   expect(submitted.status).toBe(TicketStatus.OPEN);
+  expect(submitted.submittedBy).toMatchObject({
+    userId: EMPLOYEE_ID,
+    fullName: 'Alex Employee',
+    email: 'alex@company.com',
+  });
+  expect(submitted.agent).toBeNull();
+  expect(submitted.submittedByName).toBeUndefined();
+  expect(submitted.agentId).toBeUndefined();
 
   const claimResponse = await e2e.api.post(
     `/tickets/${submitted.ticketId}/claim`,
@@ -34,7 +42,7 @@ test('submits, claims, closes, and reopens a ticket over HTTP', async ({
   expect(claimResponse.status()).toBe(201);
   const claimed = await claimResponse.json();
   expect(claimed.status).toBe(TicketStatus.CLAIMED);
-  expect(claimed.agentId).toBe(AGENT_ID);
+  expect(claimed.agent.userId).toBe(AGENT_ID);
 
   const closeResponse = await e2e.api.post(
     `/tickets/${submitted.ticketId}/close`,
@@ -46,7 +54,7 @@ test('submits, claims, closes, and reopens a ticket over HTTP', async ({
   expect(closeResponse.status()).toBe(201);
   const closed = await closeResponse.json();
   expect(closed.status).toBe(TicketStatus.CLOSED);
-  expect(closed.agentId).toBeNull();
+  expect(closed.agent).toBeNull();
 
   const reopenResponse = await e2e.api.post(
     `/tickets/${submitted.ticketId}/reopen`,
@@ -108,6 +116,36 @@ test('rejects closing an OPEN ticket over HTTP', async ({ e2e }) => {
   expect(closeResponse.status()).toBe(400);
 });
 
+test('rejects an admin claiming outside their department over HTTP', async ({
+  e2e,
+}) => {
+  const submitResponse = await e2e.api.post('/tickets', {
+    headers: { Cookie: e2e.sessionCookie(EMPLOYEE_ID) },
+    data: {
+      title: 'Benefits question',
+      description: 'Need help with enrollment',
+      priority: TicketPriority.LOW,
+      departmentId: 'dept-hr',
+    },
+  });
+  expect(submitResponse.status()).toBe(201);
+  const submitted = await submitResponse.json();
+
+  const viewResponse = await e2e.api.get(`/tickets/${submitted.ticketId}`, {
+    headers: { Cookie: e2e.sessionCookie(ADMIN_ID) },
+  });
+  expect(viewResponse.status()).toBe(200);
+
+  const claimResponse = await e2e.api.post(
+    `/tickets/${submitted.ticketId}/claim`,
+    {
+      headers: { Cookie: e2e.sessionCookie(ADMIN_ID) },
+      data: {},
+    },
+  );
+  expect(claimResponse.status()).toBe(403);
+});
+
 test('allows only one concurrent claim to succeed', async ({ e2e }) => {
   const submitResponse = await e2e.api.post('/tickets', {
     headers: { Cookie: e2e.sessionCookie(EMPLOYEE_ID) },
@@ -140,5 +178,5 @@ test('allows only one concurrent claim to succeed', async ({ e2e }) => {
     first.status() === 201 ? await first.json() : await second.json();
   const stored = await e2e.prisma.ticket.findUnique({ where: { ticketId } });
   expect(stored?.status).toBe(TicketStatus.CLAIMED);
-  expect(stored?.agentId).toBe(winner.agentId);
+  expect(stored?.agentId).toBe(winner.agent.userId);
 });
