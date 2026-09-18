@@ -1,4 +1,15 @@
-import { IsBoolean, IsEmail, IsEnum, IsInt, IsOptional, IsString, IsUUID, Length, Max, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsEmail,
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Length,
+  Max,
+  Min,
+} from 'class-validator';
 import { UserRole } from '@prisma/client';
 
 export class PageQueryDto {
@@ -85,7 +96,18 @@ export class UpdateConfigurationDto {
 
 export class AuditQueryDto extends PageQueryDto {
   @IsOptional()
-  @IsEnum(['USER_PREPROVISIONING', 'ROLE_MAPPING', 'USER_ACTIVATION', 'USER_DEACTIVATION', 'DEPARTMENT_ADDITION', 'DEPARTMENT_MODIFICATION', 'DEPARTMENT_DELETION', 'DEPARTMENT_REACTIVATION', 'DEPARTMENT_MAPPING', 'SYSTEM_VARIABLE_MODIFICATION'] as const)
+  @IsEnum([
+    'USER_PREPROVISIONING',
+    'ROLE_MAPPING',
+    'USER_ACTIVATION',
+    'USER_DEACTIVATION',
+    'DEPARTMENT_ADDITION',
+    'DEPARTMENT_MODIFICATION',
+    'DEPARTMENT_DELETION',
+    'DEPARTMENT_REACTIVATION',
+    'DEPARTMENT_MAPPING',
+    'SYSTEM_VARIABLE_MODIFICATION',
+  ] as const)
   action?: string;
 
   @IsOptional()

@@ -69,7 +69,7 @@ export class TicketEventsRepository {
         },
       });
       return ticketEventId;
-
+      
     } catch (error) {
       mapPrismaError(error);
     }

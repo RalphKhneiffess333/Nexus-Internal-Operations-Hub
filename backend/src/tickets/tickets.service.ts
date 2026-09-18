@@ -193,38 +193,42 @@ export class TicketsService {
     );
     this.submitTicketPolicy.assert(department);
 
-    const ticket = await this.withStoredFiles(files, actor.userId, async (storedFiles) => {
-      const now = new Date();
-      return this.ticketLifecycleRepository.createWithEvent(
-        {
-          title: dto.title,
-          description: dto.description,
-          priority: dto.priority,
-          status: TicketStatus.OPEN,
-          departmentId: dto.departmentId,
-          submittedBy: actor.userId,
-          agentId: null,
-          active: true,
-          completionNotes: null,
-          createdAt: now,
-          updatedAt: now,
-          closedAt: null,
-        },
-        {
-          userId: actor.userId,
-          action: TicketEventAction.SUBMISSION,
-          details: {
+    const ticket = await this.withStoredFiles(
+      files,
+      actor.userId,
+      async (storedFiles) => {
+        const now = new Date();
+        return this.ticketLifecycleRepository.createWithEvent(
+          {
             title: dto.title,
-            departmentId: dto.departmentId,
-            priority: dto.priority,
             description: dto.description,
-            submitterId: actor.userId,
+            priority: dto.priority,
+            status: TicketStatus.OPEN,
+            departmentId: dto.departmentId,
+            submittedBy: actor.userId,
+            agentId: null,
+            active: true,
+            completionNotes: null,
+            createdAt: now,
+            updatedAt: now,
+            closedAt: null,
           },
-          createdAt: now,
-        },
-        storedFiles,
-      );
-    });
+          {
+            userId: actor.userId,
+            action: TicketEventAction.SUBMISSION,
+            details: {
+              title: dto.title,
+              departmentId: dto.departmentId,
+              priority: dto.priority,
+              description: dto.description,
+              submitterId: actor.userId,
+            },
+            createdAt: now,
+          },
+          storedFiles,
+        );
+      },
+    );
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
     return this.withPermission(ticket, actor, actorDepartmentIds);
   }
@@ -270,24 +274,32 @@ export class TicketsService {
     const ticket = await this.getActiveTicket(ticketId);
     this.closeTicketPolicy.assert(ticket, actor);
 
-    const closed = await this.withStoredFiles(files, actor.userId, async (storedFiles) => {
-      const now = new Date();
-      ticket.status = TicketStatus.CLOSED;
-      ticket.agentId = null;
-      ticket.completionNotes = dto.completionNotes ?? null;
-      ticket.closedAt = now;
-      ticket.updatedAt = now;
-      return this.ticketLifecycleRepository.saveWithEvent(ticket, {
-        ticketId,
-        userId: actor.userId,
-        action: TicketEventAction.CLOSE,
-        details: {
-          agentId: actor.userId,
-          completionNotes: ticket.completionNotes,
-        },
-        createdAt: now,
-      }, storedFiles);
-    });
+    const closed = await this.withStoredFiles(
+      files,
+      actor.userId,
+      async (storedFiles) => {
+        const now = new Date();
+        ticket.status = TicketStatus.CLOSED;
+        ticket.agentId = null;
+        ticket.completionNotes = dto.completionNotes ?? null;
+        ticket.closedAt = now;
+        ticket.updatedAt = now;
+        return this.ticketLifecycleRepository.saveWithEvent(
+          ticket,
+          {
+            ticketId,
+            userId: actor.userId,
+            action: TicketEventAction.CLOSE,
+            details: {
+              agentId: actor.userId,
+              completionNotes: ticket.completionNotes,
+            },
+            createdAt: now,
+          },
+          storedFiles,
+        );
+      },
+    );
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
     return this.withPermission(closed, actor, actorDepartmentIds);
   }
@@ -301,31 +313,35 @@ export class TicketsService {
     const ticket = await this.getActiveTicket(ticketId);
     this.reopenTicketPolicy.assert(ticket, actor);
 
-    const reopened = await this.withStoredFiles(files, actor.userId, async (storedFiles) => {
-      ticket.status = TicketStatus.REOPENED;
-      ticket.agentId = null;
-      ticket.closedAt = null;
-      if (dto.description) {
-        ticket.description = dto.description;
-      }
-      const now = new Date();
-      ticket.updatedAt = now;
-      return this.ticketLifecycleRepository.saveWithEvent(
-        ticket,
-        {
-          ticketId,
-          userId: actor.userId,
-          action: TicketEventAction.REOPEN,
-          details: {
-            priority: ticket.priority,
-            description: ticket.description,
-            submitterId: ticket.submittedBy,
+    const reopened = await this.withStoredFiles(
+      files,
+      actor.userId,
+      async (storedFiles) => {
+        ticket.status = TicketStatus.REOPENED;
+        ticket.agentId = null;
+        ticket.closedAt = null;
+        if (dto.description) {
+          ticket.description = dto.description;
+        }
+        const now = new Date();
+        ticket.updatedAt = now;
+        return this.ticketLifecycleRepository.saveWithEvent(
+          ticket,
+          {
+            ticketId,
+            userId: actor.userId,
+            action: TicketEventAction.REOPEN,
+            details: {
+              priority: ticket.priority,
+              description: ticket.description,
+              submitterId: ticket.submittedBy,
+            },
+            createdAt: now,
           },
-          createdAt: now,
-        },
-        storedFiles,
-      );
-    });
+          storedFiles,
+        );
+      },
+    );
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
     return this.withPermission(reopened, actor, actorDepartmentIds);
   }
@@ -468,8 +484,7 @@ export class TicketsService {
     if (
       !Array.isArray(parsed) ||
       parsed.some(
-        (attachmentId) =>
-          typeof attachmentId !== 'string' || !attachmentId,
+        (attachmentId) => typeof attachmentId !== 'string' || !attachmentId,
       )
     ) {
       throw new BadRequestException(
@@ -487,12 +502,11 @@ export class TicketsService {
     actor: AuthenticatedRequestUser,
   ): Promise<StreamableFile> {
     await this.assertCanViewTicket(ticketId, actor);
-    const attachment =
-      await this.fileAttachmentsRepository.findForTicketEvent(
-        ticketId,
-        eventId,
-        attachmentId,
-      );
+    const attachment = await this.fileAttachmentsRepository.findForTicketEvent(
+      ticketId,
+      eventId,
+      attachmentId,
+    );
     if (!attachment) {
       throw new NotFoundException('Attachment was not found');
     }

@@ -61,15 +61,32 @@ export async function seedDatabase(prisma: PrismaClient): Promise<void> {
   });
 
   const configurations = [
-    ['REMINDER_INTERVAL_LOW_MINUTES', '240', 'Reminder interval for LOW tickets in minutes'],
-    ['REMINDER_INTERVAL_MODERATE_MINUTES', '240', 'Reminder interval for MODERATE tickets in minutes'],
-    ['REMINDER_INTERVAL_HIGH_MINUTES', '240', 'Reminder interval for HIGH tickets in minutes'],
+    [
+      'REMINDER_INTERVAL_LOW_MINUTES',
+      '240',
+      'Reminder interval for LOW tickets in minutes',
+    ],
+    [
+      'REMINDER_INTERVAL_MODERATE_MINUTES',
+      '240',
+      'Reminder interval for MODERATE tickets in minutes',
+    ],
+    [
+      'REMINDER_INTERVAL_HIGH_MINUTES',
+      '240',
+      'Reminder interval for HIGH tickets in minutes',
+    ],
   ] as const;
   for (const [key, value, description] of configurations) {
     await prisma.systemConfiguration.upsert({
       where: { key },
       update: { description },
-      create: { configurationId: `config-${key.toLowerCase()}`, key, value, description },
+      create: {
+        configurationId: `config-${key.toLowerCase()}`,
+        key,
+        value,
+        description,
+      },
     });
   }
 }
