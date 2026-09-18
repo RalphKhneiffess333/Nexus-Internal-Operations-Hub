@@ -1,4 +1,9 @@
-import { TicketEvent, TicketEventAction, TicketPriority } from '@prisma/client';
+import {
+  TicketEvent,
+  TicketEventAction,
+  TicketPriority,
+  UserRole,
+} from '@prisma/client';
 
 export interface SubmissionEventDetails {
   title: string;
@@ -81,11 +86,60 @@ export type NewTicketMutationEvent = Exclude<
   { action: 'SUBMISSION' | 'CLAIM' }
 >;
 
-type TicketEventScalars = Omit<TicketEvent, 'action' | 'details'>;
+export interface TicketEventUser {
+  userId: string;
+  fullName: string;
+  email: string;
+  role: UserRole;
+}
+
+export interface SubmissionEventDetailsResponse
+  extends Omit<SubmissionEventDetails, 'submitterId'> {
+  submitter: TicketEventUser;
+}
+
+export interface ClaimEventDetailsResponse
+  extends Omit<ClaimEventDetails, 'agentId'> {
+  agent: TicketEventUser;
+}
+
+export interface CloseEventDetailsResponse
+  extends Omit<CloseEventDetails, 'agentId'> {
+  agent: TicketEventUser;
+}
+
+export interface ReopenEventDetailsResponse
+  extends Omit<ReopenEventDetails, 'submitterId'> {
+  submitter: TicketEventUser;
+}
+
+export interface DeleteEventDetailsResponse
+  extends Omit<DeleteEventDetails, 'deletedById'> {
+  deletedBy: TicketEventUser;
+}
+
+export interface HandoffEventDetailsResponse
+  extends Omit<HandoffEventDetails, 'requesterId' | 'requestedAgentId'> {
+  requester: TicketEventUser;
+  requestedAgent: TicketEventUser;
+}
+
+export interface TicketEventDetailsResponseByAction {
+  [TicketEventAction.SUBMISSION]: SubmissionEventDetailsResponse;
+  [TicketEventAction.CLAIM]: ClaimEventDetailsResponse;
+  [TicketEventAction.CLOSE]: CloseEventDetailsResponse;
+  [TicketEventAction.REOPEN]: ReopenEventDetailsResponse;
+  [TicketEventAction.DELETE]: DeleteEventDetailsResponse;
+  [TicketEventAction.MODIFICATION]: ModificationEventDetails;
+  [TicketEventAction.HANDOFF]: HandoffEventDetailsResponse;
+}
+
+type TicketEventScalars = Omit<TicketEvent, 'action' | 'details' | 'userId'>;
 
 export type TicketEventRecord = {
   [Action in TicketEventAction]: TicketEventScalars & {
     action: Action;
-    details: TicketEventDetailsByAction[Action];
+    user: TicketEventUser;
+    details: TicketEventDetailsResponseByAction[Action];
   };
 }[TicketEventAction];

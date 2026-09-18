@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Link, useLocation, useParams } from 'react-router-dom'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ConfirmDialog } from '../../components/tickets/ConfirmDialog'
 import { TicketDetails } from '../../components/tickets/TicketDetails'
 import { TicketMessageDialog } from '../../components/tickets/TicketMessageDialog'
+import { TicketTimeline } from '../../components/tickets/TicketTimeline'
 import { LoadingState } from '../../components/ui/LoadingState'
 import {
   TicketForm,
@@ -14,6 +15,8 @@ import {
   claimTicket,
   closeTicket,
   getTicket,
+  getTicketEvent,
+  getTicketEvents,
   reopenTicket,
   updateTicket,
 } from '../../features/tickets/ticket-api'
@@ -21,6 +24,7 @@ import {
 export function TicketDetailsPage() {
   const { ticketId } = useParams()
   const location = useLocation()
+  const navigate = useNavigate()
   const [ticket, setTicket] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -39,6 +43,15 @@ export function TicketDetailsPage() {
   const [showingReopenDialog, setShowingReopenDialog] = useState(false)
   const [reopenError, setReopenError] = useState('')
   const [notice, setNotice] = useState('')
+  const [events, setEvents] = useState([])
+  const [timelineOpen, setTimelineOpen] = useState(true)
+  const [timelineLoading, setTimelineLoading] = useState(true)
+  const [timelineError, setTimelineError] = useState('')
+  const [selectedEventId, setSelectedEventId] = useState('')
+  const [selectedEvent, setSelectedEvent] = useState(null)
+  const [eventDetailLoading, setEventDetailLoading] = useState(false)
+  const [eventDetailError, setEventDetailError] = useState('')
+  const eventDetailRequestId = useRef(0)
   const {
     departments,
     loading: loadingDepartments,
@@ -57,6 +70,22 @@ export function TicketDetailsPage() {
       setError(loadError.message || 'Unable to load this ticket. Please try again.')
     } finally {
       setLoading(false)
+    }
+  }, [ticketId])
+
+  const loadTicketEvents = useCallback(async () => {
+    setTimelineLoading(true)
+    setTimelineError('')
+    try {
+      const result = await getTicketEvents(ticketId)
+      setEvents(Array.isArray(result) ? result : [])
+    } catch (loadError) {
+      setTimelineError(
+        loadError.message ||
+          'Unable to load the ticket timeline. Please try again.',
+      )
+    } finally {
+      setTimelineLoading(false)
     }
   }, [ticketId])
 
@@ -91,6 +120,45 @@ export function TicketDetailsPage() {
     }
   }, [ticketId])
 
+  useEffect(() => {
+    void loadTicketEvents()
+  }, [loadTicketEvents])
+
+  async function handleSelectEvent(event) {
+    const requestId = eventDetailRequestId.current + 1
+    eventDetailRequestId.current = requestId
+
+    if (selectedEventId === event.ticketEventId) {
+      setSelectedEventId('')
+      setSelectedEvent(null)
+      setEventDetailError('')
+      setEventDetailLoading(false)
+      return
+    }
+
+    setSelectedEventId(event.ticketEventId)
+    setSelectedEvent(null)
+    setEventDetailError('')
+    setEventDetailLoading(true)
+
+    try {
+      const result = await getTicketEvent(ticketId, event.ticketEventId)
+      if (eventDetailRequestId.current === requestId) {
+        setSelectedEvent(result)
+      }
+    } catch (detailError) {
+      if (eventDetailRequestId.current === requestId) {
+        setEventDetailError(
+          detailError.message || 'Unable to load this event. Please try again.',
+        )
+      }
+    } finally {
+      if (eventDetailRequestId.current === requestId) {
+        setEventDetailLoading(false)
+      }
+    }
+  }
+
   async function handleUpdate(values) {
     const nextFieldErrors = validateTicketFields(values)
     setFieldErrors(nextFieldErrors)
@@ -110,6 +178,7 @@ export function TicketDetailsPage() {
       setTicket(updated)
       setEditing(false)
       setNotice('Ticket updated.')
+      void loadTicketEvents()
     } catch (updateError) {
       setFormError(
         updateError.message ||
@@ -124,11 +193,8 @@ export function TicketDetailsPage() {
     setCancelling(true)
     setFormError('')
     try {
-      const cancelled = await cancelTicket(ticketId)
-      setTicket(cancelled)
-      setConfirmingCancel(false)
-      setEditing(false)
-      setNotice('This ticket has been cancelled.')
+      await cancelTicket(ticketId)
+      navigate(location.state?.from ?? '/tickets', { replace: true })
     } catch (cancelError) {
       setFormError(
         cancelError.message ||
@@ -147,6 +213,7 @@ export function TicketDetailsPage() {
       setTicket(claimed)
       setConfirmingClaim(false)
       setNotice('Ticket claimed.')
+      void loadTicketEvents()
     } catch (claimError) {
       setFormError(
         claimError.message ||
@@ -165,6 +232,7 @@ export function TicketDetailsPage() {
       setTicket(closed)
       setShowingCloseDialog(false)
       setNotice('Ticket closed.')
+      void loadTicketEvents()
     } catch (closeTicketError) {
       setCloseError(
         closeTicketError.message ||
@@ -183,6 +251,7 @@ export function TicketDetailsPage() {
       setTicket(reopened)
       setShowingReopenDialog(false)
       setNotice('Ticket reopened.')
+      void loadTicketEvents()
     } catch (reopenTicketError) {
       setReopenError(
         reopenTicketError.message ||
@@ -281,38 +350,72 @@ export function TicketDetailsPage() {
       {notice ? <p className="banner success">{notice}</p> : null}
       {formError && !editing ? <p className="banner error">{formError}</p> : null}
 
-      {!loading && ticket && editing ? (
-        loadingDepartments ? (
-          <LoadingState>Loading departments...</LoadingState>
-        ) : departmentsError ? (
-          <div className="banner error">
-            <p>{departmentsError}</p>
-            <button type="button" className="btn ghost" onClick={reloadDepartments}>
-              Try again
-            </button>
-          </div>
-        ) : (
-          <TicketForm
-            key={`${ticket.ticketId}-edit`}
-            initialValues={ticket}
-            departments={departments}
-            submitLabel="Save changes"
-            submittingLabel="Saving..."
-            submitting={saving}
-            error={formError}
-            fieldErrors={fieldErrors}
-            onSubmit={handleUpdate}
-            onCancel={() => {
-              setEditing(false)
-              setFormError('')
-              setFieldErrors({})
-            }}
-          />
-        )
-      ) : null}
+      {!loading && ticket ? (
+        <div className={`ticket-workspace${timelineOpen ? '' : ' timeline-hidden'}`}>
+          <div className="ticket-workspace-main">
+            {editing ? (
+              loadingDepartments ? (
+                <LoadingState>Loading departments...</LoadingState>
+              ) : departmentsError ? (
+                <div className="banner error">
+                  <p>{departmentsError}</p>
+                  <button
+                    type="button"
+                    className="btn ghost"
+                    onClick={reloadDepartments}
+                  >
+                    Try again
+                  </button>
+                </div>
+              ) : (
+                <TicketForm
+                  key={`${ticket.ticketId}-edit`}
+                  initialValues={ticket}
+                  departments={departments}
+                  submitLabel="Save changes"
+                  submittingLabel="Saving..."
+                  submitting={saving}
+                  error={formError}
+                  fieldErrors={fieldErrors}
+                  onSubmit={handleUpdate}
+                  onCancel={() => {
+                    setEditing(false)
+                    setFormError('')
+                    setFieldErrors({})
+                  }}
+                />
+              )
+            ) : (
+              <TicketDetails
+                ticket={ticket}
+                departments={departments}
+                timelineOpen={timelineOpen}
+                onToggleTimeline={() => setTimelineOpen((open) => !open)}
+              />
+            )}
 
-      {!loading && ticket && !editing ? (
-        <TicketDetails ticket={ticket} departments={departments} />
+            {ticket.active === false ? (
+              <p className="muted ticket-inactive-note">
+                This ticket can no longer be edited or cancelled.
+              </p>
+            ) : null}
+          </div>
+
+          {timelineOpen ? (
+            <TicketTimeline
+              events={events}
+              loading={timelineLoading}
+              error={timelineError}
+              selectedEvent={selectedEvent}
+              selectedEventId={selectedEventId}
+              detailLoading={eventDetailLoading}
+              detailError={eventDetailError}
+              departments={departments}
+              onSelect={handleSelectEvent}
+              onRetry={loadTicketEvents}
+            />
+          ) : null}
+        </div>
       ) : null}
 
       {confirmingCancel && ticket ? (
@@ -381,9 +484,6 @@ export function TicketDetailsPage() {
         />
       ) : null}
 
-      {!loading && ticket && ticket.active === false ? (
-        <p className="muted">This ticket can no longer be edited or cancelled.</p>
-      ) : null}
     </section>
   )
 }

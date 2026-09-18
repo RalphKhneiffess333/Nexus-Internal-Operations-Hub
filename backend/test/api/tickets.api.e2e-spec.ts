@@ -244,7 +244,11 @@ test('returns complete event details from ticket-owned history endpoints', async
   const event = await eventResponse.json();
   expect(event).toEqual(history[1]);
   expect(event.ticket).toBeUndefined();
-  expect(event.user).toBeUndefined();
+  expect(event.user).toMatchObject({
+    userId: EMPLOYEE_ID,
+    fullName: 'Employee 1',
+    email: 'alex@company.com',
+  });
 
   const forbiddenResponse = await e2e.api.get(
     `/tickets/${submitted.ticketId}/events`,

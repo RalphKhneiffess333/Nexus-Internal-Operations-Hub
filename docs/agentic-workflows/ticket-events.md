@@ -892,6 +892,60 @@ Do not accept:
 
 from clients.
 
+The request should be of the form:
+`GET /tickets/:id/events` with no body, response:
+```json
+[
+  {
+  "ticketEventId": "event-uuid",
+  "ticketId": "ticket-uuid",
+  "action": "CLAIM",
+  "user": {
+    "userId": "user-uuid",
+    "fullName": "IT Agent 1",
+    "email": "jordan@company.com",
+    "role": "Agent"
+  },
+  "details": {
+    "agent": {
+      "userId": "user-uuid",
+      "fullName": "IT Agent 1",
+      "email": "jordan@company.com",
+      "role": "Agent"
+    },
+    "timestamp": "2026-09-18T10:00:00.000Z"
+  },
+  "createdAt": "2026-09-18T10:00:00.000Z",
+  "updatedAt": "2026-09-18T10:00:00.000Z"
+}
+]
+```
+
+`GET /tickets/:id/events/:eventId` with no body, response:
+```json
+{
+  "ticketEventId": "event-uuid",
+  "ticketId": "ticket-uuid",
+  "action": "CLAIM",
+  "user": {
+    "userId": "user-uuid",
+    "fullName": "IT Agent 1",
+    "email": "jordan@company.com",
+    "role": "Agent"
+  },
+  "details": {
+    "agent": {
+      "userId": "user-uuid",
+      "fullName": "IT Agent 1",
+      "email": "jordan@company.com",
+      "role": "Agent"
+    },
+    "timestamp": "2026-09-18T10:00:00.000Z"
+  },
+  "createdAt": "2026-09-18T10:00:00.000Z",
+  "updatedAt": "2026-09-18T10:00:00.000Z"
+}
+```
 ---
 
 # 27. Error handling

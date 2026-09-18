@@ -82,18 +82,18 @@ describe('Ticket events integration', () => {
     ]);
     expect(events[0]).toMatchObject({
       ticketId: modified.ticketId,
-      userId: EMPLOYEE_ID,
+      user: { userId: EMPLOYEE_ID },
       action: TicketEventAction.SUBMISSION,
       details: {
         title: 'Laptop will not start',
         departmentId: IT_DEPARTMENT_ID,
         priority: TicketPriority.HIGH,
         description: 'The laptop stays on a black screen',
-        submitterId: EMPLOYEE_ID,
+        submitter: { userId: EMPLOYEE_ID },
       },
     });
     expect(events[1]).toMatchObject({
-      userId: EMPLOYEE_ID,
+      user: { userId: EMPLOYEE_ID },
       action: TicketEventAction.MODIFICATION,
       details: {
         oldTitle: 'Laptop will not start',
@@ -107,28 +107,28 @@ describe('Ticket events integration', () => {
       },
     });
     expect(events[2]).toMatchObject({
-      userId: AGENT_2_ID,
+      user: { userId: AGENT_2_ID },
       action: TicketEventAction.CLAIM,
       details: {
-        agentId: AGENT_2_ID,
+        agent: { userId: AGENT_2_ID },
       },
     });
     expect(events[2].details).toHaveProperty('timestamp');
     expect(events[3]).toMatchObject({
-      userId: AGENT_2_ID,
+      user: { userId: AGENT_2_ID },
       action: TicketEventAction.CLOSE,
       details: {
-        agentId: AGENT_2_ID,
+        agent: { userId: AGENT_2_ID },
         completionNotes: 'Replaced the power adapter',
       },
     });
     expect(events[4]).toMatchObject({
-      userId: EMPLOYEE_ID,
+      user: { userId: EMPLOYEE_ID },
       action: TicketEventAction.REOPEN,
       details: {
         priority: TicketPriority.HIGH,
         description: 'The replacement adapter also failed',
-        submitterId: EMPLOYEE_ID,
+        submitter: { userId: EMPLOYEE_ID },
       },
     });
     expect(events.every((event) => Boolean(event.ticketEventId))).toBe(true);
@@ -149,8 +149,8 @@ describe('Ticket events integration', () => {
       TicketEventAction.DELETE,
     ]);
     expect(events[1]).toMatchObject({
-      userId: EMPLOYEE_ID,
-      details: { deletedById: EMPLOYEE_ID },
+      user: { userId: EMPLOYEE_ID },
+      details: { deletedBy: { userId: EMPLOYEE_ID } },
     });
   });
 
