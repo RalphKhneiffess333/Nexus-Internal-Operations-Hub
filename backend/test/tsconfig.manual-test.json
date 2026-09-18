@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.scripts.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": [
+    "manual-test-auth.controller.ts",
+    "manual-test-server.ts",
+    "support/migrate-test-database.ts"
+  ],
+  "exclude": ["../src/**/*.spec.ts", "../dist", "../node_modules"]
+}

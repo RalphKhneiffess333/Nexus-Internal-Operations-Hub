@@ -711,25 +711,63 @@ async function runTestsStage() {
 
 async function runStartStage() {
   section(7, 'Start Application');
-  const effect = await askStageDecision(
-    'The repository is configured. Would you like to start the Nexus application now?',
+  info('Normal mode uses backend/.env, your configured application database, and Microsoft Entra sign-in.');
+  info('Choose it to verify the real authentication flow or work with your normal local application data.');
+  info('');
+  info('Test mode uses backend/.env.integration, applies pending migrations, seeds seven test users, and enables test-only login and session-cookie helpers.');
+  info('Choose it for safe development, quick role switching, or API testing without Microsoft accounts.');
+  info('The setup refuses to start test mode if its database matches the normal database.');
+
+  const startMode = await promptChoice(
+    'The repository is configured. Which startup mode fits what you want to test?',
+    [
+      {
+        label: 'Normal — real Microsoft sign-in and application database (npm run start)',
+        value: 'normal',
+      },
+      {
+        label: 'Test — isolated database, seeded users, and auth bypass (npm run start:test)',
+        value: 'test',
+      },
+      {
+        label: 'Finish setup without starting the app',
+        value: DECISIONS.skip,
+      },
+      {
+        label: 'Cancel setup',
+        value: DECISIONS.cancel,
+      },
+    ],
   );
-  if (effect === 'skip') {
+
+  if (startMode === DECISIONS.cancel) {
+    throw new SetupCancelled();
+  }
+
+  if (startMode === DECISIONS.skip) {
     info('');
     info('Nexus setup completed.');
     info('');
-    info('Start the application with:');
+    info('Start the application normally with:');
     info('');
     info('npm run start');
+    info('');
+    info('Or start with the integration database and test users with:');
+    info('');
+    info('npm run start:test');
     info('');
     info('Backend:  http://localhost:3000');
     info('Frontend: http://localhost:5173');
     return;
   }
 
-  info('Starting Nexus. Press Ctrl+C to stop the backend and frontend.');
-  await runCommand(['run', 'start'], {
-    label: 'npm run start',
+  const scriptName = startMode === 'test' ? 'start:test' : 'start';
+  const modeDescription = startMode === 'test' ? ' in test mode' : '';
+  info(
+    `Starting Nexus${modeDescription}. Press Ctrl+C to stop the backend and frontend.`,
+  );
+  await runCommand(['run', scriptName], {
+    label: `npm run ${scriptName}`,
     resolveOnSigint: true,
   });
 }

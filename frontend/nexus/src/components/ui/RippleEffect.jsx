@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { useEffect } from 'react'
 
 const RIPPLE_DURATION_MS = 900
 const RIPPLE_TARGETS = [
@@ -12,12 +11,18 @@ const RIPPLE_TARGETS = [
 ].join(', ')
 
 export function RippleEffect() {
-  const [ripples, setRipples] = useState([])
-  const nextId = useRef(0)
-  const timers = useRef(new Set())
-
   useEffect(() => {
-    const activeTimers = timers.current
+    const activeRipples = new Map()
+
+    function removeRipple(ripple) {
+      const timer = activeRipples.get(ripple)
+      if (timer !== undefined) {
+        window.clearTimeout(timer)
+      }
+
+      activeRipples.delete(ripple)
+      ripple.remove()
+    }
 
     function handlePointerDown(event) {
       if (event.button !== 0 || !(event.target instanceof Element)) {
@@ -41,38 +46,34 @@ export function RippleEffect() {
         Math.max(x, bounds.width - x),
         Math.max(y, bounds.height - y),
       )
-      const id = nextId.current++
 
-      setRipples((current) => [
-        ...current,
-        { id, target, x, y, size: radius * 2 },
-      ])
+      const ripple = document.createElement('span')
+      ripple.className = 'click-ripple'
+      ripple.setAttribute('aria-hidden', 'true')
+      ripple.style.left = `${x}px`
+      ripple.style.top = `${y}px`
+      ripple.style.width = `${radius * 2}px`
+      ripple.style.height = `${radius * 2}px`
+      target.appendChild(ripple)
 
       const timer = window.setTimeout(() => {
-        setRipples((current) => current.filter((ripple) => ripple.id !== id))
-        activeTimers.delete(timer)
+        removeRipple(ripple)
       }, RIPPLE_DURATION_MS)
-      activeTimers.add(timer)
+      activeRipples.set(ripple, timer)
+      ripple.addEventListener('animationend', () => removeRipple(ripple), {
+        once: true,
+      })
     }
 
     document.addEventListener('pointerdown', handlePointerDown)
 
     return () => {
       document.removeEventListener('pointerdown', handlePointerDown)
-      activeTimers.forEach((timer) => window.clearTimeout(timer))
-      activeTimers.clear()
+      for (const ripple of activeRipples.keys()) {
+        removeRipple(ripple)
+      }
     }
   }, [])
 
-  return ripples.map(({ id, target, x, y, size }) =>
-    createPortal(
-      <span
-        className="click-ripple"
-        aria-hidden="true"
-        style={{ left: x, top: y, width: size, height: size }}
-      />,
-      target,
-      String(id),
-    ),
-  )
+  return null
 }

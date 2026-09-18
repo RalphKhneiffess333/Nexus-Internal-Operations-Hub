@@ -1,4 +1,5 @@
 import heroImage from '../../assets/hero.png'
+import { TestLoginPanel } from '../../features/authentication/TestLoginPanel'
 import { useAuthentication } from '../../features/authentication/use-authentication'
 
 export function LandingPage() {
@@ -48,6 +49,7 @@ export function LandingPage() {
                 </button>
               ) : null}
             </div>
+            <TestLoginPanel />
             {error ? <p className="landing-error">{error}</p> : null}
           </div>
         </div>

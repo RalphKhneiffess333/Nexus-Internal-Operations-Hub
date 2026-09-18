@@ -20,7 +20,12 @@ export default function App() {
       </main>
     )
   } else if (!authenticated) {
-    content = <LandingPage />
+    content = (
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    )
   } else {
     content = (
       <Routes>

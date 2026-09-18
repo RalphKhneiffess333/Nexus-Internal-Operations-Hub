@@ -200,12 +200,76 @@ npm run start
 
 That runs the NestJS backend and the Vite frontend at the same time. Run migrate and seed first, or the API will fail when it talks to PostgreSQL.
 
-You can also run each app separately:
+Conversely you can also run
+```bash
+npm run start:test
+```
+To run the server in test mode allowing you to bypass third party authentication.
+
+### Start in local test-authentication mode
+
+Use test mode when you want to exercise authenticated browser or API behavior
+without signing in through Microsoft Entra. First configure
+`backend/.env.integration` with a PostgreSQL database reserved for testing. You
+can create it from `backend/.env.integration.example` if it does not exist yet.
+
+From the repository root, run:
 
 ```bash
-npm run start:backend
-npm run start:frontend
+npm run start:test
 ```
+
+The command starts the backend and frontend together, just like `npm run start`,
+but the backend uses `backend/.env.integration` instead of the normal
+`backend/.env` database configuration. During startup it:
+
+1. Verifies that the integration and normal `DATABASE_URL` values do not target
+   the same PostgreSQL database and schema.
+2. Applies pending Prisma migrations to the integration database.
+3. Creates or updates the seven test users and their department memberships.
+4. Starts test-only authentication endpoints.
+5. Creates an in-memory session for every test user and prints a directly usable
+   `Cookie` header value for each one.
+
+The seeded users are:
+
+| User       | Role       | Department             |
+| ---------- | ---------- | ---------------------- |
+| Employee 1 | `Employee` | None                   |
+| Employee 2 | `Employee` | None                   |
+| IT Agent 1 | `Agent`    | Information Technology |
+| IT Agent 2 | `Agent`    | Information Technology |
+| HR Agent 1 | `Agent`    | Human Resources        |
+| HR Agent 2 | `Agent`    | Human Resources        |
+| Admin      | `Admin`    | Information Technology |
+
+#### Sign in through the frontend
+
+Open [http://localhost:5173](http://localhost:5173). When the test backend is
+running, the landing page automatically detects it and displays a **Test mode**
+user selector. Select a user and choose **Sign in as test user**. The backend
+creates a fresh session, sets the normal secure HTTP-only `nexus_session`
+cookie, and the rest of the application uses the regular authentication and
+authorization flow.
+
+#### Authenticate an API client
+
+The backend prints an entry like this for every seeded user:
+
+```text
+IT Agent 1 (Agent)
+Cookie: nexus_session=SESSION_ID
+```
+
+Copy the complete key-value pair into an API client's `Cookie` header:
+
+```http
+Cookie: nexus_session=SESSION_ID
+```
+
+The printed sessions are stored in memory. Restarting the backend invalidates
+them and prints new values. Restarting test mode does not clear existing test
+tickets from the integration database.
 
 ## 13. What URLs does the app open on
 
@@ -232,9 +296,9 @@ If `PORT` is set in the backend environment, that value is used instead of `3000
 
 Start with `backend/src/tickets/tickets.controller.ts` to see the routes, then `tickets.service.ts` and `tickets/policies/`.
 
-## 15. Manual browser testing flow
+## 15. Manual production browser testing flow
 
-For a simple end-to-end manual test, start with two Microsoft accounts:
+For a simple end-to-end manual test covering microsoft authentication, start with two Microsoft accounts:
 
 1. Configure an employee user.
    - Either let the first account sign in normally, which creates an `Employee` record automatically, or preconfigure it with `npm run seed:users`.
@@ -268,18 +332,20 @@ Authenticated routes require the `nexus_session` cookie created by signing in th
 ### Authenticate Postman requests
 
 To query authenticated endpoints in Postman:
-
-1. Log in to the app normally using the browser.
-2. While logged in, open the browser DevTools and copy the `nexus_session` cookie information.
-3. In Postman, add the cookie to the cookie jar for `localhost` so Postman sends it with every request.
-
-**Notice:** Postman needs the cookie in this format:
+1. Run the app in test mode with `npm run start:test`
+2. Copy the cookie value for the specific user you want to send requests as
+3. **Notice:** Postman needs the cookie in this format:
 
 ```text
 nexus_session=SESSION_CODE; Path=/; Expires=Thu, 24 Sep 2026 09:06:43 GMT; HttpOnly; Secure; SameSite=Lax;
 ```
 
 Replace `SESSION_CODE` with the value of the `nexus_session` cookie from DevTools. The expiration date should match the cookie currently issued by the backend (7 days after interaction).
+
+Conversely, if you want to use third party provider accounts: 
+1. Log in to the app normally using the browser.
+2. While logged in, open the browser DevTools and copy the `nexus_session` cookie information.
+3. In Postman, add the cookie to the cookie jar for `localhost` so Postman sends it with every request.
 
 ### List tickets
 

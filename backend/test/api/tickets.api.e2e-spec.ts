@@ -25,7 +25,7 @@ test('submits, claims, closes, and reopens a ticket over HTTP', async ({
   expect(submitted.status).toBe(TicketStatus.OPEN);
   expect(submitted.submittedBy).toMatchObject({
     userId: EMPLOYEE_ID,
-    fullName: 'Alex Employee',
+    fullName: 'Employee 1',
     email: 'alex@company.com',
   });
   expect(submitted.agent).toBeNull();
