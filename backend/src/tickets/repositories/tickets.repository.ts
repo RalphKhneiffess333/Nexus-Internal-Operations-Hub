@@ -5,6 +5,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { mapPrismaError } from '../../database/prisma-error';
 
 export type CreateTicketInput = Omit<Ticket, 'ticketId' | 'ticketCode'>;
+export type TicketPersistenceClient = PrismaService | Prisma.TransactionClient;
 
 const ticketInclude = {
   submitter: {
@@ -129,40 +130,44 @@ export class TicketsRepository {
     }
   }
 
-  async create(ticket: CreateTicketInput): Promise<TicketRecord> {
+  async create(
+    ticket: CreateTicketInput,
+    client: TicketPersistenceClient = this.prisma,
+  ): Promise<TicketRecord> {
     try {
-      return await this.prisma.$transaction(async (tx) => {
-        const sequence = await this.nextTicketSequence(tx);
-        const ticketCode = `TKT-${String(sequence).padStart(4, '0')}`;
+      const sequence = await this.nextTicketSequence(client);
+      const ticketCode = `TKT-${String(sequence).padStart(4, '0')}`;
 
-        return tx.ticket.create({
-          data: {
-            ticketId: randomUUID(),
-            ticketCode,
-            title: ticket.title,
-            description: ticket.description,
-            priority: ticket.priority,
-            status: ticket.status,
-            departmentId: ticket.departmentId,
-            submittedBy: ticket.submittedBy,
-            agentId: ticket.agentId,
-            active: ticket.active,
-            completionNotes: ticket.completionNotes,
-            createdAt: ticket.createdAt,
-            updatedAt: ticket.updatedAt,
-            closedAt: ticket.closedAt,
-          },
-          include: ticketInclude,
-        });
+      return await client.ticket.create({
+        data: {
+          ticketId: randomUUID(),
+          ticketCode,
+          title: ticket.title,
+          description: ticket.description,
+          priority: ticket.priority,
+          status: ticket.status,
+          departmentId: ticket.departmentId,
+          submittedBy: ticket.submittedBy,
+          agentId: ticket.agentId,
+          active: ticket.active,
+          completionNotes: ticket.completionNotes,
+          createdAt: ticket.createdAt,
+          updatedAt: ticket.updatedAt,
+          closedAt: ticket.closedAt,
+        },
+        include: ticketInclude,
       });
     } catch (error) {
       mapPrismaError(error);
     }
   }
 
-  async save(ticket: Ticket): Promise<TicketRecord> {
+  async save(
+    ticket: Ticket,
+    client: TicketPersistenceClient = this.prisma,
+  ): Promise<TicketRecord> {
     try {
-      return await this.prisma.ticket.update({
+      return await client.ticket.update({
         where: { ticketId: ticket.ticketId },
         data: {
           title: ticket.title,
@@ -187,9 +192,11 @@ export class TicketsRepository {
   async claimIfAvailable(
     ticketId: string,
     agentId: string,
+    updatedAt = new Date(),
+    client: TicketPersistenceClient = this.prisma,
   ): Promise<TicketRecord | null> {
     try {
-      const result = await this.prisma.ticket.updateMany({
+      const result = await client.ticket.updateMany({
         where: {
           ticketId,
           active: true,
@@ -201,6 +208,7 @@ export class TicketsRepository {
         data: {
           status: TicketStatus.CLAIMED,
           agentId,
+          updatedAt,
         },
       });
 
@@ -208,7 +216,7 @@ export class TicketsRepository {
         return null;
       }
 
-      return this.prisma.ticket.findUnique({
+      return client.ticket.findUnique({
         where: { ticketId },
         include: ticketInclude,
       });
@@ -218,9 +226,9 @@ export class TicketsRepository {
   }
 
   private async nextTicketSequence(
-    tx: Prisma.TransactionClient,
+    client: TicketPersistenceClient,
   ): Promise<number> {
-    const rows = await tx.$queryRaw<Array<{ nextval: bigint }>>`
+    const rows = await client.$queryRaw<Array<{ nextval: bigint }>>`
       SELECT nextval('ticket_code_seq') AS nextval
     `;
     return Number(rows[0].nextval);

@@ -3,13 +3,20 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Ticket, TicketStatus, UserRole } from '@prisma/client';
+import {
+  Ticket,
+  TicketEventAction,
+  TicketStatus,
+  UserRole,
+} from '@prisma/client';
 import type { AuthenticatedRequestUser } from '../authentication/request-user';
 import { DepartmentsRepository } from '../departments/repositories/departments.repository';
 import { CloseTicketDto } from './dto/close-ticket.dto';
 import { ModifyTicketDto } from './dto/modify-ticket.dto';
 import { ReopenTicketDto } from './dto/reopen-ticket.dto';
 import { SubmitTicketDto } from './dto/submit-ticket.dto';
+import type { TicketEventRecord } from './events/ticket-event.types';
+import { TicketEventsRepository } from './events/ticket-events.repository';
 import { CancelTicketPolicy } from './policies/cancel-ticket.policy';
 import { ClaimTicketPolicy } from './policies/claim-ticket.policy';
 import { CloseTicketPolicy } from './policies/close-ticket.policy';
@@ -21,6 +28,7 @@ import {
   TicketRecord,
   TicketsRepository,
 } from './repositories/tickets.repository';
+import { TicketLifecycleRepository } from './repositories/ticket-lifecycle.repository';
 
 export interface TicketActionPermissions {
   canModify: boolean;
@@ -49,6 +57,8 @@ export type TicketWithPermissions = Omit<
 export class TicketsService {
   constructor(
     private readonly ticketsRepository: TicketsRepository,
+    private readonly ticketEventsRepository: TicketEventsRepository,
+    private readonly ticketLifecycleRepository: TicketLifecycleRepository,
     private readonly departmentsRepository: DepartmentsRepository,
     private readonly submitTicketPolicy: SubmitTicketPolicy,
     private readonly claimTicketPolicy: ClaimTicketPolicy,
@@ -118,6 +128,32 @@ export class TicketsService {
     return this.withPermission(ticket, actor, actorDepartmentIds);
   }
 
+  async findEvents(
+    ticketId: string,
+    actor: AuthenticatedRequestUser,
+  ): Promise<TicketEventRecord[]> {
+    await this.assertCanViewTicket(ticketId, actor);
+    return this.ticketEventsRepository.findByTicketId(ticketId);
+  }
+
+  async findEvent(
+    ticketId: string,
+    ticketEventId: string,
+    actor: AuthenticatedRequestUser,
+  ): Promise<TicketEventRecord> {
+    await this.assertCanViewTicket(ticketId, actor);
+    const event = await this.ticketEventsRepository.findByIdForTicket(
+      ticketId,
+      ticketEventId,
+    );
+    if (!event) {
+      throw new NotFoundException(
+        `Ticket event ${ticketEventId} was not found`,
+      );
+    }
+    return event;
+  }
+
   async submit(
     dto: SubmitTicketDto,
     actor: AuthenticatedRequestUser,
@@ -128,20 +164,34 @@ export class TicketsService {
     this.submitTicketPolicy.assert(department);
 
     const now = new Date();
-    const ticket = await this.ticketsRepository.create({
-      title: dto.title,
-      description: dto.description,
-      priority: dto.priority,
-      status: TicketStatus.OPEN,
-      departmentId: dto.departmentId,
-      submittedBy: actor.userId,
-      agentId: null,
-      active: true,
-      completionNotes: null,
-      createdAt: now,
-      updatedAt: now,
-      closedAt: null,
-    });
+    const ticket = await this.ticketLifecycleRepository.createWithEvent(
+      {
+        title: dto.title,
+        description: dto.description,
+        priority: dto.priority,
+        status: TicketStatus.OPEN,
+        departmentId: dto.departmentId,
+        submittedBy: actor.userId,
+        agentId: null,
+        active: true,
+        completionNotes: null,
+        createdAt: now,
+        updatedAt: now,
+        closedAt: null,
+      },
+      {
+        userId: actor.userId,
+        action: TicketEventAction.SUBMISSION,
+        details: {
+          title: dto.title,
+          departmentId: dto.departmentId,
+          priority: dto.priority,
+          description: dto.description,
+          submitterId: actor.userId,
+        },
+        createdAt: now,
+      },
+    );
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
     return this.withPermission(ticket, actor, actorDepartmentIds);
   }
@@ -154,9 +204,20 @@ export class TicketsService {
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
     this.claimTicketPolicy.assert(ticket, actor, actorDepartmentIds);
 
-    const claimed = await this.ticketsRepository.claimIfAvailable(
+    const now = new Date();
+    const claimed = await this.ticketLifecycleRepository.claimWithEvent(
       ticketId,
       actor.userId,
+      {
+        ticketId,
+        userId: actor.userId,
+        action: TicketEventAction.CLAIM,
+        details: {
+          agentId: actor.userId,
+          timestamp: now.toISOString(),
+        },
+        createdAt: now,
+      },
     );
     if (!claimed) {
       throw new BadRequestException(
@@ -181,7 +242,16 @@ export class TicketsService {
     ticket.completionNotes = dto.completionNotes ?? null;
     ticket.closedAt = now;
     ticket.updatedAt = now;
-    const closed = await this.ticketsRepository.save(ticket);
+    const closed = await this.ticketLifecycleRepository.saveWithEvent(ticket, {
+      ticketId,
+      userId: actor.userId,
+      action: TicketEventAction.CLOSE,
+      details: {
+        agentId: actor.userId,
+        completionNotes: ticket.completionNotes,
+      },
+      createdAt: now,
+    });
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
     return this.withPermission(closed, actor, actorDepartmentIds);
   }
@@ -200,8 +270,22 @@ export class TicketsService {
     if (dto.description) {
       ticket.description = dto.description;
     }
-    ticket.updatedAt = new Date();
-    const reopened = await this.ticketsRepository.save(ticket);
+    const now = new Date();
+    ticket.updatedAt = now;
+    const reopened = await this.ticketLifecycleRepository.saveWithEvent(
+      ticket,
+      {
+        ticketId,
+        userId: actor.userId,
+        action: TicketEventAction.REOPEN,
+        details: {
+          priority: ticket.priority,
+          description: ticket.description,
+          submitterId: ticket.submittedBy,
+        },
+        createdAt: now,
+      },
+    );
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
     return this.withPermission(reopened, actor, actorDepartmentIds);
   }
@@ -217,6 +301,11 @@ export class TicketsService {
       : null;
     this.modifyTicketPolicy.assert(ticket, actor, dto, department);
 
+    const oldTitle = ticket.title;
+    const oldDescription = ticket.description;
+    const oldPriority = ticket.priority;
+    const oldDepartmentId = ticket.departmentId;
+
     if (dto.departmentId !== undefined) {
       ticket.departmentId = dto.departmentId;
     }
@@ -229,8 +318,34 @@ export class TicketsService {
     if (dto.priority !== undefined) {
       ticket.priority = dto.priority;
     }
-    ticket.updatedAt = new Date();
-    const updated = await this.ticketsRepository.save(ticket);
+    const changed =
+      oldTitle !== ticket.title ||
+      oldDescription !== ticket.description ||
+      oldPriority !== ticket.priority ||
+      oldDepartmentId !== ticket.departmentId;
+    if (!changed) {
+      const actorDepartmentIds = await this.getActorDepartmentIds(actor);
+      return this.withPermission(ticket, actor, actorDepartmentIds);
+    }
+
+    const now = new Date();
+    ticket.updatedAt = now;
+    const updated = await this.ticketLifecycleRepository.saveWithEvent(ticket, {
+      ticketId,
+      userId: actor.userId,
+      action: TicketEventAction.MODIFICATION,
+      details: {
+        oldTitle,
+        newTitle: ticket.title,
+        oldDepartmentId,
+        newDepartmentId: ticket.departmentId,
+        oldPriority,
+        newPriority: ticket.priority,
+        oldDescription,
+        newDescription: ticket.description,
+      },
+      createdAt: now,
+    });
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
     return this.withPermission(updated, actor, actorDepartmentIds);
   }
@@ -243,8 +358,20 @@ export class TicketsService {
     this.cancelTicketPolicy.assert(ticket, actor);
 
     ticket.active = false;
-    ticket.updatedAt = new Date();
-    const cancelled = await this.ticketsRepository.save(ticket);
+    const now = new Date();
+    ticket.updatedAt = now;
+    const cancelled = await this.ticketLifecycleRepository.saveWithEvent(
+      ticket,
+      {
+        ticketId,
+        userId: actor.userId,
+        action: TicketEventAction.DELETE,
+        details: {
+          deletedById: actor.userId,
+        },
+        createdAt: now,
+      },
+    );
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
     return this.withPermission(cancelled, actor, actorDepartmentIds);
   }
@@ -265,6 +392,15 @@ export class TicketsService {
     return ticket;
   }
 
+  private async assertCanViewTicket(
+    ticketId: string,
+    actor: AuthenticatedRequestUser,
+  ): Promise<void> {
+    const ticket = await this.getActiveTicket(ticketId);
+    const actorDepartmentIds = await this.getActorDepartmentIds(actor);
+    this.viewTicketPolicy.assert(actor, ticket, actorDepartmentIds);
+  }
+
   private withPermissions(
     tickets: TicketRecord[],
     actor: AuthenticatedRequestUser,
@@ -280,13 +416,7 @@ export class TicketsService {
     actor: AuthenticatedRequestUser,
     actorDepartmentIds: string[],
   ): TicketWithPermissions {
-    const {
-      submittedBy,
-      agentId,
-      submitter,
-      agent,
-      ...ticketFields
-    } = ticket;
+    const { submittedBy, agentId, submitter, agent, ...ticketFields } = ticket;
 
     return {
       ...ticketFields,

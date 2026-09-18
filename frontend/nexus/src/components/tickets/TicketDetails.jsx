@@ -21,7 +21,12 @@ function DetailRow({ label, value }) {
   )
 }
 
-export function TicketDetails({ ticket, departments = [] }) {
+export function TicketDetails({
+  ticket,
+  departments = [],
+  timelineOpen = true,
+  onToggleTimeline,
+}) {
   const submitted = formatDate(ticket.createdAt)
   const updated = formatDate(ticket.updatedAt)
   const closed = formatDate(ticket.closedAt)
@@ -30,8 +35,23 @@ export function TicketDetails({ ticket, departments = [] }) {
 
   return (
     <article className="ticket-details clay-card content-reveal">
-      <p className="ticket-code">{ticket.ticketCode}</p>
-      <h1>{ticket.title}</h1>
+      <div className="ticket-details-heading">
+        <div>
+          <p className="ticket-code">{ticket.ticketCode}</p>
+          <h1>{ticket.title}</h1>
+        </div>
+        {onToggleTimeline ? (
+          <button
+            type="button"
+            className="btn ghost timeline-toggle"
+            aria-expanded={timelineOpen}
+            aria-controls={timelineOpen ? 'ticket-timeline' : undefined}
+            onClick={onToggleTimeline}
+          >
+            {timelineOpen ? 'Hide timeline' : 'Show timeline'}
+          </button>
+        ) : null}
+      </div>
       <hr className="soft-rule" />
 
       <dl className="detail-grid">

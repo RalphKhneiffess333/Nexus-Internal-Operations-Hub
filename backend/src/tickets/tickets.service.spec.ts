@@ -12,6 +12,7 @@ import {
 } from '../database/seed';
 import type { AuthenticatedRequestUser } from '../authentication/request-user';
 import { DepartmentsRepository } from '../departments/repositories/departments.repository';
+import { TicketEventsRepository } from './events/ticket-events.repository';
 import { CancelTicketPolicy } from './policies/cancel-ticket.policy';
 import { ClaimTicketPolicy } from './policies/claim-ticket.policy';
 import { CloseTicketPolicy } from './policies/close-ticket.policy';
@@ -20,16 +21,29 @@ import { ReopenTicketPolicy } from './policies/reopen-ticket.policy';
 import { SubmitTicketPolicy } from './policies/submit-ticket.policy';
 import { ViewTicketPolicy } from './policies/view-ticket.policy';
 import { TicketsRepository } from './repositories/tickets.repository';
+import { TicketLifecycleRepository } from './repositories/ticket-lifecycle.repository';
 import { TicketsService } from './tickets.service';
 
 describe('TicketsService invalid transitions', () => {
   let service: TicketsService;
   let ticketsRepository: {
     findById: jest.MockedFunction<TicketsRepository['findById']>;
-    claimIfAvailable: jest.MockedFunction<
-      TicketsRepository['claimIfAvailable']
+  };
+  let ticketEventsRepository: {
+    findByTicketId: jest.MockedFunction<
+      TicketEventsRepository['findByTicketId']
     >;
-    save: jest.MockedFunction<TicketsRepository['save']>;
+    findByIdForTicket: jest.MockedFunction<
+      TicketEventsRepository['findByIdForTicket']
+    >;
+  };
+  let ticketLifecycleRepository: {
+    claimWithEvent: jest.MockedFunction<
+      TicketLifecycleRepository['claimWithEvent']
+    >;
+    saveWithEvent: jest.MockedFunction<
+      TicketLifecycleRepository['saveWithEvent']
+    >;
   };
   let departmentsRepository: {
     findById: jest.MockedFunction<DepartmentsRepository['findById']>;
@@ -41,8 +55,14 @@ describe('TicketsService invalid transitions', () => {
   beforeEach(() => {
     ticketsRepository = {
       findById: jest.fn<TicketsRepository['findById']>(),
-      claimIfAvailable: jest.fn<TicketsRepository['claimIfAvailable']>(),
-      save: jest.fn<TicketsRepository['save']>(),
+    };
+    ticketEventsRepository = {
+      findByTicketId: jest.fn<TicketEventsRepository['findByTicketId']>(),
+      findByIdForTicket: jest.fn<TicketEventsRepository['findByIdForTicket']>(),
+    };
+    ticketLifecycleRepository = {
+      claimWithEvent: jest.fn<TicketLifecycleRepository['claimWithEvent']>(),
+      saveWithEvent: jest.fn<TicketLifecycleRepository['saveWithEvent']>(),
     };
     departmentsRepository = {
       findById: jest.fn<DepartmentsRepository['findById']>(),
@@ -53,6 +73,8 @@ describe('TicketsService invalid transitions', () => {
 
     service = new TicketsService(
       ticketsRepository as unknown as TicketsRepository,
+      ticketEventsRepository as unknown as TicketEventsRepository,
+      ticketLifecycleRepository as unknown as TicketLifecycleRepository,
       departmentsRepository as unknown as DepartmentsRepository,
       new SubmitTicketPolicy(),
       new ClaimTicketPolicy(),
@@ -75,8 +97,8 @@ describe('TicketsService invalid transitions', () => {
       service.claim(existing.ticketId, agentUser(AGENT_ID)),
     ).rejects.toThrow(BadRequestException);
 
-    expect(ticketsRepository.claimIfAvailable).not.toHaveBeenCalled();
-    expect(ticketsRepository.save).not.toHaveBeenCalled();
+    expect(ticketLifecycleRepository.claimWithEvent).not.toHaveBeenCalled();
+    expect(ticketLifecycleRepository.saveWithEvent).not.toHaveBeenCalled();
   });
 
   it('rejects closing an unclaimed ticket without saving', async () => {
@@ -87,7 +109,7 @@ describe('TicketsService invalid transitions', () => {
       service.close(existing.ticketId, {}, agentUser()),
     ).rejects.toThrow(BadRequestException);
 
-    expect(ticketsRepository.save).not.toHaveBeenCalled();
+    expect(ticketLifecycleRepository.saveWithEvent).not.toHaveBeenCalled();
   });
 
   it.each([TicketStatus.OPEN, TicketStatus.CLAIMED, TicketStatus.REOPENED])(
@@ -103,7 +125,7 @@ describe('TicketsService invalid transitions', () => {
         service.reopen(existing.ticketId, {}, requestUser()),
       ).rejects.toThrow(BadRequestException);
 
-      expect(ticketsRepository.save).not.toHaveBeenCalled();
+      expect(ticketLifecycleRepository.saveWithEvent).not.toHaveBeenCalled();
     },
   );
 
@@ -122,8 +144,8 @@ describe('TicketsService invalid transitions', () => {
       service.close(existing.ticketId, {}, agentUser()),
     ).rejects.toThrow(BadRequestException);
 
-    expect(ticketsRepository.claimIfAvailable).not.toHaveBeenCalled();
-    expect(ticketsRepository.save).not.toHaveBeenCalled();
+    expect(ticketLifecycleRepository.claimWithEvent).not.toHaveBeenCalled();
+    expect(ticketLifecycleRepository.saveWithEvent).not.toHaveBeenCalled();
   });
 
   it('rejects modifying or cancelling a CLAIMED ticket without saving', async () => {
@@ -140,7 +162,7 @@ describe('TicketsService invalid transitions', () => {
       service.cancel(existing.ticketId, requestUser()),
     ).rejects.toThrow(BadRequestException);
 
-    expect(ticketsRepository.save).not.toHaveBeenCalled();
+    expect(ticketLifecycleRepository.saveWithEvent).not.toHaveBeenCalled();
   });
 
   it('rejects modifying or cancelling a CLOSED ticket without saving', async () => {
@@ -158,7 +180,7 @@ describe('TicketsService invalid transitions', () => {
       service.cancel(existing.ticketId, requestUser()),
     ).rejects.toThrow(BadRequestException);
 
-    expect(ticketsRepository.save).not.toHaveBeenCalled();
+    expect(ticketLifecycleRepository.saveWithEvent).not.toHaveBeenCalled();
   });
 
   it('rejects claiming a ticket outside the agent department without claiming', async () => {
@@ -172,7 +194,7 @@ describe('TicketsService invalid transitions', () => {
       service.claim(existing.ticketId, agentUser(AGENT_2_ID)),
     ).rejects.toThrow(ForbiddenException);
 
-    expect(ticketsRepository.claimIfAvailable).not.toHaveBeenCalled();
+    expect(ticketLifecycleRepository.claimWithEvent).not.toHaveBeenCalled();
   });
 
   it('allows admins to claim tickets in their own department', async () => {
@@ -180,7 +202,7 @@ describe('TicketsService invalid transitions', () => {
     const claimed = ticket({
       status: TicketStatus.CLAIMED,
       agentId: ADMIN_ID,
-    }) as Awaited<ReturnType<TicketsRepository['claimIfAvailable']>>;
+    }) as Awaited<ReturnType<TicketLifecycleRepository['claimWithEvent']>>;
     claimed!.submitter = {
       fullName: 'Alex Employee',
       email: 'alex@company.com',
@@ -190,7 +212,7 @@ describe('TicketsService invalid transitions', () => {
       email: 'morgan@company.com',
     };
     ticketsRepository.findById.mockResolvedValue(existing);
-    ticketsRepository.claimIfAvailable.mockResolvedValue(claimed);
+    ticketLifecycleRepository.claimWithEvent.mockResolvedValue(claimed);
 
     await expect(
       service.claim(existing.ticketId, adminUser()),
@@ -211,7 +233,7 @@ describe('TicketsService invalid transitions', () => {
       ForbiddenException,
     );
 
-    expect(ticketsRepository.claimIfAvailable).not.toHaveBeenCalled();
+    expect(ticketLifecycleRepository.claimWithEvent).not.toHaveBeenCalled();
   });
 
   it('rejects closing by an agent who did not claim the ticket without saving', async () => {
@@ -225,7 +247,7 @@ describe('TicketsService invalid transitions', () => {
       service.close(existing.ticketId, {}, agentUser(AGENT_2_ID)),
     ).rejects.toThrow(ForbiddenException);
 
-    expect(ticketsRepository.save).not.toHaveBeenCalled();
+    expect(ticketLifecycleRepository.saveWithEvent).not.toHaveBeenCalled();
   });
 
   it('rejects reopening by someone other than the submitter without saving', async () => {
@@ -244,7 +266,7 @@ describe('TicketsService invalid transitions', () => {
       ),
     ).rejects.toThrow(ForbiddenException);
 
-    expect(ticketsRepository.save).not.toHaveBeenCalled();
+    expect(ticketLifecycleRepository.saveWithEvent).not.toHaveBeenCalled();
   });
 
   function ticket(overrides: Partial<Ticket> = {}): Ticket {

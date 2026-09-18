@@ -20,6 +20,14 @@ export function getTicket(ticketId) {
   return apiRequest(`/tickets/${ticketId}`)
 }
 
+export function getTicketEvents(ticketId) {
+  return apiRequest(`/tickets/${ticketId}/events`)
+}
+
+export function getTicketEvent(ticketId, eventId) {
+  return apiRequest(`/tickets/${ticketId}/events/${eventId}`)
+}
+
 export function createTicket(data) {
   return apiRequest('/tickets', { method: 'POST', body: data })
 }

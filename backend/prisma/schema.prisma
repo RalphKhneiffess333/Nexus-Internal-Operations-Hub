@@ -26,6 +26,16 @@ enum TicketStatus {
   REOPENED
 }
 
+enum TicketEventAction {
+  SUBMISSION
+  CLAIM
+  CLOSE
+  REOPEN
+  DELETE
+  MODIFICATION
+  HANDOFF
+}
+
 model IdentityProvider {
   identityProviderId String   @id @map("identity_provider_id")
   code               String
@@ -38,34 +48,35 @@ model IdentityProvider {
 }
 
 model User {
-  userId             String           @id @map("user_id")
-  email              String           @unique
-  fullName           String           @map("full_name")
-  phoneNumber        String?          @map("phone_number")
-  role               UserRole         @default(Employee)
-  isActive           Boolean          @default(true) @map("is_active")
-  hasLogged          Boolean          @map("has_logged")
-  identityProviderId String           @map("identity_provider_id")
-  identityProviderUserId String?      @map("identity_provider_user_id")
-  identityProvider   IdentityProvider @relation(fields: [identityProviderId], references: [identityProviderId])
-  createdAt          DateTime         @default(now()) @map("created_at")
-  updatedAt          DateTime         @updatedAt @map("updated_at")
-  submittedTickets   Ticket[]         @relation("TicketSubmitter")
-  assignedTickets    Ticket[]         @relation("TicketAgent")
-  departmentMembers  DepartmentMember[]
+  userId                 String             @id @map("user_id")
+  email                  String             @unique
+  fullName               String             @map("full_name")
+  phoneNumber            String?            @map("phone_number")
+  role                   UserRole           @default(Employee)
+  isActive               Boolean            @default(true) @map("is_active")
+  hasLogged              Boolean            @map("has_logged")
+  identityProviderId     String             @map("identity_provider_id")
+  identityProviderUserId String?            @map("identity_provider_user_id")
+  identityProvider       IdentityProvider   @relation(fields: [identityProviderId], references: [identityProviderId])
+  createdAt              DateTime           @default(now()) @map("created_at")
+  updatedAt              DateTime           @updatedAt @map("updated_at")
+  submittedTickets       Ticket[]           @relation("TicketSubmitter")
+  assignedTickets        Ticket[]           @relation("TicketAgent")
+  ticketEvents           TicketEvent[]
+  departmentMembers      DepartmentMember[]
 
   @@unique([identityProviderId, identityProviderUserId])
   @@map("users")
 }
 
 model Department {
-  departmentId String   @id @map("department_id")
-  code         String   @unique
+  departmentId String             @id @map("department_id")
+  code         String             @unique
   name         String
   desc         String
-  active       Boolean  @default(true)
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  active       Boolean            @default(true)
+  createdAt    DateTime           @default(now()) @map("created_at")
+  updatedAt    DateTime           @updatedAt @map("updated_at")
   tickets      Ticket[]
   members      DepartmentMember[]
 
@@ -103,6 +114,7 @@ model Ticket {
   department      Department     @relation(fields: [departmentId], references: [departmentId])
   submitter       User           @relation("TicketSubmitter", fields: [submittedBy], references: [userId])
   agent           User?          @relation("TicketAgent", fields: [agentId], references: [userId])
+  events          TicketEvent[]
 
   @@index([submittedBy])
   @@index([departmentId])
@@ -110,4 +122,20 @@ model Ticket {
   @@index([status])
   @@index([departmentId, status, createdAt])
   @@map("tickets")
+}
+
+model TicketEvent {
+  ticketEventId String            @id @map("ticket_event_id")
+  ticketId      String            @map("ticket_id")
+  userId        String            @map("user_id")
+  action        TicketEventAction
+  details       Json
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+  ticket        Ticket            @relation(fields: [ticketId], references: [ticketId])
+  user          User              @relation(fields: [userId], references: [userId])
+
+  @@index([ticketId, createdAt])
+  @@index([createdAt])
+  @@map("ticket_events")
 }

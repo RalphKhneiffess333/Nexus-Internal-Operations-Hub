@@ -1,7 +1,12 @@
-import { TicketPriority, TicketStatus } from '@prisma/client';
+import {
+  TicketEventAction,
+  TicketPriority,
+  TicketStatus,
+} from '@prisma/client';
 import {
   ADMIN_ID,
   AGENT_ID,
+  EMPLOYEE_2_ID,
   EMPLOYEE_ID,
   expect,
   test,
@@ -179,4 +184,100 @@ test('allows only one concurrent claim to succeed', async ({ e2e }) => {
   const stored = await e2e.prisma.ticket.findUnique({ where: { ticketId } });
   expect(stored?.status).toBe(TicketStatus.CLAIMED);
   expect(stored?.agentId).toBe(winner.agent.userId);
+  const claimEvents = await e2e.prisma.ticketEvent.findMany({
+    where: { ticketId, action: TicketEventAction.CLAIM },
+  });
+  expect(claimEvents).toHaveLength(1);
+  expect(claimEvents[0].userId).toBe(winner.agent.userId);
+  expect(claimEvents[0].details).toMatchObject({
+    agentId: winner.agent.userId,
+  });
+});
+
+test('returns complete event details from ticket-owned history endpoints', async ({
+  e2e,
+}) => {
+  const submitResponse = await e2e.api.post('/tickets', {
+    headers: { Cookie: e2e.sessionCookie(EMPLOYEE_ID) },
+    data: {
+      title: 'Original title',
+      description: 'Original description',
+      priority: TicketPriority.LOW,
+      departmentId: 'dept-it',
+    },
+  });
+  expect(submitResponse.status()).toBe(201);
+  const submitted = await submitResponse.json();
+
+  const modifyResponse = await e2e.api.patch(`/tickets/${submitted.ticketId}`, {
+    headers: { Cookie: e2e.sessionCookie(EMPLOYEE_ID) },
+    data: { title: 'Updated title', priority: TicketPriority.HIGH },
+  });
+  expect(modifyResponse.status()).toBe(200);
+
+  const historyResponse = await e2e.api.get(
+    `/tickets/${submitted.ticketId}/events`,
+    { headers: { Cookie: e2e.sessionCookie(EMPLOYEE_ID) } },
+  );
+  expect(historyResponse.status()).toBe(200);
+  const history = await historyResponse.json();
+  expect(history).toHaveLength(2);
+  expect(
+    history.map((event: { action: TicketEventAction }) => event.action),
+  ).toEqual([TicketEventAction.SUBMISSION, TicketEventAction.MODIFICATION]);
+  expect(history[1].details).toEqual({
+    oldTitle: 'Original title',
+    newTitle: 'Updated title',
+    oldDepartmentId: 'dept-it',
+    newDepartmentId: 'dept-it',
+    oldPriority: TicketPriority.LOW,
+    newPriority: TicketPriority.HIGH,
+    oldDescription: 'Original description',
+    newDescription: 'Original description',
+  });
+
+  const eventResponse = await e2e.api.get(
+    `/tickets/${submitted.ticketId}/events/${history[1].ticketEventId}`,
+    { headers: { Cookie: e2e.sessionCookie(EMPLOYEE_ID) } },
+  );
+  expect(eventResponse.status()).toBe(200);
+  const event = await eventResponse.json();
+  expect(event).toEqual(history[1]);
+  expect(event.ticket).toBeUndefined();
+  expect(event.user).toMatchObject({
+    userId: EMPLOYEE_ID,
+    fullName: 'Employee 1',
+    email: 'alex@company.com',
+  });
+
+  const forbiddenResponse = await e2e.api.get(
+    `/tickets/${submitted.ticketId}/events`,
+    { headers: { Cookie: e2e.sessionCookie(EMPLOYEE_2_ID) } },
+  );
+  expect(forbiddenResponse.status()).toBe(403);
+
+  const arbitraryCreateResponse = await e2e.api.post('/ticket-events', {
+    headers: { Cookie: e2e.sessionCookie(EMPLOYEE_ID) },
+    data: {
+      ticketId: submitted.ticketId,
+      action: TicketEventAction.CLOSE,
+      details: {},
+    },
+  });
+  expect(arbitraryCreateResponse.status()).toBe(404);
+
+  const arbitraryUpdateResponse = await e2e.api.patch(
+    `/tickets/${submitted.ticketId}/events/${history[1].ticketEventId}`,
+    {
+      headers: { Cookie: e2e.sessionCookie(EMPLOYEE_ID) },
+      data: { details: { newTitle: 'Forged history' } },
+    },
+  );
+  expect(arbitraryUpdateResponse.status()).toBe(404);
+
+  const arbitraryDeleteResponse = await e2e.api.delete(
+    `/tickets/${submitted.ticketId}/events/${history[1].ticketEventId}`,
+    { headers: { Cookie: e2e.sessionCookie(EMPLOYEE_ID) } },
+  );
+  expect(arbitraryDeleteResponse.status()).toBe(404);
 });

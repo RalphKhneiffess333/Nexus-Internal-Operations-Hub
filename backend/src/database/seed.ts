@@ -179,6 +179,7 @@ async function seedTestDepartmentMembers(prisma: PrismaClient): Promise<void> {
 }
 
 export async function resetTicketData(prisma: PrismaClient): Promise<void> {
+  await prisma.ticketEvent.deleteMany();
   await prisma.ticket.deleteMany();
   await prisma.$executeRawUnsafe(
     `ALTER SEQUENCE ticket_code_seq RESTART WITH 1`,
