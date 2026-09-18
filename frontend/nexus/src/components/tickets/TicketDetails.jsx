@@ -1,6 +1,7 @@
 import { departmentLabel } from '../../features/departments/use-departments'
 import { formatDate, TicketPriority } from '../../features/tickets/ticket-types'
 import { TicketStatusBadge } from './TicketStatusBadge'
+import { TicketAttachments } from './TicketAttachments'
 
 const PRIORITY_LABELS = {
   [TicketPriority.LOW]: 'Low',
@@ -8,15 +9,21 @@ const PRIORITY_LABELS = {
   [TicketPriority.HIGH]: 'High',
 }
 
-function DetailRow({ label, value }) {
-  if (value === null || value === undefined || value === '') {
+function DetailRow({ label, value, supplemental }) {
+  if (
+    (value === null || value === undefined || value === '') &&
+    !supplemental
+  ) {
     return null
   }
 
   return (
     <div className="detail-row">
       <dt>{label}</dt>
-      <dd>{value}</dd>
+      <dd>
+        {value}
+        {supplemental}
+      </dd>
     </div>
   )
 }
@@ -26,6 +33,9 @@ export function TicketDetails({
   departments = [],
   timelineOpen = true,
   onToggleTimeline,
+  attachments = [],
+  downloadingAttachmentId,
+  onDownloadAttachment,
 }) {
   const submitted = formatDate(ticket.createdAt)
   const updated = formatDate(ticket.updatedAt)
@@ -70,13 +80,34 @@ export function TicketDetails({
           value={departmentLabel(ticket.departmentId, departments)}
         />
         <DetailRow label="Assigned agent" value={assignedAgent} />
-        <DetailRow label="Completion notes" value={ticket.completionNotes} />
+        <DetailRow
+          label="Completion notes"
+          value={ticket.completionNotes}
+          supplemental={
+            ticket.status === 'CLOSED' && attachments.length > 0 ? (
+              <TicketAttachments
+                attachments={attachments}
+                heading="Files attached to completion notes"
+                downloadingAttachmentId={downloadingAttachmentId}
+                onDownload={onDownloadAttachment}
+              />
+            ) : null
+          }
+        />
         <DetailRow label="Closed" value={closed} />
       </dl>
 
       <section className="detail-block">
         <h2>Description</h2>
         <p>{ticket.description}</p>
+        {ticket.status !== 'CLOSED' ? (
+          <TicketAttachments
+            attachments={attachments}
+            heading="Files attached to description"
+            downloadingAttachmentId={downloadingAttachmentId}
+            onDownload={onDownloadAttachment}
+          />
+        ) : null}
       </section>
 
       <dl className="detail-grid">

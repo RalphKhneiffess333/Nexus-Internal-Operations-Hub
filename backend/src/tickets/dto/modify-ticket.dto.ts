@@ -17,4 +17,8 @@ export class ModifyTicketDto {
   @IsOptional()
   @IsString()
   departmentId?: string;
+
+  @IsOptional()
+  @IsString()
+  removedAttachmentIds?: string;
 }

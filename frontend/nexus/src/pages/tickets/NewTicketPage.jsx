@@ -34,7 +34,7 @@ export function NewTicketPage() {
         description: values.description,
         priority: values.priority,
         departmentId: values.departmentId,
-      });
+      }, values.files);
       setCreatedCode(ticket.ticketCode);
       navigate(`/tickets/${ticket.ticketId}`);
     } catch (submitError) {
@@ -87,6 +87,7 @@ export function NewTicketPage() {
           submitting={submitting}
           error={error}
           fieldErrors={fieldErrors}
+          includeAttachments
           onSubmit={handleSubmit}
           onCancel={() => navigate("/tickets")}
         />

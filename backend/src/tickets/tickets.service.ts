@@ -9,8 +9,15 @@ import {
   TicketStatus,
   UserRole,
 } from '@prisma/client';
+import { StreamableFile } from '@nestjs/common';
 import type { AuthenticatedRequestUser } from '../authentication/request-user';
 import { DepartmentsRepository } from '../departments/repositories/departments.repository';
+import {
+  FileAttachmentsRepository,
+  type StoredFileMetadata,
+} from '../files/file-attachments.repository';
+import { FilesService } from '../files/files.service';
+import type { UploadedFileInput } from '../files/file-validation';
 import { CloseTicketDto } from './dto/close-ticket.dto';
 import { ModifyTicketDto } from './dto/modify-ticket.dto';
 import { ReopenTicketDto } from './dto/reopen-ticket.dto';
@@ -60,6 +67,8 @@ export class TicketsService {
     private readonly ticketEventsRepository: TicketEventsRepository,
     private readonly ticketLifecycleRepository: TicketLifecycleRepository,
     private readonly departmentsRepository: DepartmentsRepository,
+    private readonly filesService: FilesService,
+    private readonly fileAttachmentsRepository: FileAttachmentsRepository,
     private readonly submitTicketPolicy: SubmitTicketPolicy,
     private readonly claimTicketPolicy: ClaimTicketPolicy,
     private readonly closeTicketPolicy: CloseTicketPolicy,
@@ -89,6 +98,26 @@ export class TicketsService {
     actor: AuthenticatedRequestUser,
   ): Promise<TicketWithPermissions[]> {
     const tickets = await this.ticketsRepository.findActiveBySubmitter(
+      actor.userId,
+    );
+    const actorDepartmentIds = await this.getActorDepartmentIds(actor);
+    return this.withPermissions(tickets, actor, actorDepartmentIds);
+  }
+
+  async findClaimed(
+    actor: AuthenticatedRequestUser,
+  ): Promise<TicketWithPermissions[]> {
+    const tickets = await this.ticketsRepository.findActiveByAgent(
+      actor.userId,
+    );
+    const actorDepartmentIds = await this.getActorDepartmentIds(actor);
+    return this.withPermissions(tickets, actor, actorDepartmentIds);
+  }
+
+  async findResolved(
+    actor: AuthenticatedRequestUser,
+  ): Promise<TicketWithPermissions[]> {
+    const tickets = await this.ticketsRepository.findActiveResolvedByAgent(
       actor.userId,
     );
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
@@ -157,41 +186,45 @@ export class TicketsService {
   async submit(
     dto: SubmitTicketDto,
     actor: AuthenticatedRequestUser,
+    files?: UploadedFileInput[],
   ): Promise<TicketWithPermissions> {
     const department = await this.departmentsRepository.findById(
       dto.departmentId,
     );
     this.submitTicketPolicy.assert(department);
 
-    const now = new Date();
-    const ticket = await this.ticketLifecycleRepository.createWithEvent(
-      {
-        title: dto.title,
-        description: dto.description,
-        priority: dto.priority,
-        status: TicketStatus.OPEN,
-        departmentId: dto.departmentId,
-        submittedBy: actor.userId,
-        agentId: null,
-        active: true,
-        completionNotes: null,
-        createdAt: now,
-        updatedAt: now,
-        closedAt: null,
-      },
-      {
-        userId: actor.userId,
-        action: TicketEventAction.SUBMISSION,
-        details: {
+    const ticket = await this.withStoredFiles(files, actor.userId, async (storedFiles) => {
+      const now = new Date();
+      return this.ticketLifecycleRepository.createWithEvent(
+        {
           title: dto.title,
-          departmentId: dto.departmentId,
-          priority: dto.priority,
           description: dto.description,
-          submitterId: actor.userId,
+          priority: dto.priority,
+          status: TicketStatus.OPEN,
+          departmentId: dto.departmentId,
+          submittedBy: actor.userId,
+          agentId: null,
+          active: true,
+          completionNotes: null,
+          createdAt: now,
+          updatedAt: now,
+          closedAt: null,
         },
-        createdAt: now,
-      },
-    );
+        {
+          userId: actor.userId,
+          action: TicketEventAction.SUBMISSION,
+          details: {
+            title: dto.title,
+            departmentId: dto.departmentId,
+            priority: dto.priority,
+            description: dto.description,
+            submitterId: actor.userId,
+          },
+          createdAt: now,
+        },
+        storedFiles,
+      );
+    });
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
     return this.withPermission(ticket, actor, actorDepartmentIds);
   }
@@ -232,25 +265,28 @@ export class TicketsService {
     ticketId: string,
     dto: CloseTicketDto,
     actor: AuthenticatedRequestUser,
+    files?: UploadedFileInput[],
   ): Promise<TicketWithPermissions> {
     const ticket = await this.getActiveTicket(ticketId);
     this.closeTicketPolicy.assert(ticket, actor);
 
-    const now = new Date();
-    ticket.status = TicketStatus.CLOSED;
-    ticket.agentId = null;
-    ticket.completionNotes = dto.completionNotes ?? null;
-    ticket.closedAt = now;
-    ticket.updatedAt = now;
-    const closed = await this.ticketLifecycleRepository.saveWithEvent(ticket, {
-      ticketId,
-      userId: actor.userId,
-      action: TicketEventAction.CLOSE,
-      details: {
-        agentId: actor.userId,
-        completionNotes: ticket.completionNotes,
-      },
-      createdAt: now,
+    const closed = await this.withStoredFiles(files, actor.userId, async (storedFiles) => {
+      const now = new Date();
+      ticket.status = TicketStatus.CLOSED;
+      ticket.agentId = null;
+      ticket.completionNotes = dto.completionNotes ?? null;
+      ticket.closedAt = now;
+      ticket.updatedAt = now;
+      return this.ticketLifecycleRepository.saveWithEvent(ticket, {
+        ticketId,
+        userId: actor.userId,
+        action: TicketEventAction.CLOSE,
+        details: {
+          agentId: actor.userId,
+          completionNotes: ticket.completionNotes,
+        },
+        createdAt: now,
+      }, storedFiles);
     });
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
     return this.withPermission(closed, actor, actorDepartmentIds);
@@ -260,32 +296,36 @@ export class TicketsService {
     ticketId: string,
     dto: ReopenTicketDto,
     actor: AuthenticatedRequestUser,
+    files?: UploadedFileInput[],
   ): Promise<TicketWithPermissions> {
     const ticket = await this.getActiveTicket(ticketId);
     this.reopenTicketPolicy.assert(ticket, actor);
 
-    ticket.status = TicketStatus.REOPENED;
-    ticket.agentId = null;
-    ticket.closedAt = null;
-    if (dto.description) {
-      ticket.description = dto.description;
-    }
-    const now = new Date();
-    ticket.updatedAt = now;
-    const reopened = await this.ticketLifecycleRepository.saveWithEvent(
-      ticket,
-      {
-        ticketId,
-        userId: actor.userId,
-        action: TicketEventAction.REOPEN,
-        details: {
-          priority: ticket.priority,
-          description: ticket.description,
-          submitterId: ticket.submittedBy,
+    const reopened = await this.withStoredFiles(files, actor.userId, async (storedFiles) => {
+      ticket.status = TicketStatus.REOPENED;
+      ticket.agentId = null;
+      ticket.closedAt = null;
+      if (dto.description) {
+        ticket.description = dto.description;
+      }
+      const now = new Date();
+      ticket.updatedAt = now;
+      return this.ticketLifecycleRepository.saveWithEvent(
+        ticket,
+        {
+          ticketId,
+          userId: actor.userId,
+          action: TicketEventAction.REOPEN,
+          details: {
+            priority: ticket.priority,
+            description: ticket.description,
+            submitterId: ticket.submittedBy,
+          },
+          createdAt: now,
         },
-        createdAt: now,
-      },
-    );
+        storedFiles,
+      );
+    });
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
     return this.withPermission(reopened, actor, actorDepartmentIds);
   }
@@ -294,12 +334,26 @@ export class TicketsService {
     ticketId: string,
     dto: ModifyTicketDto,
     actor: AuthenticatedRequestUser,
+    files?: UploadedFileInput[],
   ): Promise<TicketWithPermissions> {
     const ticket = await this.getActiveTicket(ticketId);
     const department = dto.departmentId
       ? await this.departmentsRepository.findById(dto.departmentId)
       : null;
     this.modifyTicketPolicy.assert(ticket, actor, dto, department);
+
+    const attachmentIdsToRemove = this.parseRemovedAttachmentIds(
+      dto.removedAttachmentIds,
+    );
+    const filesToRemove = await this.fileAttachmentsRepository.findForTicket(
+      ticketId,
+      attachmentIdsToRemove,
+    );
+    if (filesToRemove.length !== attachmentIdsToRemove.length) {
+      throw new BadRequestException(
+        'One or more attachments do not belong to this ticket',
+      );
+    }
 
     const oldTitle = ticket.title;
     const oldDescription = ticket.description;
@@ -323,29 +377,42 @@ export class TicketsService {
       oldDescription !== ticket.description ||
       oldPriority !== ticket.priority ||
       oldDepartmentId !== ticket.departmentId;
-    if (!changed) {
+    const attachmentChanges =
+      filesToRemove.length > 0 || (files?.length ?? 0) > 0;
+    if (!changed && !attachmentChanges) {
       const actorDepartmentIds = await this.getActorDepartmentIds(actor);
       return this.withPermission(ticket, actor, actorDepartmentIds);
     }
 
     const now = new Date();
     ticket.updatedAt = now;
-    const updated = await this.ticketLifecycleRepository.saveWithEvent(ticket, {
-      ticketId,
-      userId: actor.userId,
-      action: TicketEventAction.MODIFICATION,
-      details: {
-        oldTitle,
-        newTitle: ticket.title,
-        oldDepartmentId,
-        newDepartmentId: ticket.departmentId,
-        oldPriority,
-        newPriority: ticket.priority,
-        oldDescription,
-        newDescription: ticket.description,
-      },
-      createdAt: now,
-    });
+    const updated = await this.withStoredFiles(
+      files,
+      actor.userId,
+      (storedFiles) =>
+        this.ticketLifecycleRepository.saveWithEvent(
+          ticket,
+          {
+            ticketId,
+            userId: actor.userId,
+            action: TicketEventAction.MODIFICATION,
+            details: {
+              oldTitle,
+              newTitle: ticket.title,
+              oldDepartmentId,
+              newDepartmentId: ticket.departmentId,
+              oldPriority,
+              newPriority: ticket.priority,
+              oldDescription,
+              newDescription: ticket.description,
+            },
+            createdAt: now,
+          },
+          storedFiles,
+          attachmentIdsToRemove,
+        ),
+    );
+    await this.filesService.cleanup(filesToRemove);
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
     return this.withPermission(updated, actor, actorDepartmentIds);
   }
@@ -382,6 +449,81 @@ export class TicketsService {
     return this.departmentsRepository.findActiveDepartmentIdsByUserId(
       actor.userId,
     );
+  }
+
+  private parseRemovedAttachmentIds(value?: string): string[] {
+    if (!value) {
+      return [];
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      throw new BadRequestException(
+        'Removed attachment IDs must be a JSON array',
+      );
+    }
+
+    if (
+      !Array.isArray(parsed) ||
+      parsed.some(
+        (attachmentId) =>
+          typeof attachmentId !== 'string' || !attachmentId,
+      )
+    ) {
+      throw new BadRequestException(
+        'Removed attachment IDs must be a JSON array',
+      );
+    }
+
+    return [...new Set(parsed)];
+  }
+
+  async downloadAttachment(
+    ticketId: string,
+    eventId: string,
+    attachmentId: string,
+    actor: AuthenticatedRequestUser,
+  ): Promise<StreamableFile> {
+    await this.assertCanViewTicket(ticketId, actor);
+    const attachment =
+      await this.fileAttachmentsRepository.findForTicketEvent(
+        ticketId,
+        eventId,
+        attachmentId,
+      );
+    if (!attachment) {
+      throw new NotFoundException('Attachment was not found');
+    }
+
+    let contents: Buffer;
+    try {
+      contents = await this.filesService.read(attachment.storageKey);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        throw new NotFoundException('Attachment file was not found');
+      }
+      throw error;
+    }
+    return new StreamableFile(contents, {
+      type: attachment.mimeType,
+      disposition: `attachment; filename*=UTF-8''${encodeURIComponent(attachment.originalName)}`,
+    });
+  }
+
+  private async withStoredFiles<T>(
+    files: UploadedFileInput[] | undefined,
+    uploadedBy: string,
+    operation: (storedFiles: StoredFileMetadata[]) => Promise<T>,
+  ): Promise<T> {
+    const storedFiles = await this.filesService.storeForUser(files, uploadedBy);
+    try {
+      return await operation(storedFiles);
+    } catch (error) {
+      await this.filesService.cleanup(storedFiles);
+      throw error;
+    }
   }
 
   private async getActiveTicket(ticketId: string): Promise<TicketRecord> {

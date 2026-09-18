@@ -8,6 +8,7 @@ import {
   EMPLOYEE_2_ID,
   EMPLOYEE_ID,
   HR_DEPARTMENT_ID,
+  IT_AGENT_2_ID,
   IT_DEPARTMENT_ID,
   adminUser,
   agentUser,
@@ -251,5 +252,34 @@ describe('TicketsService integration', () => {
     );
     expect(adminClaimPermissions.get(employeeTicket.ticketId)).toBe(true);
     expect(adminClaimPermissions.get(hrTicket.ticketId)).toBe(false);
+
+    await service.claim(employeeTicket.ticketId, agentUser(AGENT_ID));
+    const claimedTickets = await service.findClaimed(agentUser(AGENT_ID));
+    expect(claimedTickets).toHaveLength(1);
+    expect(claimedTickets[0].ticketId).toBe(employeeTicket.ticketId);
+    expect(claimedTickets[0].agent?.userId).toBe(AGENT_ID);
+
+    await service.close(
+      employeeTicket.ticketId,
+      { completionNotes: 'Completed by the assigned agent' },
+      agentUser(AGENT_ID),
+    );
+    const resolvedTickets = await service.findResolved(agentUser(AGENT_ID));
+    expect(resolvedTickets).toHaveLength(1);
+    expect(resolvedTickets[0].ticketId).toBe(employeeTicket.ticketId);
+
+    await service.reopen(
+      employeeTicket.ticketId,
+      { description: 'Additional information is required' },
+      requestUser(),
+    );
+    await service.claim(employeeTicket.ticketId, agentUser(IT_AGENT_2_ID));
+
+    const resolvedAfterReassignment = await service.findResolved(
+      agentUser(AGENT_ID),
+    );
+    expect(resolvedAfterReassignment).toHaveLength(1);
+    expect(resolvedAfterReassignment[0].ticketId).toBe(employeeTicket.ticketId);
+    expect(resolvedAfterReassignment[0].agent?.userId).toBe(IT_AGENT_2_ID);
   });
 });

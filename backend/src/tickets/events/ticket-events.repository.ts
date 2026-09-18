@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { mapPrismaError } from '../../database/prisma-error';
 import { PrismaService } from '../../database/prisma.service';
 import type { TicketPersistenceClient } from '../repositories/tickets.repository';
+import type { TicketEventAttachment } from '../../files/file-attachments.repository';
 import {
   ClaimEventDetails,
   CloseEventDetails,
@@ -25,6 +26,21 @@ const eventUserSelect = {
 
 const eventInclude = {
   user: { select: eventUserSelect },
+  attachments: {
+    include: {
+      file: {
+        select: {
+          fileId: true,
+          originalName: true,
+          fileSize: true,
+          mimeType: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      },
+    },
+    orderBy: { createdAt: 'asc' },
+  },
 } satisfies Prisma.TicketEventInclude;
 
 type TicketEventWithUser = Prisma.TicketEventGetPayload<{
@@ -38,11 +54,12 @@ export class TicketEventsRepository {
   async append(
     event: NewTicketEvent,
     client: TicketPersistenceClient = this.prisma,
-  ): Promise<void> {
+  ): Promise<string> {
     try {
+      const ticketEventId = randomUUID();
       await client.ticketEvent.create({
         data: {
-          ticketEventId: randomUUID(),
+          ticketEventId,
           ticketId: event.ticketId,
           userId: event.userId,
           action: event.action,
@@ -51,6 +68,7 @@ export class TicketEventsRepository {
           updatedAt: event.createdAt,
         },
       });
+      return ticketEventId;
 
     } catch (error) {
       mapPrismaError(error);
@@ -173,6 +191,17 @@ export class TicketEventsRepository {
         createdAt: event.createdAt,
         updatedAt: event.updatedAt,
         user,
+        attachments: event.attachments.map(
+          (attachment): TicketEventAttachment => ({
+            attachmentId: attachment.attachmentId,
+            fileId: attachment.file.fileId,
+            originalName: attachment.file.originalName,
+            fileSize: attachment.file.fileSize,
+            mimeType: attachment.file.mimeType,
+            createdAt: attachment.file.createdAt,
+            updatedAt: attachment.file.updatedAt,
+          }),
+        ),
       } as unknown as TicketEventRecord;
     });
   }

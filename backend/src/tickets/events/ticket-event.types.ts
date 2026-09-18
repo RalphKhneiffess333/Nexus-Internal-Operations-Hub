@@ -4,6 +4,7 @@ import {
   TicketPriority,
   UserRole,
 } from '@prisma/client';
+import type { TicketEventAttachment } from '../../files/file-attachments.repository';
 
 export interface SubmissionEventDetails {
   title: string;
@@ -141,5 +142,6 @@ export type TicketEventRecord = {
     action: Action;
     user: TicketEventUser;
     details: TicketEventDetailsResponseByAction[Action];
+    attachments: TicketEventAttachment[];
   };
 }[TicketEventAction];

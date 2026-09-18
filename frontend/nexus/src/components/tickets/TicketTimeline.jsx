@@ -192,6 +192,43 @@ function TimelineSkeleton() {
   )
 }
 
+function AttachmentList({
+  attachments = [],
+  downloadingAttachmentId,
+  onDownload,
+  heading = 'Attachments',
+}) {
+  if (attachments.length === 0) {
+    return null
+  }
+
+  return (
+    <div className="timeline-attachments">
+      <p className="timeline-attachments-heading">{heading}</p>
+      <ul>
+        {attachments.map((attachment) => (
+          <li key={attachment.attachmentId}>
+            <button
+              type="button"
+              className="timeline-attachment"
+              onClick={() => onDownload(attachment)}
+              disabled={downloadingAttachmentId === attachment.attachmentId}
+            >
+              <span aria-hidden="true">📎</span>
+              <span>{attachment.originalName}</span>
+              <span className="timeline-attachment-action">
+                {downloadingAttachmentId === attachment.attachmentId
+                  ? 'Downloading…'
+                  : 'Download'}
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 export function TicketTimeline({
   events,
   loading,
@@ -203,6 +240,8 @@ export function TicketTimeline({
   departments = [],
   onSelect,
   onRetry,
+  downloadingAttachmentId,
+  onDownloadAttachment,
 }) {
   const orderedEvents = [...events].sort((left, right) => {
     const timestampDifference =
@@ -303,6 +342,21 @@ export function TicketTimeline({
                             <EventDetails
                               event={selectedEvent}
                               departments={departments}
+                            />
+                            <AttachmentList
+                              attachments={selectedEvent.attachments}
+                              downloadingAttachmentId={downloadingAttachmentId}
+                              heading={
+                                selectedEvent.action === TicketEventAction.CLOSE
+                                  ? 'Files attached to completion notes'
+                                  : selectedEvent.action === TicketEventAction.SUBMISSION ||
+                                      selectedEvent.action === TicketEventAction.REOPEN
+                                    ? 'Files attached to description'
+                                    : undefined
+                              }
+                              onDownload={(attachment) =>
+                                onDownloadAttachment(attachment, selectedEvent.ticketEventId)
+                              }
                             />
                             <p className="timeline-actor">
                               Performed by <span>{userName(selectedEvent.user)}</span>

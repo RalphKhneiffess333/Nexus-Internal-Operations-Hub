@@ -1,6 +1,11 @@
 import { randomUUID } from 'crypto';
 import { Injectable } from '@nestjs/common';
-import { Prisma, Ticket, TicketStatus } from '@prisma/client';
+import {
+  Prisma,
+  Ticket,
+  TicketEventAction,
+  TicketStatus,
+} from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { mapPrismaError } from '../../database/prisma-error';
 
@@ -71,6 +76,54 @@ export class TicketsRepository {
           submittedBy,
         },
         orderBy: { createdAt: 'desc' },
+        include: ticketInclude,
+      });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }
+
+  async findActiveByAgent(agentId: string): Promise<TicketRecord[]> {
+    try {
+      return await this.prisma.ticket.findMany({
+        where: {
+          active: true,
+          agentId,
+        },
+        orderBy: { updatedAt: 'desc' },
+        include: ticketInclude,
+      });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }
+
+  async findActiveResolvedByAgent(agentId: string): Promise<TicketRecord[]> {
+    try {
+      const closeEvents = await this.prisma.ticketEvent.findMany({
+        where: {
+          action: TicketEventAction.CLOSE,
+          userId: agentId,
+          ticket: { active: true },
+        },
+        select: {
+          ticketId: true,
+        },
+      });
+      const resolvedTicketIds = [
+        ...new Set(closeEvents.map((event) => event.ticketId)),
+      ];
+
+      if (resolvedTicketIds.length === 0) {
+        return [];
+      }
+
+      return await this.prisma.ticket.findMany({
+        where: {
+          active: true,
+          ticketId: { in: resolvedTicketIds },
+        },
+        orderBy: { updatedAt: 'desc' },
         include: ticketInclude,
       });
     } catch (error) {

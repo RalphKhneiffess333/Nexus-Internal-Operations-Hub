@@ -39,6 +39,7 @@ Desktop.ini
 .temp/
 .tmp/
 .turbo/
+backend/uploads/
 
 # tests
 test-results

@@ -1,4 +1,16 @@
-import { Body, Controller, Get, Param, Patch, Post, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Req,
+  StreamableFile,
+  UploadedFiles,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import { UserRole } from '@prisma/client';
 import { Roles } from '../authorization/decorators/roles.decorator';
 import type { AuthenticatedRequest } from '../authentication/request-user';
@@ -7,6 +19,8 @@ import { ModifyTicketDto } from './dto/modify-ticket.dto';
 import { ReopenTicketDto } from './dto/reopen-ticket.dto';
 import { SubmitTicketDto } from './dto/submit-ticket.dto';
 import { TicketsService } from './tickets.service';
+import { MAX_FILE_SIZE, MAX_FILES_PER_EVENT } from '../files/file-validation';
+import type { UploadedFileInput } from '../files/file-validation';
 
 @Controller('tickets')
 export class TicketsController {
@@ -14,8 +28,17 @@ export class TicketsController {
 
   @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
   @Post()
-  submit(@Body() dto: SubmitTicketDto, @Req() request: AuthenticatedRequest) {
-    return this.ticketsService.submit(dto, request.user!);
+  @UseInterceptors(
+    FilesInterceptor('files', MAX_FILES_PER_EVENT, {
+      limits: { fileSize: MAX_FILE_SIZE },
+    }),
+  )
+  submit(
+    @Body() dto: SubmitTicketDto,
+    @UploadedFiles() files: UploadedFileInput[] | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.ticketsService.submit(dto, request.user!, files);
   }
 
   @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
@@ -28,6 +51,18 @@ export class TicketsController {
   @Get('submitted')
   findSubmitted(@Req() request: AuthenticatedRequest) {
     return this.ticketsService.findSubmitted(request.user!);
+  }
+
+  @Roles(UserRole.Agent, UserRole.Admin)
+  @Get('claimed')
+  findClaimed(@Req() request: AuthenticatedRequest) {
+    return this.ticketsService.findClaimed(request.user!);
+  }
+
+  @Roles(UserRole.Agent, UserRole.Admin)
+  @Get('resolved')
+  findResolved(@Req() request: AuthenticatedRequest) {
+    return this.ticketsService.findResolved(request.user!);
   }
 
   @Roles(UserRole.Agent, UserRole.Admin)
@@ -59,6 +94,22 @@ export class TicketsController {
   }
 
   @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
+  @Get(':id/events/:eventId/attachments/:attachmentId')
+  downloadAttachment(
+    @Param('id') id: string,
+    @Param('eventId') eventId: string,
+    @Param('attachmentId') attachmentId: string,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<StreamableFile> {
+    return this.ticketsService.downloadAttachment(
+      id,
+      eventId,
+      attachmentId,
+      request.user!,
+    );
+  }
+
+  @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
   @Get(':id')
   findOne(@Param('id') id: string, @Req() request: AuthenticatedRequest) {
     return this.ticketsService.findOne(id, request.user!);
@@ -66,12 +117,18 @@ export class TicketsController {
 
   @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
   @Patch(':id')
+  @UseInterceptors(
+    FilesInterceptor('files', MAX_FILES_PER_EVENT, {
+      limits: { fileSize: MAX_FILE_SIZE },
+    }),
+  )
   modify(
     @Param('id') id: string,
     @Body() dto: ModifyTicketDto,
+    @UploadedFiles() files: UploadedFileInput[] | undefined,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.ticketsService.modify(id, dto, request.user!);
+    return this.ticketsService.modify(id, dto, request.user!, files);
   }
 
   @Roles(UserRole.Agent, UserRole.Admin)
@@ -82,22 +139,34 @@ export class TicketsController {
 
   @Roles(UserRole.Agent, UserRole.Admin)
   @Post(':id/close')
+  @UseInterceptors(
+    FilesInterceptor('files', MAX_FILES_PER_EVENT, {
+      limits: { fileSize: MAX_FILE_SIZE },
+    }),
+  )
   close(
     @Param('id') id: string,
     @Body() dto: CloseTicketDto,
+    @UploadedFiles() files: UploadedFileInput[] | undefined,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.ticketsService.close(id, dto, request.user!);
+    return this.ticketsService.close(id, dto, request.user!, files);
   }
 
   @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
   @Post(':id/reopen')
+  @UseInterceptors(
+    FilesInterceptor('files', MAX_FILES_PER_EVENT, {
+      limits: { fileSize: MAX_FILE_SIZE },
+    }),
+  )
   reopen(
     @Param('id') id: string,
     @Body() dto: ReopenTicketDto,
+    @UploadedFiles() files: UploadedFileInput[] | undefined,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.ticketsService.reopen(id, dto, request.user!);
+    return this.ticketsService.reopen(id, dto, request.user!, files);
   }
 
   @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)

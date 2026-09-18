@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { DepartmentsModule } from '../departments/departments.module';
+import { FilesModule } from '../files/files.module';
 import { TicketEventsRepository } from './events/ticket-events.repository';
 import { CancelTicketPolicy } from './policies/cancel-ticket.policy';
 import { ClaimTicketPolicy } from './policies/claim-ticket.policy';
@@ -14,7 +15,7 @@ import { TicketsController } from './tickets.controller';
 import { TicketsService } from './tickets.service';
 
 @Module({
-  imports: [DepartmentsModule],
+  imports: [DepartmentsModule, FilesModule],
   controllers: [TicketsController],
   providers: [
     TicketsService,

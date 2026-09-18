@@ -36,8 +36,9 @@ function userFacingMessage(status, payload) {
 export async function apiRequest(path, options = {}) {
   const { method = 'GET', body } = options
   const headers = { Accept: 'application/json' }
+  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData
 
-  if (body !== undefined) {
+  if (body !== undefined && !isFormData) {
     headers['Content-Type'] = 'application/json'
   }
 
@@ -47,7 +48,10 @@ export async function apiRequest(path, options = {}) {
       method,
       headers,
       credentials: 'include',
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body:
+        body === undefined || isFormData
+          ? body
+          : JSON.stringify(body),
     })
   } catch {
     throw new ApiError(
@@ -77,6 +81,37 @@ export async function apiRequest(path, options = {}) {
   }
 
   return payload
+}
+
+export async function downloadApiFile(path) {
+  let response
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      method: 'GET',
+      credentials: 'include',
+    })
+  } catch {
+    throw new ApiError(
+      'Unable to reach Nexus. Check your connection and try again.',
+      0,
+    )
+  }
+
+  if (!response.ok) {
+    const contentType = response.headers.get('content-type') ?? ''
+    const payload = contentType.includes('application/json')
+      ? await response.json().catch(() => null)
+      : null
+    throw new ApiError(userFacingMessage(response.status, payload), response.status)
+  }
+
+  const disposition = response.headers.get('content-disposition') ?? ''
+  const encodedFilename = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1]
+  const filename = encodedFilename
+    ? decodeURIComponent(encodedFilename)
+    : 'attachment'
+
+  return { blob: await response.blob(), filename }
 }
 
 export function apiUrl(path) {

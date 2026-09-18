@@ -2,12 +2,16 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { TicketList } from '../../components/tickets/TicketList'
 import { LoadingState } from '../../components/ui/LoadingState'
+import { useAuthentication } from '../../features/authentication/use-authentication'
 import { useDepartments } from '../../features/departments/use-departments'
 import {
+  getClaimedTickets,
   getDepartmentTickets,
+  getResolvedTickets,
   getSubmittedTickets,
   getTicketPool,
 } from '../../features/tickets/ticket-api'
+import { canWorkTickets } from '../../features/tickets/ticket-types'
 
 const TICKET_VIEWS = {
   submitted: {
@@ -20,6 +24,28 @@ const TICKET_VIEWS = {
     showEmptyAction: true,
     description: 'Track your requests and stay up to date on every resolution.',
     loader: getSubmittedTickets,
+  },
+  claimed: {
+    eyebrow: 'Assigned requests',
+    title: 'My tickets',
+    loading: 'Loading your claimed tickets...',
+    error: 'Unable to load your claimed tickets. Please try again.',
+    emptyTitle: 'No claimed tickets',
+    emptyText: 'Tickets you claim from a department pool will show up here.',
+    showEmptyAction: false,
+    description: 'Work through the requests currently assigned to you.',
+    loader: getClaimedTickets,
+  },
+  resolved: {
+    eyebrow: 'Resolved requests',
+    title: 'My tickets',
+    loading: 'Loading your resolved tickets...',
+    error: 'Unable to load your resolved tickets. Please try again.',
+    emptyTitle: 'No resolved tickets',
+    emptyText: 'Tickets you resolve will show up here.',
+    showEmptyAction: false,
+    description: 'Review requests you have completed for your departments.',
+    loader: getResolvedTickets,
   },
 }
 
@@ -48,11 +74,18 @@ const POOL_VIEWS = {
 
 export function TicketsPage({ view = 'submitted' }) {
   const [searchParams, setSearchParams] = useSearchParams()
+  const { user } = useAuthentication()
   const poolMode = searchParams.get('view') === 'all' ? 'all' : 'unclaimed'
+  const requestedMyTicketMode = searchParams.get('view')
+  const myTicketMode =
+    canWorkTickets(user) &&
+    (requestedMyTicketMode === 'claimed' || requestedMyTicketMode === 'resolved')
+      ? requestedMyTicketMode
+      : 'submitted'
   const config = view === 'pool'
     ? POOL_VIEWS[poolMode]
-    : TICKET_VIEWS[view] ?? TICKET_VIEWS.submitted
-  const requestKey = view === 'pool' ? `pool:${poolMode}` : view
+    : TICKET_VIEWS[myTicketMode]
+  const requestKey = view === 'pool' ? `pool:${poolMode}` : myTicketMode
   const [tickets, setTickets] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadedRequestKey, setLoadedRequestKey] = useState(null)
@@ -140,6 +173,36 @@ export function TicketsPage({ view = 'submitted' }) {
             onClick={() => setSearchParams({ view: 'all' })}
           >
             All department tickets
+          </button>
+        </div>
+      ) : canWorkTickets(user) ? (
+        <div className="pool-switcher" role="tablist" aria-label="My ticket view">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={myTicketMode === 'submitted'}
+            className={myTicketMode === 'submitted' ? 'is-active' : ''}
+            onClick={() => setSearchParams({})}
+          >
+            Submitted tickets
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={myTicketMode === 'claimed'}
+            className={myTicketMode === 'claimed' ? 'is-active' : ''}
+            onClick={() => setSearchParams({ view: 'claimed' })}
+          >
+            Claimed tickets
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={myTicketMode === 'resolved'}
+            className={myTicketMode === 'resolved' ? 'is-active' : ''}
+            onClick={() => setSearchParams({ view: 'resolved' })}
+          >
+            Resolved tickets
           </button>
         </div>
       ) : null}

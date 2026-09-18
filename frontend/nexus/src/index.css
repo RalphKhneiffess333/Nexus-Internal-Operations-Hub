@@ -651,6 +651,61 @@ h3 {
   line-height: 1.7;
   white-space: pre-wrap;
 }
+.ticket-attachments {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed #dde3ed;
+}
+.ticket-attachments-heading {
+  margin: 0 0 7px;
+  color: var(--ink-faint);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.ticket-attachments ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 2px 0 1px;
+  list-style: none;
+}
+.ticket-attachment {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--primary);
+  background: #f8faff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+}
+.ticket-attachment:hover:not(:disabled) {
+  border-color: #bdc9df;
+  background: #fff;
+}
+.ticket-attachment:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+.ticket-attachment > span:nth-child(2) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ticket-attachment-action {
+  margin-left: auto;
+  flex: 0 0 auto;
+  color: var(--ink-faint);
+  font-size: 9px;
+}
 .ticket-details {
   padding: 30px;
 }
@@ -928,6 +983,44 @@ h3 {
   overflow-wrap: anywhere;
   color: var(--ink-soft);
 }
+.timeline-attachments {
+  margin-top: 15px;
+  padding-top: 12px;
+  border-top: 1px dashed #dde3ed;
+}
+.timeline-attachments-heading {
+  margin: 0 0 8px;
+  color: var(--ink-faint);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.timeline-attachments ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.timeline-attachment {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 0;
+  border: 0;
+  color: var(--primary);
+  background: transparent;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.timeline-attachment:hover:not(:disabled) { color: var(--primary-dark); }
+.timeline-attachment:disabled { cursor: wait; opacity: 0.65; }
+.timeline-attachment > span:nth-child(2) { min-width: 0; overflow-wrap: anywhere; }
+.timeline-attachment-action { margin-left: auto; flex: 0 0 auto; color: var(--ink-faint); font-size: 10px; }
 .timeline-detail-status,
 .timeline-detail-empty {
   margin: 0;
@@ -1032,6 +1125,105 @@ h3 {
   font-size: 12px;
   font-style: normal;
   font-weight: 600;
+}
+.field-help {
+  color: var(--ink-faint);
+  font-size: 11px;
+  font-weight: 600;
+}
+.file-picker {
+  display: grid;
+  gap: 8px;
+}
+.file-picker-input {
+  position: absolute;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  opacity: 0;
+  pointer-events: none;
+}
+.file-picker-button {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: start;
+  gap: 7px;
+  width: fit-content;
+  padding: 9px 13px;
+  border: 1px solid #c9d4e7;
+  border-radius: 9px;
+  color: var(--ink-soft);
+  background: #f8faff;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: 160ms ease;
+}
+.file-picker-button:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(73, 103, 217, 0.08);
+}
+.file-picker-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.file-picker-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+.file-picker-hint {
+  color: var(--ink-faint);
+  font-size: 11px;
+  font-weight: 600;
+}
+.existing-file-list {
+  display: grid;
+  gap: 7px;
+}
+.file-picker-section-label {
+  color: var(--ink-faint);
+  font-size: 11px;
+  font-weight: 800;
+}
+.file-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.file-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink-soft);
+  background: #f8faff;
+  font-size: 12px;
+  font-weight: 600;
+}
+.file-list li span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.file-remove {
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  color: var(--danger);
+  background: transparent;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
 }
 .form-actions {
   justify-content: flex-end;

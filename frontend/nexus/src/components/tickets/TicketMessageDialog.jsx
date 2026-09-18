@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { FilePicker } from './FilePicker'
 
 export function TicketMessageDialog({
   title,
@@ -13,8 +14,10 @@ export function TicketMessageDialog({
   error = '',
   onConfirm,
   onDismiss,
+  includeAttachments = false,
 }) {
   const [value, setValue] = useState('')
+  const [files, setFiles] = useState([])
   const [fieldError, setFieldError] = useState('')
 
   function handleConfirm() {
@@ -25,7 +28,7 @@ export function TicketMessageDialog({
     }
 
     setFieldError('')
-    onConfirm(trimmed)
+    onConfirm(trimmed, files)
   }
 
   return (
@@ -50,6 +53,12 @@ export function TicketMessageDialog({
           />
           {fieldError ? <em className="field-error">{fieldError}</em> : null}
         </label>
+        {includeAttachments ? (
+          <div className="field">
+            <span>Attachments <small>(optional, up to 5 files)</small></span>
+            <FilePicker onChange={setFiles} disabled={busy} />
+          </div>
+        ) : null}
         {error ? <p className="banner error">{error}</p> : null}
         <div className="form-actions">
           <button type="button" className="btn ghost" onClick={onDismiss} disabled={busy}>

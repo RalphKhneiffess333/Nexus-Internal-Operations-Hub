@@ -179,6 +179,8 @@ async function seedTestDepartmentMembers(prisma: PrismaClient): Promise<void> {
 }
 
 export async function resetTicketData(prisma: PrismaClient): Promise<void> {
+  await prisma.attachment.deleteMany();
+  await prisma.file.deleteMany();
   await prisma.ticketEvent.deleteMany();
   await prisma.ticket.deleteMany();
   await prisma.$executeRawUnsafe(
