@@ -43,6 +43,22 @@ export class TicketsController {
   }
 
   @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
+  @Get(':id/events')
+  findEvents(@Param('id') id: string, @Req() request: AuthenticatedRequest) {
+    return this.ticketsService.findEvents(id, request.user!);
+  }
+
+  @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
+  @Get(':id/events/:eventId')
+  findEvent(
+    @Param('id') id: string,
+    @Param('eventId') eventId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.ticketsService.findEvent(id, eventId, request.user!);
+  }
+
+  @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
   @Get(':id')
   findOne(@Param('id') id: string, @Req() request: AuthenticatedRequest) {
     return this.ticketsService.findOne(id, request.user!);
