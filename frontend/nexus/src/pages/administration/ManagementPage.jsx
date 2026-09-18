@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { LoadingState } from '../../components/ui/LoadingState'
+import { UserLink } from '../../components/users/UserLink'
 import { UserRole } from '../../features/tickets/ticket-types'
 import {
   addUserDepartment,
@@ -35,6 +36,9 @@ export function ManagementPage() {
   const [selectedUserId, setSelectedUserId] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
+  const [userStatus, setUserStatus] = useState('')
+  const [userDepartmentId, setUserDepartmentId] = useState('')
+  const [userHasLogged, setUserHasLogged] = useState('')
   const [showCreateUser, setShowCreateUser] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -49,7 +53,7 @@ export function ManagementPage() {
     setError('')
     try {
       const [userResult, departmentResult, configurationResult] = await Promise.all([
-        getAdminUsers({ page: 1, pageSize: 100, search }),
+        getAdminUsers({ page: 1, pageSize: 100, search, status: userStatus, departmentId: userDepartmentId, hasLogged: userHasLogged }),
         getAdminDepartments({ page: 1, pageSize: 100 }),
         getAdminConfigurations(),
       ])
@@ -61,7 +65,7 @@ export function ManagementPage() {
     } finally {
       setLoading(false)
     }
-  }, [search])
+  }, [search, userStatus, userDepartmentId, userHasLogged])
 
   useEffect(() => {
     // This effect owns the async data synchronization for the selected search.
@@ -107,14 +111,14 @@ export function ManagementPage() {
       </div>
 
       {loading ? <LoadingState>Loading management data...</LoadingState> : null}
-      {!loading && section === 'users' ? <UsersSection users={users} departments={departments} selectedUserId={selectedUserId} search={searchInput} onSearch={setSearchInput} onSelect={setSelectedUserId} showCreate={showCreateUser} setShowCreate={setShowCreateUser} runMutation={runMutation} /> : null}
+      {!loading && section === 'users' ? <UsersSection users={users} departments={departments} selectedUserId={selectedUserId} search={searchInput} onSearch={setSearchInput} userStatus={userStatus} onUserStatus={setUserStatus} userDepartmentId={userDepartmentId} onUserDepartment={setUserDepartmentId} userHasLogged={userHasLogged} onUserHasLogged={setUserHasLogged} onSelect={setSelectedUserId} showCreate={showCreateUser} setShowCreate={setShowCreateUser} runMutation={runMutation} /> : null}
       {!loading && section === 'departments' ? <DepartmentsSection departments={departments} runMutation={runMutation} /> : null}
       {!loading && section === 'configurations' ? <ConfigurationsSection configurations={configurations} runMutation={runMutation} /> : null}
     </section>
   )
 }
 
-function UsersSection({ users, departments, selectedUserId, search, onSearch, onSelect, showCreate, setShowCreate, runMutation }) {
+function UsersSection({ users, departments, selectedUserId, search, onSearch, userStatus, onUserStatus, userDepartmentId, onUserDepartment, userHasLogged, onUserHasLogged, onSelect, showCreate, setShowCreate, runMutation }) {
   const [pendingAction, setPendingAction] = useState(null)
   const [departmentUserId, setDepartmentUserId] = useState('')
   const departmentUser = users.find((user) => user.userId === departmentUserId) ?? null
@@ -143,6 +147,7 @@ function UsersSection({ users, departments, selectedUserId, search, onSearch, on
           <span>Search users</span>
           <input value={search} onChange={(event) => onSearch(event.target.value)} placeholder="Name or email" />
         </label>
+        <div className="admin-filter-group"><label className="field admin-filter"><span>Status</span><select value={userStatus} onChange={(event) => onUserStatus(event.target.value)}><option value="">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option></select></label><label className="field admin-filter"><span>Department</span><select value={userDepartmentId} onChange={(event) => onUserDepartment(event.target.value)}><option value="">All departments</option>{departments.map((department) => <option key={department.departmentId} value={department.departmentId}>{department.name}</option>)}</select></label><label className="field admin-filter"><span>Login</span><select value={userHasLogged} onChange={(event) => onUserHasLogged(event.target.value)}><option value="">Any login status</option><option value="true">Has logged in</option><option value="false">Has not logged in</option></select></label></div>
         <button type="button" className="btn primary" onClick={() => setShowCreate(true)}>Pre-provision user</button>
       </div>
 
@@ -188,7 +193,7 @@ function UserRow({ user, selected, onSelect, onRequestAction }) {
   }
 
   return <tr className={selected ? 'is-selected' : ''} onClick={onSelect}>
-    <td><strong>{user.fullName}</strong><span className="admin-subtext">{user.email}</span></td>
+    <td><UserLink user={user} /><span className="admin-subtext">{user.email}</span></td>
     <td><select aria-label={`Role for ${user.fullName}`} value={user.role} onChange={changeRole} onClick={(event) => event.stopPropagation()}><option value={UserRole.EMPLOYEE}>Employee</option><option value={UserRole.AGENT}>Agent</option><option value={UserRole.ADMIN}>Admin</option></select></td>
     <td><button type="button" className={`status-toggle ${user.isActive ? 'is-active' : ''}`} onClick={(event) => { event.stopPropagation(); toggleStatus() }}>{user.isActive ? 'Active' : 'Inactive'}</button></td>
     <td>{user.hasLogged ? 'Logged in' : 'Not yet'}</td>
@@ -246,7 +251,7 @@ function DepartmentForm({ department, runMutation, onDone }) {
 }
 
 function DepartmentCard({ department, onEdit, onDeactivate, runMutation }) {
-  return <article className={`admin-card clay-card ${department.active ? '' : 'is-inactive'}`}><div className="admin-card-heading"><div><p className="eyebrow">{department.code}</p><h2>{department.name}</h2></div><span className={`status-toggle ${department.active ? 'is-active' : ''}`}>{department.active ? 'Active' : 'Inactive'}</span></div><p>{department.desc}</p><p className="muted">{department._count?.members ?? 0} members · {department._count?.tickets ?? 0} tickets</p><div className="form-actions"><button type="button" className="btn ghost" onClick={onEdit}>Edit</button>{department.active ? <button type="button" className="btn danger" onClick={onDeactivate}>Deactivate</button> : <button type="button" className="btn primary" onClick={() => void runMutation(() => reactivateAdminDepartment(department.departmentId), 'Department reactivated.')}>Reactivate</button>}</div></article>
+  return <article className={`admin-card clay-card ${department.active ? '' : 'is-inactive'}`}><div className="admin-card-heading"><div><p className="eyebrow">{department.code}</p><h3 className="admin-card-title">{department.name}</h3></div><span className={`status-toggle ${department.active ? 'is-active' : ''}`}>{department.active ? 'Active' : 'Inactive'}</span></div><p>{department.desc}</p><p className="muted">{department._count?.members ?? 0} members · {department._count?.tickets ?? 0} tickets</p><div className="form-actions"><button type="button" className="btn ghost" onClick={onEdit}>Edit</button>{department.active ? <button type="button" className="btn danger" onClick={onDeactivate}>Deactivate</button> : <button type="button" className="btn primary" onClick={() => void runMutation(() => reactivateAdminDepartment(department.departmentId), 'Department reactivated.')}>Reactivate</button>}</div></article>
 }
 
 function ConfigurationsSection({ configurations, runMutation }) {
@@ -255,7 +260,8 @@ function ConfigurationsSection({ configurations, runMutation }) {
 
 function ConfigurationCard({ configuration, runMutation }) {
   const [value, setValue] = useState(configuration.value)
-  return <article className="admin-card clay-card"><p className="eyebrow">Operational setting</p><h2>{configuration.key.replaceAll('_', ' ')}</h2><p>{configuration.description}</p><label className="field"><span>Minutes</span><input type="number" min="0" value={value} onChange={(event) => setValue(event.target.value)} /></label><button type="button" className="btn primary" onClick={() => void runMutation(() => updateAdminConfiguration(configuration.key, value), 'Configuration updated.')}>Save</button></article>
+  const title = configuration.key.toLowerCase().replaceAll('_', ' ').replace(/\b\w/g, (character) => character.toUpperCase())
+  return <article className="admin-card clay-card"><p className="eyebrow">Operational setting</p><h3 className="admin-card-title">{title}</h3><p>{configuration.description}</p><label className="field"><span>Minutes</span><input type="number" min="0" value={value} onChange={(event) => setValue(event.target.value)} /></label><button type="button" className="btn primary" onClick={() => void runMutation(() => updateAdminConfiguration(configuration.key, value), 'Configuration updated.')}>Save</button></article>
 }
 
 function AdminDialog({ title, description, children, onClose, wide = false }) {

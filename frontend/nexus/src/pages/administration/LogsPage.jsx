@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { LoadingState } from '../../components/ui/LoadingState'
 import { UserDetailsDialog } from '../../components/users/UserDetailsDialog'
-import { getAdminTicketEvents, getAdminUser, getAuditLogs } from '../../features/administration/administration-api'
+import { getAdminTicketEvents, getAuditLogs } from '../../features/administration/administration-api'
+import { getUser } from '../../features/users/users-api'
 import { formatDateTime } from '../../features/tickets/ticket-types'
 
 const logSections = [
@@ -87,7 +88,7 @@ function LogEntry({ entry }) {
     setUserLoading(true)
     setUserError('')
     try {
-      setUserDetails(await getAdminUser(entry.actor.userId))
+      setUserDetails(await getUser(entry.actor.userId))
     } catch (loadError) {
       setUserDetails(entry.actor)
       setUserError(loadError.message || 'Unable to load the complete user profile.')

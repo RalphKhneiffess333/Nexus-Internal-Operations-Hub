@@ -28,6 +28,20 @@ export class DepartmentsRepository {
     }
   }
 
+  async findAllActiveByUserId(userId: string): Promise<Department[]> {
+    try {
+      return await this.prisma.department.findMany({
+        where: {
+          active: true,
+          members: { some: { userId } },
+        },
+        orderBy: { name: 'asc' },
+      });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }
+
   async findActiveDepartmentIdsByUserId(userId: string): Promise<string[]> {
     try {
       const memberships = await this.prisma.departmentMember.findMany({

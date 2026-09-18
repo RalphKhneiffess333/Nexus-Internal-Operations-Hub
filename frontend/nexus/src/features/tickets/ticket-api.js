@@ -11,28 +11,36 @@ function multipartBody(fields, files = []) {
   return body
 }
 
-export function getTickets() {
-  return apiRequest('/tickets')
+function withQuery(path, params = {}) {
+  const query = new URLSearchParams()
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== '') query.set(key, value)
+  })
+  return `${path}${query.toString() ? `?${query}` : ''}`
 }
 
-export function getSubmittedTickets() {
-  return apiRequest('/tickets/submitted')
+export function getTickets(params = {}) {
+  return apiRequest(withQuery('/tickets', params))
 }
 
-export function getClaimedTickets() {
-  return apiRequest('/tickets/claimed')
+export function getSubmittedTickets(params = {}) {
+  return apiRequest(withQuery('/tickets/submitted', params))
 }
 
-export function getResolvedTickets() {
-  return apiRequest('/tickets/resolved')
+export function getClaimedTickets(params = {}) {
+  return apiRequest(withQuery('/tickets/claimed', params))
 }
 
-export function getDepartmentTickets() {
-  return apiRequest('/tickets/department')
+export function getResolvedTickets(params = {}) {
+  return apiRequest(withQuery('/tickets/resolved', params))
 }
 
-export function getTicketPool() {
-  return apiRequest('/tickets/pool')
+export function getDepartmentTickets(params = {}) {
+  return apiRequest(withQuery('/tickets/department', params))
+}
+
+export function getTicketPool(params = {}) {
+  return apiRequest(withQuery('/tickets/pool', params))
 }
 
 export function getTicket(ticketId) {

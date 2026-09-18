@@ -22,6 +22,7 @@ import { CloseTicketDto } from './dto/close-ticket.dto';
 import { ModifyTicketDto } from './dto/modify-ticket.dto';
 import { ReopenTicketDto } from './dto/reopen-ticket.dto';
 import { SubmitTicketDto } from './dto/submit-ticket.dto';
+import { TicketQueryDto } from './dto/ticket-query.dto';
 import type { TicketEventRecord } from './events/ticket-event.types';
 import { TicketEventsRepository } from './events/ticket-events.repository';
 import { CancelTicketPolicy } from './policies/cancel-ticket.policy';
@@ -80,8 +81,9 @@ export class TicketsService {
 
   async findAll(
     actor: AuthenticatedRequestUser,
+    filters: TicketQueryDto = {},
   ): Promise<TicketWithPermissions[]> {
-    const tickets = await this.ticketsRepository.findAll();
+    const tickets = await this.ticketsRepository.findAll(filters);
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
     return this.withPermissions(
       tickets.filter(
@@ -96,9 +98,11 @@ export class TicketsService {
 
   async findSubmitted(
     actor: AuthenticatedRequestUser,
+    filters: TicketQueryDto = {},
   ): Promise<TicketWithPermissions[]> {
     const tickets = await this.ticketsRepository.findActiveBySubmitter(
       actor.userId,
+      filters,
     );
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
     return this.withPermissions(tickets, actor, actorDepartmentIds);
@@ -106,9 +110,11 @@ export class TicketsService {
 
   async findClaimed(
     actor: AuthenticatedRequestUser,
+    filters: TicketQueryDto = {},
   ): Promise<TicketWithPermissions[]> {
     const tickets = await this.ticketsRepository.findActiveByAgent(
       actor.userId,
+      filters,
     );
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
     return this.withPermissions(tickets, actor, actorDepartmentIds);
@@ -116,9 +122,11 @@ export class TicketsService {
 
   async findResolved(
     actor: AuthenticatedRequestUser,
+    filters: TicketQueryDto = {},
   ): Promise<TicketWithPermissions[]> {
     const tickets = await this.ticketsRepository.findActiveResolvedByAgent(
       actor.userId,
+      filters,
     );
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
     return this.withPermissions(tickets, actor, actorDepartmentIds);
@@ -126,23 +134,27 @@ export class TicketsService {
 
   async findDepartmentTickets(
     actor: AuthenticatedRequestUser,
+    filters: TicketQueryDto = {},
   ): Promise<TicketWithPermissions[]> {
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
     const tickets =
       actor.role === UserRole.Admin
-        ? await this.ticketsRepository.findActive()
+        ? await this.ticketsRepository.findActive(filters)
         : await this.ticketsRepository.findActiveByDepartmentIds(
             actorDepartmentIds,
+            filters,
           );
     return this.withPermissions(tickets, actor, actorDepartmentIds);
   }
 
   async findPool(
     actor: AuthenticatedRequestUser,
+    filters: TicketQueryDto = {},
   ): Promise<TicketWithPermissions[]> {
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
     const tickets = await this.ticketsRepository.findTicketPool(
       actor.role === UserRole.Admin ? undefined : actorDepartmentIds,
+      filters,
     );
     return this.withPermissions(tickets, actor, actorDepartmentIds);
   }

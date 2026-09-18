@@ -14,7 +14,7 @@ import { Roles } from '../authorization/decorators/roles.decorator';
 import type { AuthenticatedRequest } from '../authentication/request-user';
 import {
   CreateAdminUserDto,
-  PageQueryDto,
+  AdminUserQueryDto,
   UpdateRoleDto,
   UpdateStatusDto,
 } from '../administration/dto/admin.dto';
@@ -26,7 +26,7 @@ export class UsersController {
 
   @Get()
   @Roles(UserRole.Admin)
-  list(@Query() query: PageQueryDto) {
+  list(@Query() query: AdminUserQueryDto) {
     return this.usersService.listForAdministration(query);
   }
 

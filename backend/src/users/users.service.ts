@@ -20,8 +20,8 @@ import { SessionService } from '../authentication/sessions/session.service';
 import type { AuthenticatedRequestUser } from '../authentication/request-user';
 import { PrismaService } from '../database/prisma.service';
 import {
+  AdminUserQueryDto,
   CreateAdminUserDto,
-  PageQueryDto,
   UpdateRoleDto,
   UpdateStatusDto,
 } from '../administration/dto/admin.dto';
@@ -117,15 +117,26 @@ export class UsersService {
     return identityProvider;
   }
 
-  async listForAdministration(query: PageQueryDto) {
-    const where: Prisma.UserWhereInput = query.search
-      ? {
-          OR: [
-            { email: { contains: query.search, mode: 'insensitive' } },
-            { fullName: { contains: query.search, mode: 'insensitive' } },
-          ],
-        }
-      : {};
+  async listForAdministration(query: AdminUserQueryDto) {
+    const where: Prisma.UserWhereInput = {
+      ...(query.search
+        ? {
+            OR: [
+              { email: { contains: query.search, mode: 'insensitive' } },
+              { fullName: { contains: query.search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+      ...(query.status
+        ? { isActive: query.status === 'active' }
+        : {}),
+      ...(query.departmentId
+        ? { departmentMembers: { some: { departmentId: query.departmentId } } }
+        : {}),
+      ...(query.hasLogged !== undefined
+        ? { hasLogged: query.hasLogged === 'true' }
+        : {}),
+    };
     const [items, total] = await Promise.all([
       this.usersRepository.findAdminPage(
         where,
@@ -143,6 +154,12 @@ export class UsersService {
   }
 
   async findForAdministration(userId: string) {
+    const user = await this.usersRepository.findAdminById(userId);
+    if (!user) throw new NotFoundException('User was not found');
+    return this.toSafeResponse(user);
+  }
+
+  async findForProfile(userId: string) {
     const user = await this.usersRepository.findAdminById(userId);
     if (!user) throw new NotFoundException('User was not found');
     return this.toSafeResponse(user);

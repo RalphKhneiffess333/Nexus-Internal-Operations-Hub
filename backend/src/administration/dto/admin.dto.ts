@@ -1,7 +1,9 @@
 import {
   IsBoolean,
+  IsBooleanString,
   IsEmail,
   IsEnum,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -31,6 +33,21 @@ export class PageQueryDto {
   @IsString()
   @Length(1, 100)
   search?: string;
+}
+
+export class AdminUserQueryDto extends PageQueryDto {
+  @IsOptional()
+  @IsIn(['active', 'inactive'] as const)
+  status?: 'active' | 'inactive';
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 100)
+  departmentId?: string;
+
+  @IsOptional()
+  @IsBooleanString()
+  hasLogged?: string;
 }
 
 export class CreateAdminUserDto {

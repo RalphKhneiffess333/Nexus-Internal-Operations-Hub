@@ -2,6 +2,7 @@ import { departmentLabel } from '../../features/departments/use-departments'
 import { formatDate, TicketPriority } from '../../features/tickets/ticket-types'
 import { TicketStatusBadge } from './TicketStatusBadge'
 import { TicketAttachments } from './TicketAttachments'
+import { UserLink } from '../users/UserLink'
 
 const PRIORITY_LABELS = {
   [TicketPriority.LOW]: 'Low',
@@ -40,9 +41,6 @@ export function TicketDetails({
   const submitted = formatDate(ticket.createdAt)
   const updated = formatDate(ticket.updatedAt)
   const closed = formatDate(ticket.closedAt)
-  const submittedBy = ticket.submittedBy.fullName
-  const assignedAgent = ticket.agent?.fullName
-
   return (
     <article className="ticket-details clay-card content-reveal">
       <div className="ticket-details-heading">
@@ -79,7 +77,10 @@ export function TicketDetails({
           label="Department"
           value={departmentLabel(ticket.departmentId, departments)}
         />
-        <DetailRow label="Assigned agent" value={assignedAgent} />
+        <DetailRow
+          label="Assigned agent"
+          value={ticket.agent ? <UserLink user={ticket.agent} /> : undefined}
+        />
         <DetailRow
           label="Completion notes"
           value={ticket.completionNotes}
@@ -111,7 +112,10 @@ export function TicketDetails({
       </section>
 
       <dl className="detail-grid">
-        <DetailRow label="Submitted by" value={submittedBy} />
+        <DetailRow
+          label="Submitted by"
+          value={<UserLink user={ticket.submittedBy} />}
+        />
         <DetailRow label="Submitted" value={submitted} />
         <DetailRow label="Last updated" value={updated} />
       </dl>

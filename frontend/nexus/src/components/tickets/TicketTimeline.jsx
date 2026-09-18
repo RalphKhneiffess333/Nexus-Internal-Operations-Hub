@@ -3,6 +3,7 @@ import {
   formatDateTime,
   TicketEventAction,
 } from '../../features/tickets/ticket-types'
+import { UserLink } from '../users/UserLink'
 
 const EVENT_PRESENTATION = {
   [TicketEventAction.SUBMISSION]: {
@@ -49,8 +50,8 @@ function valueOrFallback(value) {
   return value
 }
 
-function userName(user) {
-  return user?.fullName ?? 'Unknown user'
+function userReference(user) {
+  return user ? <UserLink user={user} /> : 'Unknown user'
 }
 
 function DetailRow({ label, children }) {
@@ -93,14 +94,14 @@ function EventDetails({ event, departments }) {
             {PRIORITY_LABELS[details.priority] ?? details.priority}
           </DetailRow>
           <DetailRow label="Description">{details.description}</DetailRow>
-          <DetailRow label="Submitted by">{userName(details.submitter)}</DetailRow>
+          <DetailRow label="Submitted by">{userReference(details.submitter)}</DetailRow>
         </dl>
       )
 
     case TicketEventAction.CLAIM:
       return (
         <dl className="timeline-detail-grid">
-          <DetailRow label="Assigned agent">{userName(details.agent)}</DetailRow>
+          <DetailRow label="Assigned agent">{userReference(details.agent)}</DetailRow>
           <DetailRow label="Claimed at">
             {formatDateTime(details.timestamp)}
           </DetailRow>
@@ -110,7 +111,7 @@ function EventDetails({ event, departments }) {
     case TicketEventAction.CLOSE:
       return (
         <dl className="timeline-detail-grid">
-          <DetailRow label="Closed by">{userName(details.agent)}</DetailRow>
+          <DetailRow label="Closed by">{userReference(details.agent)}</DetailRow>
           <DetailRow label="Completion notes">
             {valueOrFallback(details.completionNotes)}
           </DetailRow>
@@ -126,14 +127,14 @@ function EventDetails({ event, departments }) {
           <DetailRow label="Updated description">
             {details.description}
           </DetailRow>
-          <DetailRow label="Reopened by">{userName(details.submitter)}</DetailRow>
+          <DetailRow label="Reopened by">{userReference(details.submitter)}</DetailRow>
         </dl>
       )
 
     case TicketEventAction.DELETE:
       return (
         <dl className="timeline-detail-grid">
-          <DetailRow label="Cancelled by">{userName(details.deletedBy)}</DetailRow>
+          <DetailRow label="Cancelled by">{userReference(details.deletedBy)}</DetailRow>
         </dl>
       )
 
@@ -167,9 +168,9 @@ function EventDetails({ event, departments }) {
       return (
         <dl className="timeline-detail-grid">
           <DetailRow label="Handoff status">{details.action}</DetailRow>
-          <DetailRow label="Requested by">{userName(details.requester)}</DetailRow>
+          <DetailRow label="Requested by">{userReference(details.requester)}</DetailRow>
           <DetailRow label="Requested agent">
-            {userName(details.requestedAgent)}
+            {userReference(details.requestedAgent)}
           </DetailRow>
           <DetailRow label="Updated at">
             {formatDateTime(details.timestamp)}
@@ -359,7 +360,7 @@ export function TicketTimeline({
                               }
                             />
                             <p className="timeline-actor">
-                              Performed by <span>{userName(selectedEvent.user)}</span>
+                              Performed by <span>{userReference(selectedEvent.user)}</span>
                             </p>
                           </>
                         ) : null}

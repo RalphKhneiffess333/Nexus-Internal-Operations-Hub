@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { TicketList } from '../../components/tickets/TicketList'
+import { TicketFilters } from '../../components/tickets/TicketFilters'
 import { LoadingState } from '../../components/ui/LoadingState'
 import { useAuthentication } from '../../features/authentication/use-authentication'
+import { getMyDepartments } from '../../features/departments/department-api'
 import { useDepartments } from '../../features/departments/use-departments'
 import {
   getClaimedTickets,
@@ -88,18 +90,31 @@ export function TicketsPage({ view = 'submitted' }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const { user } = useAuthentication()
   const requestedPoolMode = searchParams.get('view')
+  const searchFilter = searchParams.get('search') ?? ''
+  const statusFilter = searchParams.get('status') ?? ''
+  const departmentFilter = searchParams.get('departmentId') ?? ''
+  const priorityFilter = searchParams.get('priority') ?? ''
   const isAdmin = user?.role === 'Admin'
   const poolMode = requestedPoolMode === 'system' && isAdmin
     ? 'system'
     : requestedPoolMode === 'all'
       ? 'all'
       : 'unclaimed'
+  const isUnclaimedPool = view === 'pool' && poolMode === 'unclaimed'
+  const isAgentDepartmentView =
+    view === 'pool' &&
+    (poolMode === 'all' || poolMode === 'unclaimed') &&
+    user?.role === 'Agent'
   const requestedMyTicketMode = searchParams.get('view')
   const myTicketMode =
     canWorkTickets(user) &&
     (requestedMyTicketMode === 'claimed' || requestedMyTicketMode === 'resolved')
       ? requestedMyTicketMode
       : 'submitted'
+  const hideStatusFilter =
+    isUnclaimedPool ||
+    (view !== 'pool' && myTicketMode === 'claimed' && isAdmin)
+  const appliedStatusFilter = hideStatusFilter ? '' : statusFilter
   const config = view === 'pool'
     ? poolMode === 'system'
       ? TICKET_VIEWS.admin
@@ -108,34 +123,92 @@ export function TicketsPage({ view = 'submitted' }) {
       ? TICKET_VIEWS.admin
     : TICKET_VIEWS[myTicketMode]
   const requestKey = view === 'pool' ? `pool:${poolMode}` : view === 'admin' ? 'admin' : myTicketMode
+  const filterKey = `${searchFilter}:${appliedStatusFilter}:${departmentFilter}:${priorityFilter}`
+  const loadKey = `${requestKey}:${filterKey}`
   const [tickets, setTickets] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadedRequestKey, setLoadedRequestKey] = useState(null)
   const [error, setError] = useState('')
   const { departments } = useDepartments()
-  const isLoading = loading || loadedRequestKey !== requestKey
+  const [agentDepartments, setAgentDepartments] = useState([])
+  const isLoading = loading || loadedRequestKey !== loadKey
+  const filterDepartments = isAgentDepartmentView
+    ? agentDepartments
+    : departments
+
+  useEffect(() => {
+    if (!isAgentDepartmentView) {
+      return undefined
+    }
+
+    let active = true
+
+    async function loadAgentDepartments() {
+      try {
+        const result = await getMyDepartments()
+        if (active) {
+          setAgentDepartments(Array.isArray(result) ? result : [])
+        }
+      } catch {
+        if (active) {
+          setAgentDepartments([])
+        }
+      }
+    }
+
+    void loadAgentDepartments()
+
+    return () => {
+      active = false
+    }
+  }, [isAgentDepartmentView])
+
+  function updateView(nextView, options = {}) {
+    const nextParams = new URLSearchParams(searchParams)
+    if (nextView) nextParams.set('view', nextView)
+    else nextParams.delete('view')
+    if (options.clearStatus) nextParams.delete('status')
+    setSearchParams(nextParams)
+  }
+
+  function updateFilter(name, value) {
+    const nextParams = new URLSearchParams(searchParams)
+    if (value) nextParams.set(name, value)
+    else nextParams.delete(name)
+    setSearchParams(nextParams)
+  }
 
   const loadTickets = useCallback(async () => {
     setLoading(true)
     setError('')
     try {
-      const result = await config.loader()
+      const result = await config.loader({
+        search: searchFilter,
+        status: appliedStatusFilter,
+        departmentId: departmentFilter,
+        priority: priorityFilter,
+      })
       setTickets(Array.isArray(result) ? result : [])
     } catch (loadError) {
       setError(loadError.message || config.error)
       setTickets([])
     } finally {
-      setLoadedRequestKey(requestKey)
+      setLoadedRequestKey(loadKey)
       setLoading(false)
     }
-  }, [config, requestKey])
+  }, [config, loadKey, searchFilter, appliedStatusFilter, departmentFilter, priorityFilter])
 
   useEffect(() => {
     let active = true
 
     async function loadInitialTickets() {
       try {
-        const result = await config.loader()
+        const result = await config.loader({
+          search: searchFilter,
+          status: appliedStatusFilter,
+          departmentId: departmentFilter,
+          priority: priorityFilter,
+        })
         if (active) {
           setError('')
           setTickets(Array.isArray(result) ? result : [])
@@ -150,7 +223,7 @@ export function TicketsPage({ view = 'submitted' }) {
         }
       } finally {
         if (active) {
-          setLoadedRequestKey(requestKey)
+          setLoadedRequestKey(loadKey)
           setLoading(false)
         }
       }
@@ -161,7 +234,7 @@ export function TicketsPage({ view = 'submitted' }) {
     return () => {
       active = false
     }
-  }, [config, requestKey])
+  }, [config, loadKey, searchFilter, appliedStatusFilter, departmentFilter, priorityFilter])
 
   return (
     <section className="page">
@@ -183,7 +256,7 @@ export function TicketsPage({ view = 'submitted' }) {
             role="tab"
             aria-selected={poolMode === 'unclaimed'}
             className={poolMode === 'unclaimed' ? 'is-active' : ''}
-            onClick={() => setSearchParams({})}
+            onClick={() => updateView('', { clearStatus: true })}
           >
             Unclaimed tickets
           </button>
@@ -192,7 +265,7 @@ export function TicketsPage({ view = 'submitted' }) {
             role="tab"
             aria-selected={poolMode === 'all'}
             className={poolMode === 'all' ? 'is-active' : ''}
-            onClick={() => setSearchParams({ view: 'all' })}
+            onClick={() => updateView('all')}
           >
             All department tickets
           </button>
@@ -202,7 +275,7 @@ export function TicketsPage({ view = 'submitted' }) {
               role="tab"
               aria-selected={poolMode === 'system'}
               className={poolMode === 'system' ? 'is-active' : ''}
-              onClick={() => setSearchParams({ view: 'system' })}
+              onClick={() => updateView('system')}
             >
               All tickets
             </button>
@@ -215,7 +288,7 @@ export function TicketsPage({ view = 'submitted' }) {
             role="tab"
             aria-selected={myTicketMode === 'submitted'}
             className={myTicketMode === 'submitted' ? 'is-active' : ''}
-            onClick={() => setSearchParams({})}
+            onClick={() => updateView('')}
           >
             Submitted tickets
           </button>
@@ -224,7 +297,7 @@ export function TicketsPage({ view = 'submitted' }) {
             role="tab"
             aria-selected={myTicketMode === 'claimed'}
             className={myTicketMode === 'claimed' ? 'is-active' : ''}
-            onClick={() => setSearchParams({ view: 'claimed' })}
+            onClick={() => updateView('claimed', { clearStatus: isAdmin })}
           >
             Claimed tickets
           </button>
@@ -233,12 +306,19 @@ export function TicketsPage({ view = 'submitted' }) {
             role="tab"
             aria-selected={myTicketMode === 'resolved'}
             className={myTicketMode === 'resolved' ? 'is-active' : ''}
-            onClick={() => setSearchParams({ view: 'resolved' })}
+            onClick={() => updateView('resolved')}
           >
             Resolved tickets
           </button>
         </div>
       ) : null}
+
+      <TicketFilters
+        departments={filterDepartments}
+        filters={{ search: searchFilter, status: appliedStatusFilter, departmentId: departmentFilter, priority: priorityFilter }}
+        onChange={updateFilter}
+        showStatus={!hideStatusFilter}
+      />
 
       {isLoading ? <LoadingState>{config.loading}</LoadingState> : null}
 

@@ -87,9 +87,19 @@ export class ManualTestAuthController {
       throw new UnauthorizedException('The selected test user is inactive');
     }
 
+    const authenticatedUser = user.hasLogged
+      ? user
+      : await ManualTestAuthController.prisma.user.update({
+          where: { userId: user.userId },
+          data: {
+            hasLogged: true,
+            identityProviderUserId: `manual-test:${user.userId}`,
+          },
+        });
+
     const userAgent = request.headers['user-agent'];
     const session = ManualTestAuthController.sessionService.createSession(
-      user.userId,
+      authenticatedUser.userId,
       {
         userAgent: Array.isArray(userAgent) ? userAgent.join(' ') : userAgent,
         ip: request.ip,
@@ -107,6 +117,6 @@ export class ManualTestAuthController {
       }),
     );
 
-    return { user: toAuthenticatedRequestUser(user) };
+    return { user: toAuthenticatedRequestUser(authenticatedUser) };
   }
 }
