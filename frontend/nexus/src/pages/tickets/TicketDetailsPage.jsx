@@ -17,9 +17,21 @@ import {
   getTicket,
   getTicketEvent,
   getTicketEvents,
+  downloadTicketAttachment,
   reopenTicket,
   updateTicket,
 } from '../../features/tickets/ticket-api'
+
+function latestEventWithAttachments(events) {
+  return [...events]
+    .sort((left, right) => {
+      const timestampDifference =
+        new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()
+      return timestampDifference || left.ticketEventId.localeCompare(right.ticketEventId)
+    })
+    .reverse()
+    .find((event) => event.attachments?.length > 0)
+}
 
 export function TicketDetailsPage() {
   const { ticketId } = useParams()
@@ -51,6 +63,7 @@ export function TicketDetailsPage() {
   const [selectedEvent, setSelectedEvent] = useState(null)
   const [eventDetailLoading, setEventDetailLoading] = useState(false)
   const [eventDetailError, setEventDetailError] = useState('')
+  const [downloadingAttachmentId, setDownloadingAttachmentId] = useState('')
   const eventDetailRequestId = useRef(0)
   const {
     departments,
@@ -121,6 +134,8 @@ export function TicketDetailsPage() {
   }, [ticketId])
 
   useEffect(() => {
+    // The timeline loader synchronizes the page with the event API response.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadTicketEvents()
   }, [loadTicketEvents])
 
@@ -174,7 +189,7 @@ export function TicketDetailsPage() {
         description: values.description,
         priority: values.priority,
         departmentId: values.departmentId,
-      })
+      }, values.files, values.removedAttachmentIds)
       setTicket(updated)
       setEditing(false)
       setNotice('Ticket updated.')
@@ -224,11 +239,11 @@ export function TicketDetailsPage() {
     }
   }
 
-  async function handleClose(completionNotes) {
+  async function handleClose(completionNotes, files) {
     setClosing(true)
     setCloseError('')
     try {
-      const closed = await closeTicket(ticketId, { completionNotes })
+      const closed = await closeTicket(ticketId, { completionNotes }, files)
       setTicket(closed)
       setShowingCloseDialog(false)
       setNotice('Ticket closed.')
@@ -243,11 +258,11 @@ export function TicketDetailsPage() {
     }
   }
 
-  async function handleReopen(description) {
+  async function handleReopen(description, files) {
     setReopening(true)
     setReopenError('')
     try {
-      const reopened = await reopenTicket(ticketId, { description })
+      const reopened = await reopenTicket(ticketId, { description }, files)
       setTicket(reopened)
       setShowingReopenDialog(false)
       setNotice('Ticket reopened.')
@@ -262,6 +277,20 @@ export function TicketDetailsPage() {
     }
   }
 
+  async function handleDownloadAttachment(attachment, eventId) {
+    setDownloadingAttachmentId(attachment.attachmentId)
+    setEventDetailError('')
+    try {
+      await downloadTicketAttachment(ticketId, eventId, attachment.attachmentId)
+    } catch (downloadError) {
+      setEventDetailError(
+        downloadError.message || 'Unable to download this attachment. Please try again.',
+      )
+    } finally {
+      setDownloadingAttachmentId('')
+    }
+  }
+
   const permissions = ticket?.permissions ?? {}
   const canEdit = Boolean(permissions.canModify)
   const canCancel = Boolean(permissions.canCancel)
@@ -270,6 +299,7 @@ export function TicketDetailsPage() {
   const canReopen = Boolean(permissions.canReopen)
   const showHeaderActions =
     ticket && !editing && (canEdit || canCancel || canClaim || canClose || canReopen)
+  const latestAttachmentEvent = latestEventWithAttachments(events)
 
   return (
     <section className="page">
@@ -377,6 +407,8 @@ export function TicketDetailsPage() {
                   submitting={saving}
                   error={formError}
                   fieldErrors={fieldErrors}
+                  includeAttachments
+                  existingAttachments={latestAttachmentEvent?.attachments}
                   onSubmit={handleUpdate}
                   onCancel={() => {
                     setEditing(false)
@@ -390,6 +422,14 @@ export function TicketDetailsPage() {
                 ticket={ticket}
                 departments={departments}
                 timelineOpen={timelineOpen}
+                attachments={latestAttachmentEvent?.attachments}
+                downloadingAttachmentId={downloadingAttachmentId}
+                onDownloadAttachment={(attachment) =>
+                  handleDownloadAttachment(
+                    attachment,
+                    latestAttachmentEvent.ticketEventId,
+                  )
+                }
                 onToggleTimeline={() => setTimelineOpen((open) => !open)}
               />
             )}
@@ -410,9 +450,11 @@ export function TicketDetailsPage() {
               selectedEventId={selectedEventId}
               detailLoading={eventDetailLoading}
               detailError={eventDetailError}
+              downloadingAttachmentId={downloadingAttachmentId}
               departments={departments}
               onSelect={handleSelectEvent}
               onRetry={loadTicketEvents}
+              onDownloadAttachment={handleDownloadAttachment}
             />
           ) : null}
         </div>
@@ -455,6 +497,7 @@ export function TicketDetailsPage() {
           busyLabel="Closing..."
           dismissLabel="Keep open"
           busy={closing}
+          includeAttachments
           required
           error={closeError}
           onConfirm={handleClose}
@@ -475,6 +518,7 @@ export function TicketDetailsPage() {
           busyLabel="Reopening..."
           dismissLabel="Keep closed"
           busy={reopening}
+          includeAttachments
           error={reopenError}
           onConfirm={handleReopen}
           onDismiss={() => {

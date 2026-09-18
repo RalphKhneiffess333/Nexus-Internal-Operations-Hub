@@ -11,6 +11,8 @@ import {
   expect,
   test,
 } from '../support/api-app';
+import { promises as fs } from 'node:fs';
+import { resolve } from 'node:path';
 
 test('submits, claims, closes, and reopens a ticket over HTTP', async ({
   e2e,
@@ -280,4 +282,66 @@ test('returns complete event details from ticket-owned history endpoints', async
     { headers: { Cookie: e2e.sessionCookie(EMPLOYEE_ID) } },
   );
   expect(arbitraryDeleteResponse.status()).toBe(404);
+});
+
+test('uploads and downloads attachments through ticket event endpoints', async ({
+  e2e,
+}) => {
+  try {
+    const submitResponse = await e2e.api.post('/tickets', {
+      headers: { Cookie: e2e.sessionCookie(EMPLOYEE_ID) },
+      multipart: {
+        title: 'VPN issue with evidence',
+        description: 'The VPN client shows an error.',
+        priority: TicketPriority.HIGH,
+        departmentId: 'dept-it',
+        files: {
+          name: 'vpn-error.txt',
+          mimeType: 'text/plain',
+          buffer: Buffer.from('vpn error details'),
+        },
+      },
+    });
+    expect(submitResponse.status()).toBe(201);
+    const submitted = await submitResponse.json();
+
+    const historyResponse = await e2e.api.get(
+      `/tickets/${submitted.ticketId}/events`,
+      { headers: { Cookie: e2e.sessionCookie(EMPLOYEE_ID) } },
+    );
+    expect(historyResponse.status()).toBe(200);
+    const history = await historyResponse.json();
+    const submissionEvent = history[0];
+    expect(submissionEvent.attachments).toHaveLength(1);
+    expect(submissionEvent.attachments[0]).toMatchObject({
+      originalName: 'vpn-error.txt',
+      fileSize: 17,
+      mimeType: 'text/plain',
+    });
+    expect(submissionEvent.attachments[0].storageKey).toBeUndefined();
+
+    const downloadResponse = await e2e.api.get(
+      `/tickets/${submitted.ticketId}/events/${submissionEvent.ticketEventId}/attachments/${submissionEvent.attachments[0].attachmentId}`,
+      { headers: { Cookie: e2e.sessionCookie(EMPLOYEE_ID) } },
+    );
+    expect(downloadResponse.status()).toBe(200);
+    expect(await downloadResponse.body()).toEqual(Buffer.from('vpn error details'));
+
+    const forbiddenDownloadResponse = await e2e.api.get(
+      `/tickets/${submitted.ticketId}/events/${submissionEvent.ticketEventId}/attachments/${submissionEvent.attachments[0].attachmentId}`,
+      { headers: { Cookie: e2e.sessionCookie(EMPLOYEE_2_ID) } },
+    );
+    expect(forbiddenDownloadResponse.status()).toBe(403);
+  } finally {
+    const files = await e2e.prisma.file.findMany({
+      select: { storageKey: true },
+    });
+    await Promise.all(
+      files.map((file) =>
+        fs.rm(resolve(process.cwd(), 'uploads', file.storageKey), {
+          force: true,
+        }),
+      ),
+    );
+  }
 });

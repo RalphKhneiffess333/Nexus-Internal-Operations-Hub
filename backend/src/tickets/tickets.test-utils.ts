@@ -7,6 +7,7 @@ import {
   ADMIN_ID,
   AGENT_ID,
   AGENT_2_ID,
+  IT_AGENT_2_ID,
   EMPLOYEE_2_ID,
   EMPLOYEE_ID,
   HR_DEPARTMENT_ID,
@@ -15,6 +16,7 @@ import {
   seedTestDatabase,
 } from '../database/seed';
 import { SubmitTicketDto } from './dto/submit-ticket.dto';
+import type { UploadedFileInput } from '../files/file-validation';
 import { TicketsModule } from './tickets.module';
 import { TicketsService, type TicketWithPermissions } from './tickets.service';
 
@@ -22,6 +24,7 @@ export {
   ADMIN_ID,
   AGENT_ID,
   AGENT_2_ID,
+  IT_AGENT_2_ID,
   EMPLOYEE_ID,
   EMPLOYEE_2_ID,
   HR_DEPARTMENT_ID,
@@ -109,6 +112,7 @@ export async function closeTicket(
   service: TicketsService,
   ticketId: string,
   actor = agentUser(),
+  files?: UploadedFileInput[],
 ): Promise<TicketWithPermissions> {
   return service.close(
     ticketId,
@@ -116,5 +120,6 @@ export async function closeTicket(
       completionNotes: 'Replaced the power adapter',
     },
     actor,
+    files,
   );
 }

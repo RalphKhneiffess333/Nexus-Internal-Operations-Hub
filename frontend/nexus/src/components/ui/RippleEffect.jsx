@@ -8,6 +8,7 @@ const RIPPLE_TARGETS = [
   '.sidebar-logout',
   '.menu-button',
   '.ticket-row',
+  '.file-picker-button',
 ].join(', ')
 
 export function RippleEffect() {

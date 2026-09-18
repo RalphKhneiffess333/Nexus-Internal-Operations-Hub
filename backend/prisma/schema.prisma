@@ -63,6 +63,7 @@ model User {
   submittedTickets       Ticket[]           @relation("TicketSubmitter")
   assignedTickets        Ticket[]           @relation("TicketAgent")
   ticketEvents           TicketEvent[]
+  uploadedFiles           File[]
   departmentMembers      DepartmentMember[]
 
   @@unique([identityProviderId, identityProviderUserId])
@@ -134,8 +135,40 @@ model TicketEvent {
   updatedAt     DateTime          @updatedAt @map("updated_at")
   ticket        Ticket            @relation(fields: [ticketId], references: [ticketId])
   user          User              @relation(fields: [userId], references: [userId])
+  attachments   Attachment[]
 
   @@index([ticketId, createdAt])
   @@index([createdAt])
   @@map("ticket_events")
+}
+
+model File {
+  fileId       String       @id @map("file_id")
+  uploadedBy   String       @map("uploaded_by")
+  originalName String       @map("original_name")
+  storageKey   String       @unique @map("storage_key")
+  fileSize     Int          @map("file_size")
+  mimeType     String       @map("mime_type")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  uploader     User         @relation(fields: [uploadedBy], references: [userId])
+  attachment   Attachment?
+
+  @@index([uploadedBy])
+  @@map("files")
+}
+
+model Attachment {
+  attachmentId String       @id @map("attachment_id")
+  fileId       String       @unique @map("file_id")
+  eventId      String?      @map("event_id")
+  messageId    String?      @map("message_id")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  file         File         @relation(fields: [fileId], references: [fileId])
+  event        TicketEvent? @relation(fields: [eventId], references: [ticketEventId])
+
+  @@index([eventId])
+  @@index([messageId])
+  @@map("attachments")
 }

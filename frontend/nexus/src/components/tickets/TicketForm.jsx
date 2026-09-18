@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { TicketPriority } from '../../features/tickets/ticket-types'
+import { FilePicker } from './FilePicker'
 
 const PRIORITY_OPTIONS = [
   { value: TicketPriority.LOW, label: 'Low' },
@@ -17,7 +19,11 @@ export function TicketForm({
   onSubmit,
   onCancel,
   includeSubmittedBy = false,
+  includeAttachments = false,
+  existingAttachments = [],
 }) {
+  const [files, setFiles] = useState([])
+  const [removedAttachmentIds, setRemovedAttachmentIds] = useState([])
   const defaultDepartmentId =
     initialValues?.departmentId ?? departments[0]?.departmentId ?? ''
   return (
@@ -34,6 +40,8 @@ export function TicketForm({
           submittedBy: includeSubmittedBy
             ? String(form.get('submittedBy') ?? '')
             : undefined,
+          files: includeAttachments ? files : [],
+          removedAttachmentIds: includeAttachments ? removedAttachmentIds : [],
         })
       }}
     >
@@ -108,6 +116,46 @@ export function TicketForm({
           <span>Submitted by</span>
           <input name="submittedBy" readOnly />
         </label>
+      ) : null}
+
+      {includeAttachments ? (
+        <div className="field">
+          <span>Attachments <small>(optional, up to 5 files)</small></span>
+          {existingAttachments.length > 0 ? (
+            <div className="existing-file-list">
+              <span className="file-picker-section-label">Current files</span>
+              <ul className="file-list">
+                {existingAttachments
+                  .filter(
+                    (attachment) =>
+                      !removedAttachmentIds.includes(attachment.attachmentId),
+                  )
+                  .map((attachment) => (
+                    <li key={attachment.attachmentId}>
+                      <span className="file-name">
+                        <span aria-hidden="true">📎</span>
+                        {attachment.originalName}
+                      </span>
+                      <button
+                        type="button"
+                        className="file-remove"
+                        onClick={() =>
+                          setRemovedAttachmentIds((currentIds) => [
+                            ...currentIds,
+                            attachment.attachmentId,
+                          ])
+                        }
+                        disabled={submitting}
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          ) : null}
+          <FilePicker onChange={setFiles} disabled={submitting} />
+        </div>
       ) : null}
 
       {error ? <p className="banner error">{error}</p> : null}

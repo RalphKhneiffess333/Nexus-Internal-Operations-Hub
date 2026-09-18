@@ -12,6 +12,8 @@ import {
   it,
   jest,
 } from '@jest/globals';
+import { promises as fs } from 'node:fs';
+import { resolve } from 'node:path';
 import {
   TicketEventAction,
   TicketPriority,
@@ -19,6 +21,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { TicketEventsRepository } from './events/ticket-events.repository';
+import type { UploadedFileInput } from '../files/file-validation';
 import { TicketsService } from './tickets.service';
 import {
   AGENT_2_ID,
@@ -132,6 +135,122 @@ describe('Ticket events integration', () => {
       },
     });
     expect(events.every((event) => Boolean(event.ticketEventId))).toBe(true);
+  });
+
+  it('stores submission, close, and reopen attachments on their events', async () => {
+    const upload = (name: string, contents: string): UploadedFileInput => ({
+      originalname: name,
+      mimetype: 'text/plain',
+      size: Buffer.byteLength(contents),
+      buffer: Buffer.from(contents),
+    });
+
+    const physicalFiles: string[] = [];
+    try {
+      const submitted = await service.submit(
+        submitDto(),
+        requestUser(),
+        [upload('submission.txt', 'submitted')],
+      );
+      await claimTicket(service, submitted.ticketId);
+      await closeTicket(
+        service,
+        submitted.ticketId,
+        agentUser(),
+        [upload('close.txt', 'closed')],
+      );
+      await service.reopen(
+        submitted.ticketId,
+        { description: 'Still needs attention' },
+        requestUser(),
+        [upload('reopen.txt', 'reopened')],
+      );
+
+      const events = await service.findEvents(submitted.ticketId, requestUser());
+      const submission = events.find(
+        (event) => event.action === TicketEventAction.SUBMISSION,
+      );
+      const close = events.find((event) => event.action === TicketEventAction.CLOSE);
+      const reopen = events.find((event) => event.action === TicketEventAction.REOPEN);
+
+      expect(submission?.attachments).toHaveLength(1);
+      expect(submission?.attachments[0].originalName).toBe('submission.txt');
+      expect(close?.attachments).toHaveLength(1);
+      expect(close?.attachments[0].originalName).toBe('close.txt');
+      expect(reopen?.attachments).toHaveLength(1);
+      expect(reopen?.attachments[0].originalName).toBe('reopen.txt');
+
+      const storedFiles = await prisma.file.findMany();
+      expect(storedFiles).toHaveLength(3);
+      physicalFiles.push(...storedFiles.map((file) => file.storageKey));
+      for (const storageKey of physicalFiles) {
+        await expect(
+          fs.access(resolve(process.cwd(), 'uploads', storageKey)),
+        ).resolves.toBeUndefined();
+      }
+    } finally {
+      await Promise.all(
+        physicalFiles.map((storageKey) =>
+          fs.rm(resolve(process.cwd(), 'uploads', storageKey), { force: true }),
+        ),
+      );
+    }
+  });
+
+  it('adds and removes attachments when an open ticket is modified', async () => {
+    const upload = (name: string, contents: string): UploadedFileInput => ({
+      originalname: name,
+      mimetype: 'text/plain',
+      size: Buffer.byteLength(contents),
+      buffer: Buffer.from(contents),
+    });
+
+    const submitted = await service.submit(
+      submitDto(),
+      requestUser(),
+      [upload('old-description.txt', 'old description')],
+    );
+    const submissionEvents = await service.findEvents(
+      submitted.ticketId,
+      requestUser(),
+    );
+    const oldAttachment = submissionEvents[0].attachments[0];
+    const oldFile = await prisma.file.findUnique({
+      where: { fileId: oldAttachment.fileId },
+    });
+
+    await service.modify(
+      submitted.ticketId,
+      {
+        description: 'Updated description',
+        removedAttachmentIds: JSON.stringify([oldAttachment.attachmentId]),
+      },
+      requestUser(),
+      [upload('new-description.txt', 'new description')],
+    );
+
+    const events = await service.findEvents(submitted.ticketId, requestUser());
+    const submission = events.find(
+      (event) => event.action === TicketEventAction.SUBMISSION,
+    );
+    const modification = events.find(
+      (event) => event.action === TicketEventAction.MODIFICATION,
+    );
+    expect(submission?.attachments).toHaveLength(0);
+    expect(modification?.attachments).toMatchObject([
+      { originalName: 'new-description.txt' },
+    ]);
+
+    const storedFiles = await prisma.file.findMany();
+    expect(storedFiles).toHaveLength(1);
+    expect(storedFiles[0].originalName).toBe('new-description.txt');
+    await expect(
+      fs.access(resolve(process.cwd(), 'uploads', oldFile!.storageKey)),
+    ).rejects.toMatchObject({ code: 'ENOENT' });
+
+    await fs.rm(resolve(process.cwd(), 'uploads', storedFiles[0].storageKey), {
+      force: true,
+    });
   });
 
   it('records DELETE while preserving the soft-deleted ticket', async () => {

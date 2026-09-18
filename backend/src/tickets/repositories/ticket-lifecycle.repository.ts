@@ -2,6 +2,8 @@ import { HttpException, Injectable } from '@nestjs/common';
 import type { Prisma, Ticket } from '@prisma/client';
 import { mapPrismaError } from '../../database/prisma-error';
 import { PrismaService } from '../../database/prisma.service';
+import { FileAttachmentsRepository } from '../../files/file-attachments.repository';
+import type { StoredFileMetadata } from '../../files/file-attachments.repository';
 import {
   NewClaimEvent,
   NewSubmissionEvent,
@@ -20,18 +22,21 @@ export class TicketLifecycleRepository {
     private readonly prisma: PrismaService,
     private readonly ticketsRepository: TicketsRepository,
     private readonly ticketEventsRepository: TicketEventsRepository,
+    private readonly fileAttachmentsRepository: FileAttachmentsRepository,
   ) {}
 
   async createWithEvent(
     ticket: CreateTicketInput,
     event: NewSubmissionEvent,
+    files: StoredFileMetadata[] = [],
   ): Promise<TicketRecord> {
     return this.inTransaction(async (tx) => {
       const created = await this.ticketsRepository.create(ticket, tx);
-      await this.ticketEventsRepository.append(
+      const eventId = await this.ticketEventsRepository.append(
         { ...event, ticketId: created.ticketId },
         tx,
       );
+      await this.attachFiles(eventId, files, tx);
       return created;
     });
   }
@@ -60,10 +65,18 @@ export class TicketLifecycleRepository {
   async saveWithEvent(
     ticket: Ticket,
     event: NewTicketMutationEvent,
+    files: StoredFileMetadata[] = [],
+    attachmentIdsToRemove: string[] = [],
   ): Promise<TicketRecord> {
     return this.inTransaction(async (tx) => {
       const saved = await this.ticketsRepository.save(ticket, tx);
-      await this.ticketEventsRepository.append(event, tx);
+      await this.fileAttachmentsRepository.deleteForTicket(
+        event.ticketId,
+        attachmentIdsToRemove,
+        tx,
+      );
+      const eventId = await this.ticketEventsRepository.append(event, tx);
+      await this.attachFiles(eventId, files, tx);
       return saved;
     });
   }
@@ -78,6 +91,16 @@ export class TicketLifecycleRepository {
         throw error;
       }
       mapPrismaError(error);
+    }
+  }
+
+  private async attachFiles(
+    eventId: string,
+    files: StoredFileMetadata[],
+    client: Prisma.TransactionClient,
+  ): Promise<void> {
+    for (const file of files) {
+      await this.fileAttachmentsRepository.createForEvent(eventId, file, client);
     }
   }
 }

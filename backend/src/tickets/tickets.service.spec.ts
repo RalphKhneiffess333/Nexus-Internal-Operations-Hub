@@ -12,6 +12,8 @@ import {
 } from '../database/seed';
 import type { AuthenticatedRequestUser } from '../authentication/request-user';
 import { DepartmentsRepository } from '../departments/repositories/departments.repository';
+import { FileAttachmentsRepository } from '../files/file-attachments.repository';
+import { FilesService } from '../files/files.service';
 import { TicketEventsRepository } from './events/ticket-events.repository';
 import { CancelTicketPolicy } from './policies/cancel-ticket.policy';
 import { ClaimTicketPolicy } from './policies/claim-ticket.policy';
@@ -51,6 +53,11 @@ describe('TicketsService invalid transitions', () => {
       DepartmentsRepository['findActiveDepartmentIdsByUserId']
     >;
   };
+  let filesService: {
+    storeForUser: jest.MockedFunction<FilesService['storeForUser']>;
+    cleanup: jest.MockedFunction<FilesService['cleanup']>;
+  };
+  let fileAttachmentsRepository: FileAttachmentsRepository;
 
   beforeEach(() => {
     ticketsRepository = {
@@ -70,12 +77,19 @@ describe('TicketsService invalid transitions', () => {
         .fn<DepartmentsRepository['findActiveDepartmentIdsByUserId']>()
         .mockResolvedValue([IT_DEPARTMENT_ID]),
     };
+    filesService = {
+      storeForUser: jest.fn<FilesService['storeForUser']>().mockResolvedValue([]),
+      cleanup: jest.fn<FilesService['cleanup']>().mockResolvedValue(undefined),
+    };
+    fileAttachmentsRepository = {} as FileAttachmentsRepository;
 
     service = new TicketsService(
       ticketsRepository as unknown as TicketsRepository,
       ticketEventsRepository as unknown as TicketEventsRepository,
       ticketLifecycleRepository as unknown as TicketLifecycleRepository,
       departmentsRepository as unknown as DepartmentsRepository,
+      filesService as unknown as FilesService,
+      fileAttachmentsRepository,
       new SubmitTicketPolicy(),
       new ClaimTicketPolicy(),
       new CloseTicketPolicy(),
