@@ -1,4 +1,6 @@
+import { TicketEventAction } from '@prisma/client';
 import { IsEnum, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export const auditActions = [
   'USER_PREPROVISIONING',
@@ -15,11 +17,13 @@ export const auditActions = [
 
 export class AuditQueryDto {
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   page = 1;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(100)
@@ -32,4 +36,23 @@ export class AuditQueryDto {
   @IsOptional()
   @IsUUID()
   actorId?: string;
+}
+
+export class TicketEventsQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page = 1;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  pageSize = 100;
+
+  @IsOptional()
+  @IsEnum(TicketEventAction)
+  action?: TicketEventAction;
 }

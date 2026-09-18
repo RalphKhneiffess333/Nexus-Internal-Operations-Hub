@@ -30,5 +30,6 @@ import { TicketsService } from './tickets.service';
     CancelTicketPolicy,
     ViewTicketPolicy,
   ],
+  exports: [TicketEventsRepository],
 })
 export class TicketsModule {}

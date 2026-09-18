@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, User } from '@prisma/client';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { mapPrismaError } from '../../database/prisma-error';
 
@@ -160,6 +161,50 @@ export class UsersRepository {
     try {
       return await client.user.count({
         where: { role: 'Admin', isActive: true, NOT: { userId } },
+      });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }
+
+  async findMembership(
+    userId: string,
+    departmentId: string,
+    client: UserPersistenceClient,
+  ) {
+    try {
+      return await client.departmentMember.findUnique({
+        where: { userId_departmentId: { userId, departmentId } },
+      });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }
+
+  async upsertMembership(
+    userId: string,
+    departmentId: string,
+    client: UserPersistenceClient,
+  ) {
+    try {
+      return await client.departmentMember.upsert({
+        where: { userId_departmentId: { userId, departmentId } },
+        create: { departmentMemberId: randomUUID(), userId, departmentId },
+        update: {},
+      });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }
+
+  async deleteMembership(
+    userId: string,
+    departmentId: string,
+    client: UserPersistenceClient,
+  ): Promise<void> {
+    try {
+      await client.departmentMember.delete({
+        where: { userId_departmentId: { userId, departmentId } },
       });
     } catch (error) {
       mapPrismaError(error);

@@ -9,11 +9,23 @@ import {
   getDepartmentTickets,
   getResolvedTickets,
   getSubmittedTickets,
+  getTickets,
   getTicketPool,
 } from '../../features/tickets/ticket-api'
 import { canWorkTickets } from '../../features/tickets/ticket-types'
 
 const TICKET_VIEWS = {
+  admin: {
+    eyebrow: 'System tickets',
+    title: 'All tickets',
+    loading: 'Loading system tickets...',
+    error: 'Unable to load system tickets. Please try again.',
+    emptyTitle: 'No tickets found',
+    emptyText: 'There are no tickets to display.',
+    showEmptyAction: false,
+    description: 'Browse active tickets across every department and submitter.',
+    loader: getTickets,
+  },
   submitted: {
     eyebrow: 'Submitted requests',
     title: 'My tickets',
@@ -75,7 +87,13 @@ const POOL_VIEWS = {
 export function TicketsPage({ view = 'submitted' }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const { user } = useAuthentication()
-  const poolMode = searchParams.get('view') === 'all' ? 'all' : 'unclaimed'
+  const requestedPoolMode = searchParams.get('view')
+  const isAdmin = user?.role === 'Admin'
+  const poolMode = requestedPoolMode === 'system' && isAdmin
+    ? 'system'
+    : requestedPoolMode === 'all'
+      ? 'all'
+      : 'unclaimed'
   const requestedMyTicketMode = searchParams.get('view')
   const myTicketMode =
     canWorkTickets(user) &&
@@ -83,9 +101,13 @@ export function TicketsPage({ view = 'submitted' }) {
       ? requestedMyTicketMode
       : 'submitted'
   const config = view === 'pool'
-    ? POOL_VIEWS[poolMode]
+    ? poolMode === 'system'
+      ? TICKET_VIEWS.admin
+      : POOL_VIEWS[poolMode]
+    : view === 'admin'
+      ? TICKET_VIEWS.admin
     : TICKET_VIEWS[myTicketMode]
-  const requestKey = view === 'pool' ? `pool:${poolMode}` : myTicketMode
+  const requestKey = view === 'pool' ? `pool:${poolMode}` : view === 'admin' ? 'admin' : myTicketMode
   const [tickets, setTickets] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadedRequestKey, setLoadedRequestKey] = useState(null)
@@ -174,8 +196,19 @@ export function TicketsPage({ view = 'submitted' }) {
           >
             All department tickets
           </button>
+          {isAdmin ? (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={poolMode === 'system'}
+              className={poolMode === 'system' ? 'is-active' : ''}
+              onClick={() => setSearchParams({ view: 'system' })}
+            >
+              All tickets
+            </button>
+          ) : null}
         </div>
-      ) : canWorkTickets(user) ? (
+      ) : view !== 'admin' && canWorkTickets(user) ? (
         <div className="pool-switcher" role="tablist" aria-label="My ticket view">
           <button
             type="button"

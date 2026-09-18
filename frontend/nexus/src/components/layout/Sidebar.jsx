@@ -5,6 +5,7 @@ import { canWorkTickets } from '../../features/tickets/ticket-types'
 export function Sidebar({ open, onNavigate }) {
   const { user, logoutCurrentSession } = useAuthentication()
   const showWorkQueues = canWorkTickets(user)
+  const showAdministration = user?.role === 'Admin'
 
   return (
     <aside className={`sidebar ${open ? 'is-open' : ''}`}>
@@ -37,6 +38,17 @@ export function Sidebar({ open, onNavigate }) {
               onClick={onNavigate}
             >
               Ticket pools
+            </NavLink>
+          </>
+        ) : null}
+
+        {showAdministration ? (
+          <>
+            <NavLink to="/admin/management" className={({ isActive }) => `nav-item ${isActive ? 'is-active' : ''}`} onClick={onNavigate}>
+              Management
+            </NavLink>
+            <NavLink to="/admin/logs" className={({ isActive }) => `nav-item ${isActive ? 'is-active' : ''}`} onClick={onNavigate}>
+              Logs
             </NavLink>
           </>
         ) : null}

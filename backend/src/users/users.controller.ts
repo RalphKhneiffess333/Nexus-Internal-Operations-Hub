@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -59,5 +60,33 @@ export class UsersController {
     @Req() req: AuthenticatedRequest,
   ) {
     return this.usersService.setActive(userId, dto, req.user!);
+  }
+
+  @Post(':userId/departments/:departmentId')
+  @Roles(UserRole.Admin)
+  addDepartment(
+    @Param('userId') userId: string,
+    @Param('departmentId') departmentId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.usersService.addDepartmentMembership(
+      userId,
+      departmentId,
+      req.user!,
+    );
+  }
+
+  @Delete(':userId/departments/:departmentId')
+  @Roles(UserRole.Admin)
+  removeDepartment(
+    @Param('userId') userId: string,
+    @Param('departmentId') departmentId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.usersService.removeDepartmentMembership(
+      userId,
+      departmentId,
+      req.user!,
+    );
   }
 }

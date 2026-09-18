@@ -247,6 +247,51 @@ export class UsersService {
     return this.findForAdministration(result.userId);
   }
 
+  async addDepartmentMembership(
+    userId: string,
+    departmentId: string,
+    actor: AuthenticatedRequestUser,
+  ) {
+    await this.prisma.$transaction(async (tx) => {
+      const user = await this.usersRepository.findByIdForUpdate(userId, tx);
+      const department = await tx.department.findUnique({ where: { departmentId } });
+      if (!user) throw new NotFoundException('User was not found');
+      if (!department) throw new NotFoundException('Department was not found');
+      if (user.role === UserRole.Employee) {
+        throw new BadRequestException('Only agents and administrators can belong to departments');
+      }
+      if (!department.active) {
+        throw new BadRequestException('Inactive departments cannot accept members');
+      }
+      await this.usersRepository.upsertMembership(userId, departmentId, tx);
+      await this.auditService.append(tx, actor.userId, AuditAction.DEPARTMENT_MAPPING, {
+        userId,
+        departmentId,
+        mapping: 'ADDED',
+      });
+    });
+    return this.findForAdministration(userId);
+  }
+
+  async removeDepartmentMembership(
+    userId: string,
+    departmentId: string,
+    actor: AuthenticatedRequestUser,
+  ) {
+    await this.prisma.$transaction(async (tx) => {
+      const membership = await this.usersRepository.findMembership(userId, departmentId, tx);
+      if (!membership) throw new NotFoundException('Department membership was not found');
+      await this.reconcileDepartmentTickets(userId, departmentId, actor.userId, tx);
+      await this.usersRepository.deleteMembership(userId, departmentId, tx);
+      await this.auditService.append(tx, actor.userId, AuditAction.DEPARTMENT_MAPPING, {
+        userId,
+        departmentId,
+        mapping: 'REMOVED',
+      });
+    });
+    return this.findForAdministration(userId);
+  }
+
   private async reconcileMemberships(
     userId: string,
     actorId: string,
@@ -255,45 +300,58 @@ export class UsersService {
     const memberships = await tx.departmentMember.findMany({
       where: { userId },
     });
-    for (const membership of memberships) {
-      const tickets = await tx.ticket.findMany({
-        where: {
-          departmentId: membership.departmentId,
-          agentId: userId,
-          active: true,
-          status: TicketStatus.CLAIMED,
-        },
-      });
-      for (const ticket of tickets) {
-        const now = new Date();
-        await tx.ticket.update({
-          where: { ticketId: ticket.ticketId },
-          data: {
-            status: TicketStatus.CLOSED,
-            agentId: null,
-            completionNotes: 'This agent was removed from the department.',
-            closedAt: now,
-            updatedAt: now,
-          },
-        });
-        await tx.ticketEvent.create({
-          data: {
-            ticketEventId: randomUUID(),
-            ticketId: ticket.ticketId,
-            userId: actorId,
-            action: TicketEventAction.CLOSE,
-            details: {
-              agentId: userId,
-              completionNotes: 'This agent was removed from the department.',
-            },
-            createdAt: now,
-            updatedAt: now,
-          },
-        });
-      }
-    }
+    for (const membership of memberships)
+      await this.reconcileDepartmentTickets(
+        userId,
+        membership.departmentId,
+        actorId,
+        tx,
+      );
     if (memberships.length)
       await tx.departmentMember.deleteMany({ where: { userId } });
+  }
+
+  private async reconcileDepartmentTickets(
+    userId: string,
+    departmentId: string,
+    actorId: string,
+    tx: Prisma.TransactionClient,
+  ) {
+    const tickets = await tx.ticket.findMany({
+      where: {
+        departmentId,
+        agentId: userId,
+        active: true,
+        status: TicketStatus.CLAIMED,
+      },
+    });
+    for (const ticket of tickets) {
+      const now = new Date();
+      await tx.ticket.update({
+        where: { ticketId: ticket.ticketId },
+        data: {
+          status: TicketStatus.CLOSED,
+          agentId: null,
+          completionNotes: 'This agent was removed from the department.',
+          closedAt: now,
+          updatedAt: now,
+        },
+      });
+      await tx.ticketEvent.create({
+        data: {
+          ticketEventId: randomUUID(),
+          ticketId: ticket.ticketId,
+          userId: actorId,
+          action: TicketEventAction.CLOSE,
+          details: {
+            agentId: userId,
+            completionNotes: 'This agent was removed from the department.',
+          },
+          createdAt: now,
+          updatedAt: now,
+        },
+      });
+    }
   }
 
   private async assertNotLastAdmin(
