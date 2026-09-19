@@ -34,11 +34,12 @@ export class SafeExceptionFilter implements ExceptionFilter {
     response: string | object | undefined,
     status: number,
   ): string | string[] {
+    if (status >= 500) return 'An unexpected error occurred';
     if (typeof response === 'string') return response;
     if (response && 'message' in response) {
       const message = (response as { message?: unknown }).message;
       if (typeof message === 'string' || Array.isArray(message)) return message;
     }
-    return status >= 500 ? 'An unexpected error occurred' : 'Request failed';
+    return 'Request failed';
   }
 }
