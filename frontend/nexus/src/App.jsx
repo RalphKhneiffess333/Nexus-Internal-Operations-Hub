@@ -9,6 +9,7 @@ import { HandoffsPage } from './pages/tickets/HandoffsPage'
 import { TicketsPage } from './pages/tickets/TicketsPage'
 import { ManagementPage } from './pages/administration/ManagementPage'
 import { LogsPage } from './pages/administration/LogsPage'
+import { DashboardPage } from './pages/dashboard/DashboardPage'
 import { UserRole } from './features/tickets/ticket-types'
 
 function AdminRoute({ children }) {
@@ -39,7 +40,8 @@ export default function App() {
     content = (
       <Routes>
         <Route element={<AppShell />}>
-          <Route path="/" element={<Navigate to="/tickets" replace />} />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/tickets" element={<TicketsPage view="submitted" />} />
           <Route
             path="/tickets/department"
