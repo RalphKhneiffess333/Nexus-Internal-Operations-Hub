@@ -6,6 +6,7 @@ import { AuthenticationService } from './authentication.service';
 import { AuthenticationGuard } from './guards/authentication.guard';
 import { SessionsModule } from './sessions/sessions.module';
 import { MicrosoftAuthStrategy } from './strategies/microsoft-auth.strategy';
+import { UserSessionInvalidationListener } from './user-session-invalidation.listener';
 
 @Module({
   imports: [UsersModule, SessionsModule],
@@ -13,6 +14,7 @@ import { MicrosoftAuthStrategy } from './strategies/microsoft-auth.strategy';
   providers: [
     AuthenticationService,
     MicrosoftAuthStrategy,
+    UserSessionInvalidationListener,
     {
       provide: APP_GUARD,
       useClass: AuthenticationGuard,

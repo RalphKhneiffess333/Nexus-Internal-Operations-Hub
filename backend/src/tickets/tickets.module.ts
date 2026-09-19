@@ -14,6 +14,10 @@ import { TicketLifecycleRepository } from './repositories/ticket-lifecycle.repos
 import { TicketsController } from './tickets.controller';
 import { TicketsService } from './tickets.service';
 import { HandoffPolicy } from './handoffs/handoff.policy';
+import { HandoffCancellationService } from './handoffs/handoff-cancellation.service';
+import { HandoffLifecycleService } from './handoffs/handoff-lifecycle.service';
+import { HandoffQueryService } from './handoffs/handoff-query.service';
+import { HandoffResponseMapper } from './handoffs/handoff-response.mapper';
 import { HandoffsController } from './handoffs/handoffs.controller';
 import { HandoffsRepository } from './handoffs/handoffs.repository';
 import { HandoffsService } from './handoffs/handoffs.service';
@@ -43,6 +47,10 @@ import { TicketLifecycleService } from './ticket-lifecycle.service';
     ViewTicketPolicy,
     HandoffPolicy,
     HandoffsRepository,
+    HandoffCancellationService,
+    HandoffLifecycleService,
+    HandoffQueryService,
+    HandoffResponseMapper,
     HandoffsService,
     TicketRealtimePublisher,
     TicketAssignmentReconciliationService,
