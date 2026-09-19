@@ -31,6 +31,8 @@ describe('TicketRealtimePublisher', () => {
         createdAt: updatedAt,
         updatedAt,
         closedAt: null,
+        unclaimedSince: null,
+        lastReminderAt: null,
         submitter: { fullName: 'Requester', email: 'requester@nexus.test' },
         agent: { fullName: 'Agent', email: 'agent@nexus.test' },
       },

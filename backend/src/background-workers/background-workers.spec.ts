@@ -11,33 +11,42 @@ import type { EmailNotificationsService } from '../notifications/email-notificat
 describe('background workers', () => {
   it('notifies department members once when an unclaimed ticket reaches its interval', async () => {
     const now = new Date('2026-09-19T12:00:00.000Z');
+    const candidates = [
+      {
+        ticketId: 'ticket-1',
+        ticketCode: 'TKT-0001',
+        title: 'Laptop issue',
+        departmentId: 'department-1',
+        priority: TicketPriority.HIGH,
+        unclaimedSince: new Date('2026-09-19T07:00:00.000Z'),
+      },
+    ];
     const prisma = {
       ticket: {
-        findMany: jest.fn().mockResolvedValue([
-          {
-            ticketId: 'ticket-1',
-            ticketCode: 'TKT-0001',
-            title: 'Laptop issue',
-            departmentId: 'department-1',
-            priority: TicketPriority.HIGH,
-            unclaimedSince: new Date('2026-09-19T07:00:00.000Z'),
-          },
-        ]),
-        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findMany: jest
+          .fn<() => Promise<typeof candidates>>()
+          .mockResolvedValue(candidates),
+        updateMany: jest
+          .fn<() => Promise<{ count: number }>>()
+          .mockResolvedValue({ count: 1 }),
       },
       systemConfiguration: {
         findMany: jest
-          .fn()
+          .fn<() => Promise<Array<{ key: string; value: string }>>>()
           .mockResolvedValue([
             { key: 'REMINDER_INTERVAL_HIGH_MINUTES', value: '240' },
           ]),
       },
     };
     const notifications = {
-      notifyDepartmentAgents: jest.fn().mockResolvedValue(undefined),
+      notifyDepartmentAgents: jest
+        .fn<() => Promise<void>>()
+        .mockResolvedValue(undefined),
     };
     const emailNotifications = {
-      notifyTicketReminder: jest.fn().mockResolvedValue(undefined),
+      notifyTicketReminder: jest
+        .fn<() => Promise<void>>()
+        .mockResolvedValue(undefined),
     };
 
     const worker = new UnclaimedTicketReminderWorker(
@@ -48,7 +57,7 @@ describe('background workers', () => {
 
     await worker.runOnce(now);
 
-    expect(prisma.ticket.updateMany).toHaveBeenCalledWith(
+    expect(prisma.ticket.updateMany as jest.Mock).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
           ticketId: 'ticket-1',
@@ -58,30 +67,34 @@ describe('background workers', () => {
         data: { lastReminderAt: now },
       }),
     );
-    expect(notifications.notifyDepartmentAgents).toHaveBeenCalledWith(
+    expect(
+      notifications.notifyDepartmentAgents as jest.Mock,
+    ).toHaveBeenCalledWith(
       'department-1',
       expect.objectContaining({
         type: 'TICKET_REMINDER',
         ticketId: 'ticket-1',
       }),
     );
-    expect(emailNotifications.notifyTicketReminder).toHaveBeenCalledWith(
-      'ticket-1',
-    );
+    expect(
+      emailNotifications.notifyTicketReminder as jest.Mock,
+    ).toHaveBeenCalledWith('ticket-1');
   });
 
   it('deletes only expired audit logs through the cleanup transaction', async () => {
     const now = new Date('2026-09-19T12:00:00.000Z');
     const tx = {
-      $executeRaw: jest.fn().mockResolvedValue(0),
+      $executeRaw: jest.fn<() => Promise<number>>().mockResolvedValue(0),
       auditLog: {
-        deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+        deleteMany: jest
+          .fn<() => Promise<{ count: number }>>()
+          .mockResolvedValue({ count: 1 }),
       },
     };
     const prisma = {
       auditLog: {
         findMany: jest
-          .fn()
+          .fn<() => Promise<Array<{ auditLogId: string }>>>()
           .mockResolvedValueOnce([{ auditLogId: 'audit-1' }])
           .mockResolvedValueOnce([]),
       },
@@ -96,43 +109,64 @@ describe('background workers', () => {
 
     await worker.runOnce(now);
 
-    expect(tx.$executeRaw).toHaveBeenCalled();
-    expect(tx.auditLog.deleteMany).toHaveBeenCalledWith({
+    expect(tx.$executeRaw as jest.Mock).toHaveBeenCalled();
+    expect(tx.auditLog.deleteMany as jest.Mock).toHaveBeenCalledWith({
       where: { auditLogId: { in: ['audit-1'] } },
     });
-    expect(prisma.auditLog.findMany).toHaveBeenCalledTimes(2);
+    expect(prisma.auditLog.findMany as jest.Mock).toHaveBeenCalledTimes(2);
   });
 
   it('removes stale database file records and their physical file', async () => {
     const now = new Date('2026-09-19T12:00:00.000Z');
     const tx = {
-      attachment: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
-      file: { delete: jest.fn().mockResolvedValue({}) },
+      attachment: {
+        deleteMany: jest
+          .fn<() => Promise<{ count: number }>>()
+          .mockResolvedValue({ count: 0 }),
+      },
+      file: {
+        delete: jest
+          .fn<() => Promise<Record<string, never>>>()
+          .mockResolvedValue({}),
+      },
     };
     const prisma = {
       file: {
-        findMany: jest.fn().mockResolvedValue([
-          {
-            fileId: 'file-1',
-            storageKey: 'file-1',
-            createdAt: new Date('2026-09-18T00:00:00.000Z'),
-            attachment: null,
-          },
-        ]),
+        findMany: jest
+          .fn<
+            () => Promise<
+              Array<{
+                fileId: string;
+                storageKey: string;
+                createdAt: Date;
+                attachment: null;
+              }>
+            >
+          >()
+          .mockResolvedValue([
+            {
+              fileId: 'file-1',
+              storageKey: 'file-1',
+              createdAt: new Date('2026-09-18T00:00:00.000Z'),
+              attachment: null,
+            },
+          ]),
       },
       $transaction: jest.fn((operation: (client: typeof tx) => unknown) =>
         Promise.resolve(operation(tx)),
       ),
     };
     const storage = {
-      list: jest.fn().mockResolvedValue([
-        {
-          storageKey: 'file-1',
-          modifiedAt: new Date('2026-09-18T00:00:00.000Z'),
-        },
-      ]),
-      exists: jest.fn().mockResolvedValue(true),
-      delete: jest.fn().mockResolvedValue(undefined),
+      list: jest
+        .fn<() => Promise<Array<{ storageKey: string; modifiedAt: Date }>>>()
+        .mockResolvedValue([
+          {
+            storageKey: 'file-1',
+            modifiedAt: new Date('2026-09-18T00:00:00.000Z'),
+          },
+        ]),
+      exists: jest.fn<() => Promise<boolean>>().mockResolvedValue(true),
+      delete: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
     };
 
     const worker = new OrphanedFilesWorker(
@@ -142,9 +176,9 @@ describe('background workers', () => {
 
     await worker.runOnce(now);
 
-    expect(tx.file.delete).toHaveBeenCalledWith({
+    expect(tx.file.delete as jest.Mock).toHaveBeenCalledWith({
       where: { fileId: 'file-1' },
     });
-    expect(storage.delete).toHaveBeenCalledWith('file-1');
+    expect(storage.delete as jest.Mock).toHaveBeenCalledWith('file-1');
   });
 });
