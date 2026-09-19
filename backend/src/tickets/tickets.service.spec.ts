@@ -389,6 +389,8 @@ describe('TicketsService invalid transitions', () => {
       createdAt: new Date('2026-09-16T00:00:00.000Z'),
       updatedAt: new Date('2026-09-16T00:00:00.000Z'),
       closedAt: null,
+      unclaimedSince: null,
+      lastReminderAt: null,
       submitter: {
         fullName: 'Alex Employee',
         email: 'alex@company.com',

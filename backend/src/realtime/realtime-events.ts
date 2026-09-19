@@ -83,6 +83,7 @@ export type AppNotificationType =
   | 'TICKET_REOPENED'
   | 'TICKET_CLAIMED'
   | 'TICKET_CLOSED'
+  | 'TICKET_REMINDER'
   | 'TICKET_UPDATED'
   | 'CHAT_MESSAGE'
   | 'HANDOFF_REQUESTED'

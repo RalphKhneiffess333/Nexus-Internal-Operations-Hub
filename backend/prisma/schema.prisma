@@ -137,6 +137,8 @@ model Ticket {
   createdAt       DateTime         @default(now()) @map("created_at")
   updatedAt       DateTime         @updatedAt @map("updated_at")
   closedAt        DateTime?        @map("closed_at")
+  unclaimedSince  DateTime?        @map("unclaimed_since")
+  lastReminderAt  DateTime?        @map("last_reminder_at")
   department      Department       @relation(fields: [departmentId], references: [departmentId])
   submitter       User             @relation("TicketSubmitter", fields: [submittedBy], references: [userId])
   agent           User?            @relation("TicketAgent", fields: [agentId], references: [userId])
@@ -150,6 +152,7 @@ model Ticket {
   @@index([agentId])
   @@index([status])
   @@index([departmentId, status, createdAt])
+  @@index([status, agentId, unclaimedSince])
   @@map("tickets")
 }
 

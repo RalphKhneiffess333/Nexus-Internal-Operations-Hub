@@ -296,6 +296,8 @@ export class TicketsRepository {
           createdAt: ticket.createdAt,
           updatedAt: ticket.updatedAt,
           closedAt: ticket.closedAt,
+          unclaimedSince: ticket.unclaimedSince,
+          lastReminderAt: ticket.lastReminderAt,
         },
         include: ticketInclude,
       });
@@ -323,6 +325,8 @@ export class TicketsRepository {
           completionNotes: ticket.completionNotes,
           updatedAt: ticket.updatedAt,
           closedAt: ticket.closedAt,
+          unclaimedSince: ticket.unclaimedSince,
+          lastReminderAt: ticket.lastReminderAt,
         },
         include: ticketInclude,
       });
@@ -351,6 +355,8 @@ export class TicketsRepository {
           status: TicketStatus.CLAIMED,
           agentId,
           updatedAt,
+          unclaimedSince: null,
+          lastReminderAt: null,
         },
       });
 

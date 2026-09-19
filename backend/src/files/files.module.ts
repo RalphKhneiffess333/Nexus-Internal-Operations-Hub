@@ -13,6 +13,6 @@ import { LocalFileStorageService } from './local-file-storage.service';
     LocalFileStorageService,
     { provide: FILE_STORAGE, useExisting: LocalFileStorageService },
   ],
-  exports: [FileAttachmentsRepository, FilesService],
+  exports: [FileAttachmentsRepository, FilesService, FILE_STORAGE],
 })
 export class FilesModule {}
