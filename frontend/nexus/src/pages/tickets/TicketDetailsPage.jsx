@@ -10,6 +10,9 @@ import {
 } from '../../components/tickets/TicketForm'
 import { validateTicketFields } from '../../components/tickets/ticket-validation'
 import { useDepartments } from '../../features/departments/use-departments'
+import { useAuthentication } from '../../features/authentication/use-authentication'
+import { canWorkTickets } from '../../features/tickets/ticket-types'
+import { HandoffPanel } from '../../components/tickets/HandoffPanel'
 import {
   cancelTicket,
   claimTicket,
@@ -37,6 +40,7 @@ export function TicketDetailsPage() {
   const { ticketId } = useParams()
   const location = useLocation()
   const navigate = useNavigate()
+  const { user } = useAuthentication()
   const [ticket, setTicket] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -439,6 +443,16 @@ export function TicketDetailsPage() {
                 onToggleTimeline={() => setTimelineOpen((open) => !open)}
               />
             )}
+
+            {canWorkTickets(user) ? (
+              <HandoffPanel
+                ticket={ticket}
+                onTicketChanged={() => {
+                  void loadTicket()
+                  void loadTicketEvents()
+                }}
+              />
+            ) : null}
 
             {ticket.active === false ? (
               <p className="muted ticket-inactive-note">
