@@ -161,7 +161,7 @@ When dealing with WebSockets, Nexus should:
 
 #### Email Notifications
 Email notifications should be sent asynchronously as they don't represent a major system function worth making client requests wait for.
-Enterprise grade message queues (Kafka, RabbitMQ) are not required for this company scale, these will add significant complexity and are not suited for this type of application. Basic asynchronous background processes are sufficient for this scope.
+Enterprise grade message queues (Kafka, RabbitMQ) are not required for this company scale, these will add significant complexity and are not suited for this type of application.
 
 #### Background Processes
 Some reliability practices require background processes for managing:

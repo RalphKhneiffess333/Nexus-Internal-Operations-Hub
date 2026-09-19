@@ -3,7 +3,7 @@ import {
   ForbiddenException,
   Injectable,
 } from '@nestjs/common';
-import { Ticket, TicketStatus } from '@prisma/client';
+import { Ticket, TicketStatus, UserRole } from '@prisma/client';
 import type { AuthenticatedRequestUser } from '../../authentication/request-user';
 
 @Injectable()
@@ -25,7 +25,7 @@ export class CloseTicketPolicy {
       );
     }
 
-    if (ticket.agentId !== actor.userId) {
+    if (ticket.agentId !== actor.userId && actor.role !== UserRole.Admin) {
       throw new ForbiddenException(
         'You do not have permission to access this resource',
       );

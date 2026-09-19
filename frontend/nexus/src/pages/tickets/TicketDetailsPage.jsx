@@ -367,6 +367,11 @@ export function TicketDetailsPage() {
   const canClaim = Boolean(ticket?.active && permissions.canClaim)
   const canClose = Boolean(ticket?.active && permissions.canClose)
   const canReopen = Boolean(ticket?.active && permissions.canReopen)
+  const adminClosingAnotherAgentTicket = Boolean(
+    user?.role === 'Admin' &&
+      ticket?.agent &&
+      ticket.agent.userId !== user.userId,
+  )
   const showTicketActions = !editing
   const latestAttachmentEvent = latestEventWithAttachments(events)
   const backPath = location.state?.from ?? '/tickets'
@@ -585,15 +590,23 @@ export function TicketDetailsPage() {
       {showingCloseDialog && ticket ? (
         <TicketMessageDialog
           title="Close ticket"
-          message={`Add a closing message for ${ticket.ticketCode}.`}
+          message={
+            adminClosingAnotherAgentTicket
+              ? `This ticket is assigned to ${ticket.agent?.fullName ?? 'another agent'}, not you. As an administrator, you can close it. The completion notes will identify you as the administrator who closed the ticket.`
+              : `Add a closing message for ${ticket.ticketCode}.`
+          }
           label="Closing message"
-          placeholder="Summarize the resolution for the submitter."
+          placeholder={
+            adminClosingAnotherAgentTicket
+              ? 'Add administrator notes if needed.'
+              : 'Summarize the resolution for the submitter.'
+          }
           confirmLabel="Close Ticket"
           busyLabel="Closing..."
           dismissLabel="Keep open"
           busy={closing}
           includeAttachments
-          required
+          required={!adminClosingAnotherAgentTicket}
           error={closeError}
           onConfirm={handleClose}
           onDismiss={() => {

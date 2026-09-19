@@ -74,6 +74,7 @@ export class TicketLifecycleRepository {
     event: NewTicketMutationEvent,
     files: StoredFileMetadata[] = [],
     attachmentIdsToRemove: string[] = [],
+    allowAdminCloseOverride = false,
   ): Promise<TicketLifecycleResult> {
     return this.inTransaction(async (tx) => {
       const current = await this.ticketsRepository.findByIdForUpdate(
@@ -85,7 +86,8 @@ export class TicketLifecycleRepository {
       }
       if (
         event.action === TicketEventAction.CLOSE &&
-        (current.status !== 'CLAIMED' || current.agentId !== event.userId)
+        (current.status !== 'CLAIMED' ||
+          (current.agentId !== event.userId && !allowAdminCloseOverride))
       ) {
         throw new ConflictException(
           'The ticket changed before it could be closed',
