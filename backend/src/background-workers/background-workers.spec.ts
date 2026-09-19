@@ -4,6 +4,7 @@ import { AuditLogsCleanupWorker } from './audit-logs-cleanup.worker';
 import { OrphanedFilesWorker } from './orphaned-files.worker';
 import { UnclaimedTicketReminderWorker } from './unclaimed-ticket-reminder.worker';
 import type { PrismaService } from '../database/prisma.service';
+import type { ConfigService } from '@nestjs/config';
 import type { FileStorage } from '../files/file-storage.interface';
 import type { NotificationsService } from '../notifications/notifications.service';
 import type { EmailNotificationsService } from '../notifications/email-notifications.service';
@@ -171,6 +172,7 @@ describe('background workers', () => {
 
     const worker = new OrphanedFilesWorker(
       prisma as unknown as PrismaService,
+      { get: jest.fn().mockReturnValue(undefined) } as unknown as ConfigService,
       storage as unknown as FileStorage,
     );
 

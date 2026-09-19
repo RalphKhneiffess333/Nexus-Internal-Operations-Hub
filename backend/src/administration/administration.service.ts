@@ -4,20 +4,14 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
-import {
-  AuditAction,
-  Prisma,
-  TicketEventAction,
-  TicketStatus,
-  User,
-  UserRole,
-} from '@prisma/client';
-import { randomUUID } from 'crypto';
-import { PrismaService } from '../database/prisma.service';
-import { SessionService } from '../authentication/sessions/session.service';
+import { AuditAction, User } from '@prisma/client';
 import type { AuthenticatedRequestUser } from '../authentication/request-user';
 import { AuditService } from '../audit/audit.service';
 import { ADMINISTRATION_DEPARTMENT_CODE } from '../departments/department.constants';
+import {
+  AdministrationRepository,
+  DepartmentListRecord,
+} from './administration.repository';
 import {
   CreateDepartmentDto,
   PageQueryDto,
@@ -43,56 +37,42 @@ const supportedConfiguration = new Map([
 @Injectable()
 export class AdministrationService {
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly sessions: SessionService,
+    private readonly administrationRepository: AdministrationRepository,
     private readonly auditService: AuditService,
   ) {}
 
   async listDepartments(query: PageQueryDto) {
-    const where: Prisma.DepartmentWhereInput = {
-      code: { not: ADMINISTRATION_DEPARTMENT_CODE },
-      ...(query.search
-        ? {
-            OR: [
-              { code: { contains: query.search, mode: 'insensitive' } },
-              { name: { contains: query.search, mode: 'insensitive' } },
-            ],
-          }
-        : {}),
+    const result = await this.administrationRepository.listDepartments(
+      query.search,
+      (query.page - 1) * query.pageSize,
+      query.pageSize,
+      ADMINISTRATION_DEPARTMENT_CODE,
+    );
+    return {
+      items: result.items.map((item) => this.toDepartmentResponse(item)),
+      page: query.page,
+      pageSize: query.pageSize,
+      total: result.total,
     };
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.department.findMany({
-        where,
-        orderBy: { name: 'asc' },
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
-        include: { _count: { select: { members: true, tickets: true } } },
-      }),
-      this.prisma.department.count({ where }),
-    ]);
-    return { items, page: query.page, pageSize: query.pageSize, total };
   }
 
   async createDepartment(
     dto: CreateDepartmentDto,
     actor: AuthenticatedRequestUser,
   ) {
-    return this.prisma
-      .$transaction(async (tx) => {
+    return this.administrationRepository
+      .transaction(async (tx) => {
         const code = dto.code.trim().toUpperCase();
         if (code === ADMINISTRATION_DEPARTMENT_CODE)
           throw new BadRequestException(
             'The Administration department is reserved by the system',
           );
-        const department = await tx.department.create({
-          data: {
-            departmentId: randomUUID(),
-            code,
-            name: dto.name.trim(),
-            desc: dto.description.trim(),
-            active: true,
-          },
-        });
+        const department = await this.administrationRepository.createDepartment(
+          code,
+          dto.name.trim(),
+          dto.description.trim(),
+          tx,
+        );
         await this.auditService.append(
           tx,
           actor.userId,
@@ -103,7 +83,7 @@ export class AdministrationService {
             name: department.name,
           },
         );
-        return department;
+        return this.toDepartmentResponse(department);
       })
       .catch((error) => this.mapConflict(error));
   }
@@ -113,28 +93,30 @@ export class AdministrationService {
     dto: UpdateDepartmentDto,
     actor: AuthenticatedRequestUser,
   ) {
-    return this.prisma
-      .$transaction(async (tx) => {
-        const before = await tx.department.findUnique({
-          where: { departmentId },
-        });
+    return this.administrationRepository
+      .transaction(async (tx) => {
+        const before = await this.administrationRepository.findDepartment(
+          departmentId,
+          tx,
+        );
         if (!before) throw new NotFoundException('Department was not found');
         if (before.code === ADMINISTRATION_DEPARTMENT_CODE)
           throw new BadRequestException(
             'The Administration department is reserved by the system',
           );
-        const after = await tx.department.update({
-          where: { departmentId },
-          data: {
+        const after = await this.administrationRepository.updateDepartment(
+          departmentId,
+          {
             ...(dto.code === undefined
               ? {}
               : { code: dto.code.trim().toUpperCase() }),
             ...(dto.name === undefined ? {} : { name: dto.name.trim() }),
             ...(dto.description === undefined
               ? {}
-              : { desc: dto.description.trim() }),
+              : { description: dto.description.trim() }),
           },
-        });
+          tx,
+        );
         await this.auditService.append(
           tx,
           actor.userId,
@@ -153,7 +135,7 @@ export class AdministrationService {
             },
           },
         );
-        return after;
+        return this.toDepartmentResponse(after);
       })
       .catch((error) => this.mapConflict(error));
   }
@@ -163,17 +145,12 @@ export class AdministrationService {
     active: boolean,
     actor: AuthenticatedRequestUser,
   ) {
-    return this.prisma.$transaction(async (tx) => {
-      const department = await tx.department.findUnique({
-        where: { departmentId },
-        include: {
-          tickets: {
-            where: { active: true },
-            select: { ticketId: true },
-            take: 1,
-          },
-        },
-      });
+    return this.administrationRepository.transaction(async (tx) => {
+      const department =
+        await this.administrationRepository.findDepartmentWithActiveTicket(
+          departmentId,
+          tx,
+        );
       if (!department) throw new NotFoundException('Department was not found');
       if (department.code === ADMINISTRATION_DEPARTMENT_CODE)
         throw new BadRequestException(
@@ -184,10 +161,11 @@ export class AdministrationService {
         throw new ConflictException(
           'Department has active tickets and cannot be deactivated',
         );
-      const updated = await tx.department.update({
-        where: { departmentId },
-        data: { active },
-      });
+      const updated = await this.administrationRepository.setDepartmentActive(
+        departmentId,
+        active,
+        tx,
+      );
       await this.auditService.append(
         tx,
         actor.userId,
@@ -196,103 +174,31 @@ export class AdministrationService {
           : AuditAction.DEPARTMENT_DELETION,
         { departmentId, beforeActive: department.active, afterActive: active },
       );
-      return updated;
+      return this.toDepartmentResponse(updated);
     });
   }
 
   async listMembers(departmentId: string) {
-    const department = await this.prisma.department.findUnique({
-      where: { departmentId },
-    });
+    const department = await this.administrationRepository.findDepartment(
+      departmentId,
+    );
     if (!department) throw new NotFoundException('Department was not found');
-    const members = await this.prisma.departmentMember.findMany({
-      where: { departmentId },
-      include: { user: true },
-      orderBy: { user: { fullName: 'asc' } },
-    });
+    const members = await this.administrationRepository.listMembers(departmentId);
     return members.map(({ user }) => this.safeUser(user));
   }
 
-  async addMembership(
-    userId: string,
-    departmentId: string,
-    actor: AuthenticatedRequestUser,
-  ) {
-    return this.prisma.$transaction(async (tx) => {
-      const [user, department] = await Promise.all([
-        tx.user.findUnique({ where: { userId } }),
-        tx.department.findUnique({ where: { departmentId } }),
-      ]);
-      if (!user) throw new NotFoundException('User was not found');
-      if (!department) throw new NotFoundException('Department was not found');
-      if (
-        department.code === ADMINISTRATION_DEPARTMENT_CODE &&
-        user.role !== UserRole.Admin
-      )
-        throw new BadRequestException(
-          'Only administrators can belong to the Administration department',
-        );
-      if (user.role === UserRole.Employee)
-        throw new BadRequestException(
-          'Only agents and administrators can belong to departments',
-        );
-      if (!department.active)
-        throw new BadRequestException(
-          'Inactive departments cannot accept members',
-        );
-      const membership = await tx.departmentMember.upsert({
-        where: { userId_departmentId: { userId, departmentId } },
-        create: { departmentMemberId: randomUUID(), userId, departmentId },
-        update: {},
-      });
-      await this.auditService.append(
-        tx,
-        actor.userId,
-        AuditAction.DEPARTMENT_MAPPING,
-        { userId, departmentId, mapping: 'ADDED' },
-      );
-      return membership;
-    });
-  }
-
-  async removeMembership(
-    userId: string,
-    departmentId: string,
-    actor: AuthenticatedRequestUser,
-  ) {
-    return this.prisma.$transaction(async (tx) => {
-      const membership = await tx.departmentMember.findUnique({
-        where: { userId_departmentId: { userId, departmentId } },
-        include: { user: true, department: true },
-      });
-      if (!membership)
-        throw new NotFoundException('Department membership was not found');
-      if (
-        membership.department.code === ADMINISTRATION_DEPARTMENT_CODE &&
-        membership.user.role === UserRole.Admin
-      )
-        throw new BadRequestException(
-          'Administrators must remain members of the Administration department',
-        );
-      await this.reconcileMembership(tx, userId, departmentId, actor.userId);
-      await tx.departmentMember.delete({
-        where: { userId_departmentId: { userId, departmentId } },
-      });
-      await this.auditService.append(
-        tx,
-        actor.userId,
-        AuditAction.DEPARTMENT_MAPPING,
-        { userId, departmentId, mapping: 'REMOVED' },
-      );
-      return { removed: true };
-    });
-  }
-
   async listConfigurations() {
-    return this.prisma.systemConfiguration.findMany({
-      where: { key: { in: [...supportedConfiguration.keys()] } },
-      orderBy: { key: 'asc' },
-    });
+    const configurations = await this.administrationRepository.listConfigurations(
+      [...supportedConfiguration.keys()],
+    );
+    return configurations.map((configuration) => ({
+      configurationId: configuration.configurationId,
+      key: configuration.key,
+      value: configuration.value,
+      description: configuration.description,
+      createdAt: configuration.createdAt,
+      updatedAt: configuration.updatedAt,
+    }));
   }
 
   async updateConfiguration(
@@ -306,110 +212,38 @@ export class AdministrationService {
       throw new BadRequestException(
         'Configuration value must be a non-negative integer',
       );
-    return this.prisma.$transaction(async (tx) => {
-      const current = await tx.systemConfiguration.findUnique({
-        where: { key },
-      });
+    return this.administrationRepository.transaction(async (tx) => {
+      const current = await this.administrationRepository.findConfiguration(
+        key,
+        tx,
+      );
       if (!current)
         throw new NotFoundException('Configuration key was not found');
-      const updated = await tx.systemConfiguration.update({
-        where: { key },
-        data: { value: dto.value },
-      });
+      const updated = await this.administrationRepository.updateConfiguration(
+        key,
+        dto.value,
+        tx,
+      );
       await this.auditService.append(
         tx,
         actor.userId,
         AuditAction.SYSTEM_VARIABLE_MODIFICATION,
         { key, oldValue: current.value, newValue: updated.value },
       );
-      return updated;
+      return {
+        configurationId: updated.configurationId,
+        key: updated.key,
+        value: updated.value,
+        description: updated.description,
+        createdAt: updated.createdAt,
+        updatedAt: updated.updatedAt,
+      };
     });
-  }
-
-  private async reconcileMembership(
-    tx: Prisma.TransactionClient,
-    userId: string,
-    departmentId: string,
-    actorId: string,
-  ) {
-    const tickets = await tx.ticket.findMany({
-      where: {
-        departmentId,
-        agentId: userId,
-        active: true,
-        status: TicketStatus.CLAIMED,
-      },
-    });
-    for (const ticket of tickets) {
-      const now = new Date();
-      await tx.ticket.update({
-        where: { ticketId: ticket.ticketId },
-        data: {
-          status: TicketStatus.CLOSED,
-          agentId: null,
-          completionNotes: 'This agent was removed from the department.',
-          closedAt: now,
-          updatedAt: now,
-        },
-      });
-      await tx.ticketEvent.create({
-        data: {
-          ticketEventId: randomUUID(),
-          ticketId: ticket.ticketId,
-          userId: actorId,
-          action: TicketEventAction.CLOSE,
-          details: {
-            agentId: userId,
-            completionNotes: 'This agent was removed from the department.',
-          },
-          createdAt: now,
-          updatedAt: now,
-        },
-      });
-    }
-  }
-
-  private async reconcileMemberships(
-    tx: Prisma.TransactionClient,
-    userId: string,
-    actorId: string,
-  ) {
-    const memberships = await tx.departmentMember.findMany({
-      where: { userId },
-    });
-    for (const membership of memberships)
-      await this.reconcileMembership(
-        tx,
-        userId,
-        membership.departmentId,
-        actorId,
-      );
-    if (memberships.length)
-      await tx.departmentMember.deleteMany({ where: { userId } });
-  }
-
-  private async assertNotLastAdmin(
-    tx: Prisma.TransactionClient,
-    userId: string,
-  ) {
-    const admins = await tx.user.count({
-      where: { role: UserRole.Admin, isActive: true, NOT: { userId } },
-    });
-    if (admins === 0)
-      throw new ConflictException(
-        'The last active administrator cannot be removed',
-      );
   }
 
   private safeUser(
-    user:
-      | Prisma.UserGetPayload<{
-          include: { departmentMembers: { include: { department: true } } };
-        }>
-      | User,
+    user: User,
   ) {
-    const departmentMembers =
-      'departmentMembers' in user ? user.departmentMembers : [];
     return {
       userId: user.userId,
       email: user.email,
@@ -420,7 +254,30 @@ export class AdministrationService {
       hasLogged: user.hasLogged,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
-      departments: departmentMembers.map((membership) => membership.department),
+      departments: [],
+    };
+  }
+
+  private toDepartmentResponse(
+    department: DepartmentListRecord | {
+      departmentId: string;
+      code: string;
+      name: string;
+      desc: string;
+      active: boolean;
+      createdAt: Date;
+      updatedAt: Date;
+    },
+  ) {
+    return {
+      departmentId: department.departmentId,
+      code: department.code,
+      name: department.name,
+      desc: department.desc,
+      active: department.active,
+      createdAt: department.createdAt,
+      updatedAt: department.updatedAt,
+      ...('_count' in department ? { _count: department._count } : {}),
     };
   }
 

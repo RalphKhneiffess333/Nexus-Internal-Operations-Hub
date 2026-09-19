@@ -97,10 +97,37 @@ describe('Ticket handoffs integration', () => {
       ticket.ticketId,
       agentUser(IT_AGENT_2_ID),
     );
-    expect(events.filter((event) => event.action === TicketEventAction.HANDOFF)).toHaveLength(2);
+    expect(
+      events.filter((event) => event.action === TicketEventAction.HANDOFF),
+    ).toHaveLength(2);
     expect(events.at(-1)).toMatchObject({
-      details: { action: 'ACCEPTED', requestedAgent: { userId: IT_AGENT_2_ID } },
+      details: {
+        action: 'ACCEPTED',
+        requestedAgent: { userId: IT_AGENT_2_ID },
+      },
     });
+  });
+
+  it("does not let an unrelated agent accept another agent's handoff", async () => {
+    const ticket = await claimedTicket();
+    const handoff = await handoffsService.create(
+      ticket.ticketId,
+      { requestedAgentId: IT_AGENT_2_ID },
+      agentUser(AGENT_ID),
+    );
+
+    await expect(
+      handoffsService.accept(handoff.handoffId, agentUser(ADMIN_ID)),
+    ).rejects.toThrow(ForbiddenException);
+    expect(await persistedTicket(ticket.ticketId)).toMatchObject({
+      status: TicketStatus.CLAIMED,
+      agentId: AGENT_ID,
+    });
+    expect(
+      await prisma.handoffRequest.findUnique({
+        where: { handoffId: handoff.handoffId },
+      }),
+    ).toMatchObject({ status: HandoffStatus.PENDING });
   });
 
   it('rejects and cancels without changing the current agent', async () => {
@@ -174,14 +201,23 @@ describe('Ticket handoffs integration', () => {
 
     await closeTicket(ticketsService, ticket.ticketId, agentUser(AGENT_ID));
 
-    expect(await prisma.handoffRequest.findUnique({ where: { handoffId: handoff.handoffId } })).toMatchObject({
+    expect(
+      await prisma.handoffRequest.findUnique({
+        where: { handoffId: handoff.handoffId },
+      }),
+    ).toMatchObject({
       status: HandoffStatus.CANCELLED,
     });
     await expect(
       handoffsService.accept(handoff.handoffId, agentUser(IT_AGENT_2_ID)),
     ).rejects.toThrow(ConflictException);
-    const events = await ticketsService.findEvents(ticket.ticketId, agentUser(AGENT_ID));
-    expect(events.filter((event) => event.action === TicketEventAction.HANDOFF)).toEqual(
+    const events = await ticketsService.findEvents(
+      ticket.ticketId,
+      agentUser(AGENT_ID),
+    );
+    expect(
+      events.filter((event) => event.action === TicketEventAction.HANDOFF),
+    ).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           details: expect.objectContaining({ action: 'CANCELLED' }),
@@ -205,17 +241,27 @@ describe('Ticket handoffs integration', () => {
 
     await handoffsService.accept(first.handoffId, agentUser(IT_AGENT_2_ID));
 
-    expect(await prisma.handoffRequest.findUnique({ where: { handoffId: second.handoffId } })).toMatchObject({
+    expect(
+      await prisma.handoffRequest.findUnique({
+        where: { handoffId: second.handoffId },
+      }),
+    ).toMatchObject({
       status: HandoffStatus.CANCELLED,
     });
-    expect(await persistedTicket(ticket.ticketId)).toMatchObject({ agentId: IT_AGENT_2_ID });
+    expect(await persistedTicket(ticket.ticketId)).toMatchObject({
+      agentId: IT_AGENT_2_ID,
+    });
   });
 
   it('filters handoffs by participants, ticket text, department, and status', async () => {
     const matchingTicket = await submitOpenTicket(ticketsService, {
       title: 'VPN access request',
     });
-    await claimTicket(ticketsService, matchingTicket.ticketId, agentUser(AGENT_ID));
+    await claimTicket(
+      ticketsService,
+      matchingTicket.ticketId,
+      agentUser(AGENT_ID),
+    );
     await handoffsService.create(
       matchingTicket.ticketId,
       { requestedAgentId: IT_AGENT_2_ID },
@@ -229,24 +275,35 @@ describe('Ticket handoffs integration', () => {
       agentUser(AGENT_ID),
     );
 
-    const outgoing = await handoffsService.list(agentUser(AGENT_ID), 'outgoing', {
-      requestedAgentId: IT_AGENT_2_ID,
-      requesterId: AGENT_ID,
-      departmentId: IT_DEPARTMENT_ID,
-      search: 'VPN',
-      status: HandoffStatus.PENDING,
-    });
+    const outgoing = await handoffsService.list(
+      agentUser(AGENT_ID),
+      'outgoing',
+      {
+        requestedAgentId: IT_AGENT_2_ID,
+        requesterId: AGENT_ID,
+        departmentId: IT_DEPARTMENT_ID,
+        search: 'VPN',
+        status: HandoffStatus.PENDING,
+      },
+    );
     expect(outgoing).toHaveLength(1);
     expect(outgoing[0]).toMatchObject({
       requester: { userId: AGENT_ID },
       requestedAgent: { userId: IT_AGENT_2_ID },
-      ticket: { title: 'VPN access request', department: { departmentId: IT_DEPARTMENT_ID } },
+      ticket: {
+        title: 'VPN access request',
+        department: { departmentId: IT_DEPARTMENT_ID },
+      },
     });
 
-    const incoming = await handoffsService.list(agentUser(IT_AGENT_2_ID), 'incoming', {
-      requesterId: AGENT_ID,
-      search: 'VPN',
-    });
+    const incoming = await handoffsService.list(
+      agentUser(IT_AGENT_2_ID),
+      'incoming',
+      {
+        requesterId: AGENT_ID,
+        search: 'VPN',
+      },
+    );
     expect(incoming).toHaveLength(1);
     expect(incoming[0].handoffId).toBe(outgoing[0].handoffId);
   });

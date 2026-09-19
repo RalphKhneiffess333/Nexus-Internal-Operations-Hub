@@ -1,5 +1,12 @@
 import { TicketPriority, TicketStatus } from '@prisma/client';
-import { IsEnum, IsOptional, IsString, Length } from 'class-validator';
+import { Transform } from 'class-transformer';
+import {
+  IsBoolean,
+  IsEnum,
+  IsOptional,
+  IsString,
+  Length,
+} from 'class-validator';
 
 export class TicketQueryDto {
   @IsOptional()
@@ -19,4 +26,11 @@ export class TicketQueryDto {
   @IsOptional()
   @IsEnum(TicketPriority)
   priority?: TicketPriority;
+
+  @IsOptional()
+  @Transform(
+    ({ value }: { value: unknown }) => value === true || value === 'true',
+  )
+  @IsBoolean()
+  includeInactive?: boolean;
 }

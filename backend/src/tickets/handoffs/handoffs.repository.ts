@@ -1,5 +1,13 @@
-import { Injectable } from '@nestjs/common';
-import { HandoffStatus, Prisma, Ticket, User, UserRole } from '@prisma/client';
+import { HttpException, Injectable } from '@nestjs/common';
+import {
+  HandoffStatus,
+  Prisma,
+  Ticket,
+  TicketEventAction,
+  User,
+  UserRole,
+} from '@prisma/client';
+import { TicketEventsRepository } from '../events/ticket-events.repository';
 import { mapPrismaError } from '../../database/prisma-error';
 import { PrismaService } from '../../database/prisma.service';
 
@@ -41,7 +49,56 @@ export type HandoffUserRecord = Prisma.UserGetPayload<{
 
 @Injectable()
 export class HandoffsRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly ticketEventsRepository: TicketEventsRepository,
+  ) {}
+
+  async transaction<T>(
+    operation: (client: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await this.prisma.$transaction(operation);
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      mapPrismaError(error);
+    }
+  }
+
+  async cancelPendingForTicket(
+    ticketId: string,
+    actorId: string,
+    reason: string,
+    client: Prisma.TransactionClient,
+  ): Promise<void> {
+    const pending = await this.findPendingByTicketId(ticketId, client);
+    for (const handoff of pending) {
+      const now = new Date();
+      await this.updateStatus(
+        handoff.handoffId,
+        HandoffStatus.CANCELLED,
+        now,
+        client,
+      );
+      await this.ticketEventsRepository.append(
+        {
+          ticketId,
+          userId: actorId,
+          action: TicketEventAction.HANDOFF,
+          details: {
+            handoffId: handoff.handoffId,
+            requesterId: handoff.requesterId,
+            requestedAgentId: handoff.requestedAgentId,
+            action: 'CANCELLED',
+            reason,
+            timestamp: now.toISOString(),
+          },
+          createdAt: now,
+        },
+        client,
+      );
+    }
+  }
 
   async findById(
     handoffId: string,
@@ -268,7 +325,7 @@ export class HandoffsRepository {
 
   async findUser(
     userId: string,
-    client: HandoffPersistenceClient,
+    client: HandoffPersistenceClient = this.prisma,
   ): Promise<User | null> {
     try {
       return await client.user.findUnique({ where: { userId } });
@@ -300,7 +357,7 @@ export class HandoffsRepository {
   async isActiveMember(
     userId: string,
     departmentId: string,
-    client: HandoffPersistenceClient,
+    client: HandoffPersistenceClient = this.prisma,
   ): Promise<boolean> {
     try {
       const membership = await client.departmentMember.findFirst({

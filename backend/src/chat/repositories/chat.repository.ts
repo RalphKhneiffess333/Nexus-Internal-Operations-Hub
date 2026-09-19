@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { Injectable } from '@nestjs/common';
+import { HttpException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { mapPrismaError } from '../../database/prisma-error';
 import { PrismaService } from '../../database/prisma.service';
@@ -53,9 +53,22 @@ export type ChatInboxTicketRecord = Prisma.TicketGetPayload<{
   include: typeof inboxTicketInclude;
 }>;
 
+export type ChatPersistenceClient = PrismaService | Prisma.TransactionClient;
+
 @Injectable()
 export class ChatRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  async transaction<T>(
+    operation: (client: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await this.prisma.$transaction(operation);
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      mapPrismaError(error);
+    }
+  }
 
   async findByTicketId(ticketId: string): Promise<ChatMessageRecord[]> {
     try {
@@ -88,6 +101,35 @@ export class ChatRepository {
         },
         include: messageInclude,
       });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }
+
+  async findMessageById(
+    messageId: string,
+    client: ChatPersistenceClient = this.prisma,
+  ): Promise<ChatMessageRecord | null> {
+    try {
+      return await client.chatMessage.findUnique({
+        where: { messageId },
+        include: messageInclude,
+      });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }
+
+  async findActiveDepartmentIdsByUserId(
+    userId: string,
+    client: ChatPersistenceClient = this.prisma,
+  ): Promise<string[]> {
+    try {
+      const memberships = await client.departmentMember.findMany({
+        where: { userId, department: { active: true } },
+        select: { departmentId: true },
+      });
+      return memberships.map((membership) => membership.departmentId);
     } catch (error) {
       mapPrismaError(error);
     }

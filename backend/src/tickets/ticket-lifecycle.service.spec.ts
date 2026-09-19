@@ -20,7 +20,6 @@ import type { AuthenticatedRequestUser } from '../authentication/request-user';
 import { DepartmentsRepository } from '../departments/repositories/departments.repository';
 import { FileAttachmentsRepository } from '../files/file-attachments.repository';
 import { FilesService } from '../files/files.service';
-import { TicketEventsRepository } from './events/ticket-events.repository';
 import { CancelTicketPolicy } from './policies/cancel-ticket.policy';
 import { ClaimTicketPolicy } from './policies/claim-ticket.policy';
 import { CloseTicketPolicy } from './policies/close-ticket.policy';
@@ -32,20 +31,15 @@ import { TicketsRepository } from './repositories/tickets.repository';
 import { TicketLifecycleRepository } from './repositories/ticket-lifecycle.repository';
 import { TicketRealtimePublisher } from './realtime/ticket-realtime.publisher';
 import { NotificationsService } from '../notifications/notifications.service';
-import { TicketsService } from './tickets.service';
+import { TicketAccessService } from './ticket-access.service';
+import { TicketLifecycleService } from './ticket-lifecycle.service';
+import { TicketResponseMapper } from './ticket-response.mapper';
+import { TicketNotificationService } from './ticket-notification.service';
 
-describe('TicketsService invalid transitions', () => {
-  let service: TicketsService;
+describe('TicketLifecycleService invalid transitions', () => {
+  let service: TicketLifecycleService;
   let ticketsRepository: {
     findById: jest.MockedFunction<TicketsRepository['findById']>;
-  };
-  let ticketEventsRepository: {
-    findByTicketId: jest.MockedFunction<
-      TicketEventsRepository['findByTicketId']
-    >;
-    findByIdForTicket: jest.MockedFunction<
-      TicketEventsRepository['findByIdForTicket']
-    >;
   };
   let ticketLifecycleRepository: {
     claimWithEvent: jest.MockedFunction<
@@ -82,10 +76,6 @@ describe('TicketsService invalid transitions', () => {
     ticketsRepository = {
       findById: jest.fn<TicketsRepository['findById']>(),
     };
-    ticketEventsRepository = {
-      findByTicketId: jest.fn<TicketEventsRepository['findByTicketId']>(),
-      findByIdForTicket: jest.fn<TicketEventsRepository['findByIdForTicket']>(),
-    };
     ticketLifecycleRepository = {
       claimWithEvent: jest.fn<TicketLifecycleRepository['claimWithEvent']>(),
       saveWithEvent: jest.fn<TicketLifecycleRepository['saveWithEvent']>(),
@@ -113,9 +103,12 @@ describe('TicketsService invalid transitions', () => {
         .mockResolvedValue(undefined),
     };
 
-    service = new TicketsService(
+    const ticketAccess = new TicketAccessService(
       ticketsRepository as unknown as TicketsRepository,
-      ticketEventsRepository as unknown as TicketEventsRepository,
+      departmentsRepository as unknown as DepartmentsRepository,
+      new ViewTicketPolicy(),
+    );
+    service = new TicketLifecycleService(
       ticketLifecycleRepository as unknown as TicketLifecycleRepository,
       departmentsRepository as unknown as DepartmentsRepository,
       filesService as unknown as FilesService,
@@ -126,9 +119,13 @@ describe('TicketsService invalid transitions', () => {
       new ReopenTicketPolicy(),
       new ModifyTicketPolicy(),
       new CancelTicketPolicy(),
-      new ViewTicketPolicy(),
       ticketRealtimePublisher as unknown as TicketRealtimePublisher,
-      notifications as unknown as NotificationsService,
+      new TicketResponseMapper(),
+      new TicketNotificationService(
+        departmentsRepository as unknown as DepartmentsRepository,
+        notifications as unknown as NotificationsService,
+      ),
+      ticketAccess,
     );
   });
 

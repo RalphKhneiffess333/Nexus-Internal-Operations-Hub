@@ -19,6 +19,12 @@ import { HandoffsRepository } from './handoffs/handoffs.repository';
 import { HandoffsService } from './handoffs/handoffs.service';
 import { TicketRealtimePublisher } from './realtime/ticket-realtime.publisher';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { TicketAssignmentReconciliationService } from './ticket-assignment-reconciliation.service';
+import { TicketResponseMapper } from './ticket-response.mapper';
+import { TicketNotificationService } from './ticket-notification.service';
+import { TicketAccessService } from './ticket-access.service';
+import { TicketQueryService } from './ticket-query.service';
+import { TicketLifecycleService } from './ticket-lifecycle.service';
 
 @Module({
   imports: [DepartmentsModule, FilesModule, NotificationsModule],
@@ -39,6 +45,12 @@ import { NotificationsModule } from '../notifications/notifications.module';
     HandoffsRepository,
     HandoffsService,
     TicketRealtimePublisher,
+    TicketAssignmentReconciliationService,
+    TicketResponseMapper,
+    TicketNotificationService,
+    TicketAccessService,
+    TicketQueryService,
+    TicketLifecycleService,
   ],
   exports: [
     TicketEventsRepository,
@@ -46,6 +58,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     TicketsService,
     TicketsRepository,
     ViewTicketPolicy,
+    TicketAssignmentReconciliationService,
   ],
 })
 export class TicketsModule {}

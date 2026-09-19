@@ -1,13 +1,18 @@
 import { promises as fs } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { FileStorage, FileStorageEntry } from './file-storage.interface';
 
 @Injectable()
 export class LocalFileStorageService implements FileStorage {
-  private readonly rootDirectory = resolve(
-    process.env.FILE_UPLOAD_DIR ?? join(process.cwd(), 'uploads'),
-  );
+  private readonly rootDirectory: string;
+
+  constructor(config: ConfigService) {
+    this.rootDirectory = resolve(
+      config.get<string>('FILE_UPLOAD_DIR') ?? join(process.cwd(), 'uploads'),
+    );
+  }
 
   async store(storageKey: string, contents: Buffer): Promise<void> {
     const path = this.resolveStoragePath(storageKey);

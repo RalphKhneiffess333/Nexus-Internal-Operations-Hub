@@ -3,25 +3,16 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
-  forwardRef,
-  Inject,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import {
-  AuditAction,
-  Prisma,
-  TicketEventAction,
-  TicketStatus,
-  User,
-  UserRole,
-} from '@prisma/client';
+import { AuditAction, Prisma, User, UserRole } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { AuditService } from '../audit/audit.service';
 import { RealtimeInternalEvent } from '../realtime/realtime-events';
 import { SessionService } from '../authentication/sessions/session.service';
 import type { AuthenticatedRequestUser } from '../authentication/request-user';
-import { PrismaService } from '../database/prisma.service';
-import { HandoffsService } from '../tickets/handoffs/handoffs.service';
+import { TicketAssignmentReconciliationService } from '../tickets/ticket-assignment-reconciliation.service';
+import type { TicketLifecycleResult } from '../tickets/repositories/ticket-lifecycle.repository';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
   ADMINISTRATION_DEPARTMENT_CODE,
@@ -50,12 +41,9 @@ export interface CreateUserInput {
 export class UsersService {
   constructor(
     private readonly usersRepository: UsersRepository,
-    private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
-    @Inject(forwardRef(() => SessionService))
     private readonly sessions: SessionService,
-    @Inject(forwardRef(() => HandoffsService))
-    private readonly handoffsService: HandoffsService,
+    private readonly ticketReconciliation: TicketAssignmentReconciliationService,
     private readonly eventEmitter: EventEmitter2,
     private readonly notifications: NotificationsService,
   ) {}
@@ -184,8 +172,8 @@ export class UsersService {
       throw new BadRequestException(
         'No active identity provider is configured',
       );
-    const user = await this.prisma
-      .$transaction(async (tx) => {
+    const user = await this.usersRepository
+      .transaction(async (tx) => {
         const created = await this.usersRepository.createPreProvisioned(
           {
             userId: randomUUID(),
@@ -227,7 +215,8 @@ export class UsersService {
     actor: AuthenticatedRequestUser,
   ) {
     let roleChanged = false;
-    const response = await this.prisma.$transaction(async (tx) => {
+    const reconciledTickets: TicketLifecycleResult[] = [];
+    const response = await this.usersRepository.transaction(async (tx) => {
       const user = await this.usersRepository.findByIdForUpdate(userId, tx);
       if (!user) throw new NotFoundException('User was not found');
       if (user.role === dto.role) return this.toSafeResponse(user);
@@ -240,16 +229,24 @@ export class UsersService {
       );
       roleChanged = true;
       if (user.role === UserRole.Admin && dto.role !== UserRole.Admin) {
-        await this.removeAdministrationMembership(userId, actor.userId, tx);
+        reconciledTickets.push(
+          ...(await this.removeAdministrationMembership(
+            userId,
+            actor.userId,
+            tx,
+          )),
+        );
       }
       if (dto.role === UserRole.Employee)
-        await this.handoffsService.cancelPendingForUser(
+        await this.ticketReconciliation.cancelPendingForUser(
           userId,
           actor.userId,
           tx,
         );
       if (dto.role === UserRole.Employee)
-        await this.reconcileMemberships(userId, actor.userId, tx);
+        reconciledTickets.push(
+          ...(await this.reconcileMemberships(userId, actor.userId, tx)),
+        );
       if (dto.role === UserRole.Admin && user.role !== UserRole.Admin) {
         await this.ensureAdministrationMembership(userId, actor.userId, tx);
       }
@@ -262,6 +259,7 @@ export class UsersService {
       return this.toSafeResponse(updated);
     });
     if (roleChanged) {
+      this.ticketReconciliation.publish(reconciledTickets, actor.userId);
       this.notifyAccountChanged(userId);
       return this.findForAdministration(userId);
     }
@@ -273,7 +271,8 @@ export class UsersService {
     dto: UpdateStatusDto,
     actor: AuthenticatedRequestUser,
   ) {
-    const result = await this.prisma.$transaction(async (tx) => {
+    const reconciledTickets: TicketLifecycleResult[] = [];
+    const result = await this.usersRepository.transaction(async (tx) => {
       const user = await this.usersRepository.findByIdForUpdate(userId, tx);
       if (!user) throw new NotFoundException('User was not found');
       if (user.isActive === dto.active) {
@@ -289,12 +288,14 @@ export class UsersService {
         tx,
       );
       if (!dto.active) {
-        await this.handoffsService.cancelPendingForUser(
+        await this.ticketReconciliation.cancelPendingForUser(
           userId,
           actor.userId,
           tx,
         );
-        await this.reconcileMemberships(userId, actor.userId, tx);
+        reconciledTickets.push(
+          ...(await this.reconcileMemberships(userId, actor.userId, tx)),
+        );
       }
       if (user.role === UserRole.Admin) {
         await this.ensureAdministrationMembership(userId, actor.userId, tx);
@@ -317,6 +318,7 @@ export class UsersService {
         reason: 'DEACTIVATED',
       });
     }
+    this.ticketReconciliation.publish(reconciledTickets, actor.userId);
     this.notifyAccountChanged(userId);
     return this.findForAdministration(result.userId);
   }
@@ -326,11 +328,12 @@ export class UsersService {
     departmentId: string,
     actor: AuthenticatedRequestUser,
   ) {
-    await this.prisma.$transaction(async (tx) => {
+    await this.usersRepository.transaction(async (tx) => {
       const user = await this.usersRepository.findByIdForUpdate(userId, tx);
-      const department = await tx.department.findUnique({
-        where: { departmentId },
-      });
+      const department = await this.usersRepository.findDepartment(
+        departmentId,
+        tx,
+      );
       if (!user) throw new NotFoundException('User was not found');
       if (!department) throw new NotFoundException('Department was not found');
       if (
@@ -372,10 +375,11 @@ export class UsersService {
     departmentId: string,
     actor: AuthenticatedRequestUser,
   ) {
-    await this.prisma.$transaction(async (tx) => {
+    const reconciledTickets: TicketLifecycleResult[] = [];
+    await this.usersRepository.transaction(async (tx) => {
       const [user, department] = await Promise.all([
         this.usersRepository.findByIdForUpdate(userId, tx),
-        tx.department.findUnique({ where: { departmentId } }),
+        this.usersRepository.findDepartment(departmentId, tx),
       ]);
       if (!user) throw new NotFoundException('User was not found');
       if (!department) throw new NotFoundException('Department was not found');
@@ -394,17 +398,19 @@ export class UsersService {
       );
       if (!membership)
         throw new NotFoundException('Department membership was not found');
-      await this.handoffsService.cancelPendingForUserInDepartment(
+      await this.ticketReconciliation.cancelPendingForUserInDepartment(
         userId,
         departmentId,
         actor.userId,
         tx,
       );
-      await this.reconcileDepartmentTickets(
-        userId,
-        departmentId,
-        actor.userId,
-        tx,
+      reconciledTickets.push(
+        ...(await this.reconcileDepartmentTickets(
+          userId,
+          departmentId,
+          actor.userId,
+          tx,
+        )),
       );
       await this.usersRepository.deleteMembership(userId, departmentId, tx);
       await this.auditService.append(
@@ -418,6 +424,7 @@ export class UsersService {
         },
       );
     });
+    this.ticketReconciliation.publish(reconciledTickets, actor.userId);
     this.notifyAccountChanged(userId);
     return this.findForAdministration(userId);
   }
@@ -427,9 +434,10 @@ export class UsersService {
     actorId: string,
     tx: Prisma.TransactionClient,
   ) {
-    const department = await tx.department.findUnique({
-      where: { departmentId: ADMINISTRATION_DEPARTMENT_ID },
-    });
+    const department = await this.usersRepository.findDepartment(
+      ADMINISTRATION_DEPARTMENT_ID,
+      tx,
+    );
     if (
       !department ||
       department.code !== ADMINISTRATION_DEPARTMENT_CODE ||
@@ -468,20 +476,20 @@ export class UsersService {
     userId: string,
     actorId: string,
     tx: Prisma.TransactionClient,
-  ) {
+  ): Promise<TicketLifecycleResult[]> {
     const membership = await this.usersRepository.findMembership(
       userId,
       ADMINISTRATION_DEPARTMENT_ID,
       tx,
     );
-    if (!membership) return;
-    await this.handoffsService.cancelPendingForUserInDepartment(
+    if (!membership) return [];
+    await this.ticketReconciliation.cancelPendingForUserInDepartment(
       userId,
       ADMINISTRATION_DEPARTMENT_ID,
       actorId,
       tx,
     );
-    await this.reconcileDepartmentTickets(
+    const reconciledTickets = await this.reconcileDepartmentTickets(
       userId,
       ADMINISTRATION_DEPARTMENT_ID,
       actorId,
@@ -503,35 +511,38 @@ export class UsersService {
         reason: 'ADMIN_ROLE',
       },
     );
+    return reconciledTickets;
   }
 
   private async reconcileMemberships(
     userId: string,
     actorId: string,
     tx: Prisma.TransactionClient,
-  ) {
-    const memberships = await tx.departmentMember.findMany({
-      where: { userId },
-    });
+  ): Promise<TicketLifecycleResult[]> {
+    const memberships = await this.usersRepository.findMemberships(userId, tx);
     if (memberships.length === 0) {
-      await this.handoffsService.cancelPendingForUser(userId, actorId, tx);
+      await this.ticketReconciliation.cancelPendingForUser(userId, actorId, tx);
     }
     for (const membership of memberships)
-      await this.handoffsService.cancelPendingForUserInDepartment(
+      await this.ticketReconciliation.cancelPendingForUserInDepartment(
         userId,
         membership.departmentId,
         actorId,
         tx,
       );
+    const reconciledTickets: TicketLifecycleResult[] = [];
     for (const membership of memberships)
-      await this.reconcileDepartmentTickets(
-        userId,
-        membership.departmentId,
-        actorId,
-        tx,
+      reconciledTickets.push(
+        ...(await this.reconcileDepartmentTickets(
+          userId,
+          membership.departmentId,
+          actorId,
+          tx,
+        )),
       );
     if (memberships.length)
-      await tx.departmentMember.deleteMany({ where: { userId } });
+      await this.usersRepository.deleteMemberships(userId, tx);
+    return reconciledTickets;
   }
 
   private async reconcileDepartmentTickets(
@@ -539,59 +550,13 @@ export class UsersService {
     departmentId: string,
     actorId: string,
     tx: Prisma.TransactionClient,
-  ) {
-    const tickets = await tx.ticket.findMany({
-      where: {
-        departmentId,
-        agentId: userId,
-        active: true,
-        status: TicketStatus.CLAIMED,
-      },
-    });
-    for (const ticket of tickets) {
-      await this.handoffsService.cancelPendingForTicket(
-        ticket.ticketId,
-        actorId,
-        'DEPARTMENT_MEMBERSHIP_CHANGED',
-        tx,
-      );
-      const current = await tx.ticket.findUnique({
-        where: { ticketId: ticket.ticketId },
-      });
-      if (
-        !current ||
-        !current.active ||
-        current.status !== TicketStatus.CLAIMED ||
-        current.agentId !== userId
-      ) {
-        continue;
-      }
-      const now = new Date();
-      await tx.ticket.update({
-        where: { ticketId: current.ticketId },
-        data: {
-          status: TicketStatus.CLOSED,
-          agentId: null,
-          completionNotes: 'This agent was removed from the department.',
-          closedAt: now,
-          updatedAt: now,
-        },
-      });
-      await tx.ticketEvent.create({
-        data: {
-          ticketEventId: randomUUID(),
-          ticketId: ticket.ticketId,
-          userId: actorId,
-          action: TicketEventAction.CLOSE,
-          details: {
-            agentId: userId,
-            completionNotes: 'This agent was removed from the department.',
-          },
-          createdAt: now,
-          updatedAt: now,
-        },
-      });
-    }
+  ): Promise<TicketLifecycleResult[]> {
+    return this.ticketReconciliation.reconcileDepartmentClaims(
+      userId,
+      departmentId,
+      actorId,
+      tx,
+    );
   }
 
   private async assertNotLastAdmin(

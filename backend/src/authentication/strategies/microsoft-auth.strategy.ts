@@ -269,8 +269,9 @@ export class MicrosoftAuthStrategy implements AuthenticationStrategy<MicrosoftAu
       }
     }
 
+    void lastError;
     throw new ServiceUnavailableException(
-      `Microsoft authentication is unavailable: ${String(lastError)}`,
+      'Microsoft authentication is unavailable',
     );
   }
 

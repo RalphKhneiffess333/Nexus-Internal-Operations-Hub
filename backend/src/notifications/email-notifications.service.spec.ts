@@ -1,9 +1,9 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import { TicketPriority, TicketStatus, UserRole } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
-import type { PrismaService } from '../database/prisma.service';
 import type { EmailProvider } from './email-provider';
 import { EmailNotificationsService } from './email-notifications.service';
+import type { NotificationsRepository } from './notifications.repository';
 
 function user(userId: string, email: string, role: UserRole, isActive = true) {
   return { userId, email, fullName: userId, role, isActive };
@@ -42,9 +42,9 @@ function setup() {
   const provider: jest.Mocked<EmailProvider> = {
     send: jest.fn<EmailProvider['send']>(),
   };
-  const prisma = {
-    ticket: { findUnique: jest.fn() },
-    handoffRequest: { findUnique: jest.fn() },
+  const repository = {
+    findTicket: jest.fn(),
+    findHandoff: jest.fn(),
   };
   const config = {
     get: jest.fn((key: string) => {
@@ -57,17 +57,17 @@ function setup() {
     }),
   };
   const service = new EmailNotificationsService(
-    prisma as unknown as PrismaService,
+    repository as unknown as NotificationsRepository,
     config as unknown as ConfigService,
     provider,
   );
-  return { provider, prisma, service };
+  return { provider, repository, service };
 }
 
 describe('EmailNotificationsService', () => {
   it('emails active agents and administrators for a new ticket', async () => {
-    const { provider, prisma, service } = setup();
-    prisma.ticket.findUnique.mockResolvedValue(ticket());
+    const { provider, repository, service } = setup();
+    repository.findTicket.mockResolvedValue(ticket() as never);
 
     await service.notifyTicketSubmitted('ticket-1', 'submitter');
 
@@ -79,8 +79,8 @@ describe('EmailNotificationsService', () => {
   });
 
   it('retries transient provider failures and drops permanent failures without retrying', async () => {
-    const { provider, prisma, service } = setup();
-    prisma.ticket.findUnique.mockResolvedValue(ticket());
+    const { provider, repository, service } = setup();
+    repository.findTicket.mockResolvedValue(ticket() as never);
     provider.send
       .mockRejectedValueOnce({ statusCode: 503 })
       .mockRejectedValueOnce({ statusCode: 400 });
@@ -91,16 +91,16 @@ describe('EmailNotificationsService', () => {
   });
 
   it('deduplicates handoff recipients while notifying the requester, recipient, and submitter', async () => {
-    const { provider, prisma, service } = setup();
+    const { provider, repository, service } = setup();
     const baseTicket = ticket();
-    prisma.handoffRequest.findUnique.mockResolvedValue({
+    repository.findHandoff.mockResolvedValue({
       handoffId: 'handoff-1',
       status: 'ACCEPTED',
       message: null,
       requester: user('agent', 'agent@company.com', UserRole.Agent),
       requestedAgent: user('admin', 'admin@company.com', UserRole.Admin),
       ticket: baseTicket,
-    });
+    } as never);
 
     await service.notifyHandoffAccepted('handoff-1');
 

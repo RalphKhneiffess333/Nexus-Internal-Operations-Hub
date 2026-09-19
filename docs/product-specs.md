@@ -255,7 +255,7 @@ Unwanted Behavior Scenarios:
 - Department agents can view opened or reopened and unclaimed tickets for their and only their department in a dashboard
 - A department agent can claim an opened or reopened ticket if it hasn't been claimed yet
 - When an agent claims a ticket, he can start working on resolving the ticket request, no other agent can then claim it
-- If an agent is removed from a department while having claimed tickets, the ticket should go back to the ticket pool with a status of "OPEN".
+- If an agent is removed from a department while having claimed tickets, each active claimed ticket transitions to `CLOSED`. The assigned agent is cleared and the completion note is recorded as: `This agent was removed from the department.`
 - When an agent claims a ticket, the involved employee who opened the ticket is notified and can view information about the agent
 
 Unwanted Behavior Scenarios:

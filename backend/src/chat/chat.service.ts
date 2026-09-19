@@ -5,13 +5,11 @@ import {
   StreamableFile,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Prisma } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 import type { AuthenticatedRequestUser } from '../authentication/request-user';
-import { PrismaService } from '../database/prisma.service';
 import { DepartmentsRepository } from '../departments/repositories/departments.repository';
 import {
   FileAttachmentsRepository,
-  type StoredFileMetadata,
 } from '../files/file-attachments.repository';
 import { FilesService } from '../files/files.service';
 import type { UploadedFileInput } from '../files/file-validation';
@@ -72,7 +70,6 @@ export interface ChatConversationResponse {
 @Injectable()
 export class ChatService {
   constructor(
-    private readonly prisma: PrismaService,
     private readonly ticketsRepository: TicketsRepository,
     private readonly departmentsRepository: DepartmentsRepository,
     private readonly chatRepository: ChatRepository,
@@ -136,7 +133,7 @@ export class ChatService {
     }
 
     try {
-      const message = await this.prisma.$transaction(async (tx) => {
+      const message = await this.chatRepository.transaction(async (tx) => {
         const ticket = await this.ticketsRepository.findByIdForUpdate(ticketId, tx);
         if (!ticket || !ticket.active) throw new NotFoundException('Ticket was not found');
         const departmentIds = await this.getActorDepartmentIds(actor.userId, tx);
@@ -161,27 +158,12 @@ export class ChatService {
             tx,
           );
         }
-        return tx.chatMessage.findUniqueOrThrow({
-          where: { messageId: created.messageId },
-          include: {
-            sender: { select: { userId: true, fullName: true, email: true, role: true } },
-            attachments: {
-              include: {
-                file: {
-                  select: {
-                    fileId: true,
-                    originalName: true,
-                    fileSize: true,
-                    mimeType: true,
-                    createdAt: true,
-                    updatedAt: true,
-                  },
-                },
-              },
-              orderBy: { createdAt: 'asc' },
-            },
-          },
-        });
+        const persisted = await this.chatRepository.findMessageById(
+          created.messageId,
+          tx,
+        );
+        if (!persisted) throw new NotFoundException('Chat message was not found');
+        return persisted;
       });
       const response = this.toResponse(message);
       this.publishMessage(response, actor.userId);
@@ -245,18 +227,9 @@ export class ChatService {
     });
   }
 
-  private async getActorDepartmentIds(
-    userId: string,
-    client?: Prisma.TransactionClient,
-  ): Promise<string[]> {
-    if (!client) {
-      return this.departmentsRepository.findActiveDepartmentIdsByUserId(userId);
-    }
-    const memberships = await client.departmentMember.findMany({
-      where: { userId, department: { active: true } },
-      select: { departmentId: true },
-    });
-    return memberships.map((membership) => membership.departmentId);
+  private async getActorDepartmentIds(userId: string, client?: Prisma.TransactionClient): Promise<string[]> {
+    if (!client) return this.departmentsRepository.findActiveDepartmentIdsByUserId(userId);
+    return this.chatRepository.findActiveDepartmentIdsByUserId(userId, client);
   }
 
   private publishMessage(message: ChatMessageResponse, actorId: string): void {

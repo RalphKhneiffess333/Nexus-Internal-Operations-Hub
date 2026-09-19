@@ -2,7 +2,6 @@ import { randomUUID } from 'crypto';
 import { Injectable } from '@nestjs/common';
 import {
   Prisma,
-  Ticket,
   TicketEventAction,
   TicketPriority,
   TicketStatus,
@@ -10,7 +9,26 @@ import {
 import { PrismaService } from '../../database/prisma.service';
 import { mapPrismaError } from '../../database/prisma-error';
 
-export type CreateTicketInput = Omit<Ticket, 'ticketId' | 'ticketCode'>;
+export interface CreateTicketInput {
+  title: string;
+  description: string;
+  priority: TicketPriority;
+  status: TicketStatus;
+  departmentId: string;
+  submittedBy: string;
+  agentId: string | null;
+  active: boolean;
+  completionNotes: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  closedAt: Date | null;
+  unclaimedSince: Date | null;
+  lastReminderAt: Date | null;
+}
+
+export type TicketMutation = Omit<CreateTicketInput, 'createdAt'> & {
+  ticketId: string;
+};
 export type TicketPersistenceClient = PrismaService | Prisma.TransactionClient;
 
 const ticketInclude = {
@@ -91,6 +109,27 @@ export class TicketsRepository {
       return await client.ticket.findUnique({
         where: { ticketId },
         include: ticketInclude,
+      });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }
+
+  async findActiveClaimedByAgentInDepartment(
+    agentId: string,
+    departmentId: string,
+    client: Prisma.TransactionClient,
+  ): Promise<Array<{ ticketId: string }>> {
+    try {
+      return await client.ticket.findMany({
+        where: {
+          departmentId,
+          agentId,
+          active: true,
+          status: TicketStatus.CLAIMED,
+        },
+        select: { ticketId: true },
+        orderBy: { ticketId: 'asc' },
       });
     } catch (error) {
       mapPrismaError(error);
@@ -307,7 +346,7 @@ export class TicketsRepository {
   }
 
   async save(
-    ticket: Ticket,
+    ticket: TicketMutation,
     client: TicketPersistenceClient = this.prisma,
   ): Promise<TicketRecord> {
     try {
@@ -366,6 +405,27 @@ export class TicketsRepository {
 
       return client.ticket.findUnique({
         where: { ticketId },
+        include: ticketInclude,
+      });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }
+
+  async transferClaimed(
+    ticketId: string,
+    agentId: string,
+    updatedAt: Date,
+    client: Prisma.TransactionClient,
+  ): Promise<TicketRecord> {
+    try {
+      return await client.ticket.update({
+        where: { ticketId },
+        data: {
+          agentId,
+          status: TicketStatus.CLAIMED,
+          updatedAt,
+        },
         include: ticketInclude,
       });
     } catch (error) {

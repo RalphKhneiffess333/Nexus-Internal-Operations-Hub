@@ -12,7 +12,6 @@ import {
   UserRole,
 } from '@prisma/client';
 import type { AuthenticatedRequestUser } from '../../authentication/request-user';
-import { PrismaService } from '../../database/prisma.service';
 import { DepartmentsRepository } from '../../departments/repositories/departments.repository';
 import { TicketEventsRepository } from '../events/ticket-events.repository';
 import { ViewTicketPolicy } from '../policies/view-ticket.policy';
@@ -55,7 +54,6 @@ export interface HandoffResponse {
 @Injectable()
 export class HandoffsService {
   constructor(
-    private readonly prisma: PrismaService,
     private readonly handoffsRepository: HandoffsRepository,
     private readonly ticketEventsRepository: TicketEventsRepository,
     private readonly ticketsRepository: TicketsRepository,
@@ -75,7 +73,7 @@ export class HandoffsService {
     let createdHandoffId = '';
     let ticketEventId = '';
     let occurredAt = '';
-    await this.prisma.$transaction(async (tx) => {
+    await this.handoffsRepository.transaction(async (tx) => {
       const ticket = await this.handoffsRepository.lockTicket(ticketId, tx);
       if (!ticket) throw new NotFoundException('Ticket was not found');
 
@@ -212,15 +210,11 @@ export class HandoffsService {
     const ticket = await this.ticketsRepository.findById(ticketId);
     if (!ticket || !ticket.active)
       throw new NotFoundException('Ticket was not found');
-    const requester = await this.handoffsRepository.findUser(
-      actor.userId,
-      this.prisma,
-    );
+    const requester = await this.handoffsRepository.findUser(actor.userId);
     if (!requester) throw new NotFoundException('Requester was not found');
     const requesterInDepartment = await this.handoffsRepository.isActiveMember(
       actor.userId,
       ticket.departmentId,
-      this.prisma,
     );
     this.handoffPolicy.assertRequester(
       ticket,
@@ -243,7 +237,7 @@ export class HandoffsService {
 
     let ticketEventId = '';
     let occurredAt = '';
-    await this.prisma.$transaction(async (tx) => {
+    await this.handoffsRepository.transaction(async (tx) => {
       const ticket = await this.handoffsRepository.lockTicket(
         existing.ticketId,
         tx,
@@ -255,11 +249,14 @@ export class HandoffsService {
       );
       if (!handoff)
         throw new NotFoundException('Handoff request was not found');
-      const [requester, requestedAgent] = await Promise.all([
-        this.handoffsRepository.findUser(handoff.requesterId, tx),
-        this.handoffsRepository.findUser(handoff.requestedAgentId, tx),
-      ]);
-      if (!requester || !requestedAgent) {
+      const [requester, requestedAgent, authenticatedActor] = await Promise.all(
+        [
+          this.handoffsRepository.findUser(handoff.requesterId, tx),
+          this.handoffsRepository.findUser(handoff.requestedAgentId, tx),
+          this.handoffsRepository.findUser(actor.userId, tx),
+        ],
+      );
+      if (!requester || !requestedAgent || !authenticatedActor) {
         throw new ConflictException(
           'Handoff participants are no longer available',
         );
@@ -285,20 +282,18 @@ export class HandoffsService {
       this.handoffPolicy.assertAccept(
         handoffWithUsers,
         ticket,
-        requestedAgent,
+        authenticatedActor,
         requesterInDepartment,
         requestedAgentInDepartment,
       );
 
       const now = new Date();
-      await tx.ticket.update({
-        where: { ticketId: ticket.ticketId },
-        data: {
-          agentId: requestedAgent.userId,
-          status: TicketStatus.CLAIMED,
-          updatedAt: now,
-        },
-      });
+      await this.ticketsRepository.transferClaimed(
+        ticket.ticketId,
+        requestedAgent.userId,
+        now,
+        tx,
+      );
       await this.handoffsRepository.updateStatus(
         handoffId,
         HandoffStatus.ACCEPTED,
@@ -331,13 +326,25 @@ export class HandoffsService {
       );
     });
 
-    this.ticketRealtimePublisher.publishTicketEvent(
+    const transferredTicket = await this.ticketsRepository.findById(
       existing.ticketId,
-      ticketEventId,
-      actor.userId,
-      TicketEventAction.HANDOFF,
-      occurredAt,
     );
+    if (transferredTicket) {
+      this.ticketRealtimePublisher.publishMutation(
+        transferredTicket,
+        ticketEventId,
+        actor.userId,
+        TicketEventAction.HANDOFF,
+      );
+    } else {
+      this.ticketRealtimePublisher.publishTicketEvent(
+        existing.ticketId,
+        ticketEventId,
+        actor.userId,
+        TicketEventAction.HANDOFF,
+        occurredAt,
+      );
+    }
 
     const accepted = await this.handoffsRepository.findById(handoffId);
     if (!accepted) throw new NotFoundException('Handoff request was not found');
@@ -373,36 +380,12 @@ export class HandoffsService {
     client: Prisma.TransactionClient,
   ): Promise<void> {
     await this.handoffsRepository.lockTicket(ticketId, client);
-    const pending = await this.handoffsRepository.findPendingByTicketId(
+    await this.handoffsRepository.cancelPendingForTicket(
       ticketId,
+      actorId,
+      reason,
       client,
     );
-    for (const handoff of pending) {
-      const now = new Date();
-      await this.handoffsRepository.updateStatus(
-        handoff.handoffId,
-        HandoffStatus.CANCELLED,
-        now,
-        client,
-      );
-      await this.ticketEventsRepository.append(
-        {
-          ticketId,
-          userId: actorId,
-          action: TicketEventAction.HANDOFF,
-          details: {
-            handoffId: handoff.handoffId,
-            requesterId: handoff.requesterId,
-            requestedAgentId: handoff.requestedAgentId,
-            action: 'CANCELLED',
-            reason,
-            timestamp: now.toISOString(),
-          },
-          createdAt: now,
-        },
-        client,
-      );
-    }
   }
 
   async cancelPendingForUserInDepartment(
@@ -462,7 +445,7 @@ export class HandoffsService {
 
     let ticketEventId = '';
     let occurredAt = '';
-    await this.prisma.$transaction(async (tx) => {
+    await this.handoffsRepository.transaction(async (tx) => {
       const ticket = await this.handoffsRepository.lockTicket(
         existing.ticketId,
         tx,

@@ -1,18 +1,14 @@
 import { randomUUID } from 'crypto';
-import { Injectable } from '@nestjs/common';
-import { Prisma, TicketEventAction } from '@prisma/client';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Prisma, TicketEventAction, TicketPriority } from '@prisma/client';
 import { mapPrismaError } from '../../database/prisma-error';
 import { PrismaService } from '../../database/prisma.service';
 import type { TicketPersistenceClient } from '../repositories/tickets.repository';
 import type { TicketEventAttachment } from '../../files/file-attachments.repository';
 import {
-  ClaimEventDetails,
-  CloseEventDetails,
-  DeleteEventDetails,
   HandoffEventDetails,
+  ModificationEventDetails,
   NewTicketEvent,
-  ReopenEventDetails,
-  SubmissionEventDetails,
   TicketEventRecord,
   TicketEventUser,
 } from './ticket-event.types';
@@ -63,7 +59,7 @@ export class TicketEventsRepository {
           ticketId: event.ticketId,
           userId: event.userId,
           action: event.action,
-          details: event.details as unknown as Prisma.InputJsonValue,
+          details: this.toInputJson(event.details),
           createdAt: event.createdAt,
           updatedAt: event.createdAt,
         },
@@ -141,7 +137,7 @@ export class TicketEventsRepository {
 
     return events.map((event) => {
       const user = event.user;
-      const details = event.details as Record<string, unknown>;
+      const details = this.readDetails(event.details);
       const resolveUser = (userId: string): TicketEventUser => {
         const referencedUser = usersById.get(userId);
         if (!referencedUser) {
@@ -150,66 +146,9 @@ export class TicketEventsRepository {
         return referencedUser;
       };
 
-      const responseDetails = (() => {
-        switch (event.action) {
-          case 'SUBMISSION': {
-            const typed = details as unknown as SubmissionEventDetails;
-            return {
-              title: typed.title,
-              departmentId: typed.departmentId,
-              priority: typed.priority,
-              description: typed.description,
-              submitter: resolveUser(typed.submitterId),
-            };
-          }
-          case 'CLAIM': {
-            const typed = details as unknown as ClaimEventDetails;
-            return {
-              agent: resolveUser(typed.agentId),
-              timestamp: typed.timestamp,
-            };
-          }
-          case 'CLOSE': {
-            const typed = details as unknown as CloseEventDetails;
-            return {
-              agent: resolveUser(typed.agentId),
-              completionNotes: typed.completionNotes,
-            };
-          }
-          case 'REOPEN': {
-            const typed = details as unknown as ReopenEventDetails;
-            return {
-              priority: typed.priority,
-              description: typed.description,
-              submitter: resolveUser(typed.submitterId),
-            };
-          }
-          case 'DELETE': {
-            const typed = details as unknown as DeleteEventDetails;
-            return { deletedBy: resolveUser(typed.deletedById) };
-          }
-          case 'HANDOFF': {
-            const typed = details as unknown as HandoffEventDetails;
-            return {
-              ...(typed.handoffId ? { handoffId: typed.handoffId } : {}),
-              requester: resolveUser(typed.requesterId),
-              requestedAgent: resolveUser(typed.requestedAgentId),
-              action: typed.action,
-              ...(typed.message ? { message: typed.message } : {}),
-              ...(typed.reason ? { reason: typed.reason } : {}),
-              timestamp: typed.timestamp,
-            };
-          }
-          case 'MODIFICATION':
-            return details;
-        }
-      })();
-
-      return {
+      const base = {
         ticketEventId: event.ticketEventId,
         ticketId: event.ticketId,
-        action: event.action,
-        details: responseDetails,
         createdAt: event.createdAt,
         updatedAt: event.updatedAt,
         user,
@@ -224,26 +163,197 @@ export class TicketEventsRepository {
             updatedAt: attachment.file.updatedAt,
           }),
         ),
-      } as unknown as TicketEventRecord;
+      };
+
+      switch (event.action) {
+        case 'SUBMISSION':
+          return {
+            ...base,
+            action: event.action,
+            details: {
+              title: this.stringDetail(details, 'title'),
+              departmentId: this.stringDetail(details, 'departmentId'),
+              priority: this.ticketPriorityDetail(details, 'priority'),
+              description: this.stringDetail(details, 'description'),
+              submitter: resolveUser(this.stringDetail(details, 'submitterId')),
+            },
+          };
+        case 'CLAIM':
+          return {
+            ...base,
+            action: event.action,
+            details: {
+              agent: resolveUser(this.stringDetail(details, 'agentId')),
+              timestamp: this.stringDetail(details, 'timestamp'),
+            },
+          };
+        case 'CLOSE':
+          return {
+            ...base,
+            action: event.action,
+            details: {
+              agent: resolveUser(this.stringDetail(details, 'agentId')),
+              completionNotes: this.nullableStringDetail(details, 'completionNotes'),
+            },
+          };
+        case 'REOPEN':
+          return {
+            ...base,
+            action: event.action,
+            details: {
+              priority: this.ticketPriorityDetail(details, 'priority'),
+              description: this.stringDetail(details, 'description'),
+              submitter: resolveUser(this.stringDetail(details, 'submitterId')),
+            },
+          };
+        case 'DELETE':
+          return {
+            ...base,
+            action: event.action,
+            details: {
+              deletedBy: resolveUser(this.stringDetail(details, 'deletedById')),
+            },
+          };
+        case 'HANDOFF': {
+          const handoffId = this.optionalStringDetail(details, 'handoffId');
+          const message = this.optionalStringDetail(details, 'message');
+          const reason = this.optionalStringDetail(details, 'reason');
+          return {
+            ...base,
+            action: event.action,
+            details: {
+              ...(handoffId ? { handoffId } : {}),
+              requester: resolveUser(this.stringDetail(details, 'requesterId')),
+              requestedAgent: resolveUser(
+                this.stringDetail(details, 'requestedAgentId'),
+              ),
+              action: this.handoffActionDetail(details),
+              ...(message ? { message } : {}),
+              ...(reason ? { reason } : {}),
+              timestamp: this.stringDetail(details, 'timestamp'),
+            },
+          };
+        }
+        case 'MODIFICATION':
+          return {
+            ...base,
+            action: event.action,
+            details: this.modificationDetails(details),
+          };
+      }
     });
   }
 
   private getDetailUserIds(event: TicketEventWithUser): string[] {
-    const details = event.details as Record<string, unknown>;
+    const details = this.readDetails(event.details);
     switch (event.action) {
       case 'SUBMISSION':
-        return [details.submitterId as string];
+        return [this.stringDetail(details, 'submitterId')];
       case 'CLAIM':
       case 'CLOSE':
-        return [details.agentId as string];
+        return [this.stringDetail(details, 'agentId')];
       case 'REOPEN':
-        return [details.submitterId as string];
+        return [this.stringDetail(details, 'submitterId')];
       case 'DELETE':
-        return [details.deletedById as string];
+        return [this.stringDetail(details, 'deletedById')];
       case 'HANDOFF':
-        return [details.requesterId as string, details.requestedAgentId as string];
+        return [
+          this.stringDetail(details, 'requesterId'),
+          this.stringDetail(details, 'requestedAgentId'),
+        ];
       case 'MODIFICATION':
         return [];
     }
+  }
+
+  private toInputJson(details: NewTicketEvent['details']): Prisma.InputJsonValue {
+    const json: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(details)) {
+      if (value === null) {
+        json[key] = null;
+      } else if (
+        typeof value === 'string' ||
+        typeof value === 'number' ||
+        typeof value === 'boolean'
+      ) {
+        json[key] = value;
+      } else {
+        throw new InternalServerErrorException(
+          'Ticket event details are invalid',
+        );
+      }
+    }
+    // Prisma's nested JSON input type omits JavaScript null even though the
+    // database accepts it; all values were narrowed above before this boundary.
+    return json as Prisma.InputJsonValue;
+  }
+
+  private modificationDetails(
+    details: Record<string, unknown>,
+  ): ModificationEventDetails {
+    return {
+      oldTitle: this.stringDetail(details, 'oldTitle'),
+      newTitle: this.stringDetail(details, 'newTitle'),
+      oldDepartmentId: this.stringDetail(details, 'oldDepartmentId'),
+      newDepartmentId: this.stringDetail(details, 'newDepartmentId'),
+      oldPriority: this.ticketPriorityDetail(details, 'oldPriority'),
+      newPriority: this.ticketPriorityDetail(details, 'newPriority'),
+      oldDescription: this.stringDetail(details, 'oldDescription'),
+      newDescription: this.stringDetail(details, 'newDescription'),
+    };
+  }
+
+  private readDetails(value: unknown): Record<string, unknown> {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw new InternalServerErrorException('Ticket event details are invalid');
+    }
+    return value as Record<string, unknown>;
+  }
+
+  private stringDetail(details: Record<string, unknown>, key: string): string {
+    const value = details[key];
+    if (typeof value !== 'string' || !value) {
+      throw new InternalServerErrorException('Ticket event details are invalid');
+    }
+    return value;
+  }
+
+  private optionalStringDetail(
+    details: Record<string, unknown>,
+    key: string,
+  ): string | undefined {
+    const value = details[key];
+    if (value === undefined) return undefined;
+    return this.stringDetail(details, key);
+  }
+
+  private nullableStringDetail(
+    details: Record<string, unknown>,
+    key: string,
+  ): string | null {
+    const value = details[key];
+    if (value === null) return null;
+    return this.stringDetail(details, key);
+  }
+
+  private ticketPriorityDetail(
+    details: Record<string, unknown>,
+    key: string,
+  ): TicketPriority {
+    const value = this.stringDetail(details, key);
+    if (!['LOW', 'MODERATE', 'HIGH'].includes(value)) {
+      throw new InternalServerErrorException('Ticket event details are invalid');
+    }
+    return value as TicketPriority;
+  }
+
+  private handoffActionDetail(
+    details: Record<string, unknown>,
+  ): HandoffEventDetails['action'] {
+    const value = this.stringDetail(details, 'action');
+    if (!['REQUESTED', 'ACCEPTED', 'REJECTED', 'DENIED', 'CANCELLED'].includes(value)) {
+      throw new InternalServerErrorException('Ticket event details are invalid');
+    }
+    return value as HandoffEventDetails['action'];
   }
 }

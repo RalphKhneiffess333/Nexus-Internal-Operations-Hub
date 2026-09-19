@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../database/prisma.service';
 import {
   FILE_STORAGE,
@@ -12,10 +13,11 @@ export class OrphanedFilesWorker {
 
   constructor(
     private readonly prisma: PrismaService,
+    config: ConfigService,
     @Inject(FILE_STORAGE) private readonly storage: FileStorage,
   ) {
     this.gracePeriodMs = this.readPositiveInteger(
-      process.env.FILE_ORPHAN_GRACE_PERIOD_MS,
+      config.get<string>('FILE_ORPHAN_GRACE_PERIOD_MS'),
       60 * 60 * 1000,
     );
   }

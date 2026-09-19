@@ -88,6 +88,25 @@ describe('TicketsService integration', () => {
     ).rejects.toThrow(NotFoundException);
   });
 
+  it('lets administrators inspect inactive ticket history without exposing it to other users', async () => {
+    const created = await submitOpenTicket(service);
+    await service.cancel(created.ticketId, requestUser());
+
+    await expect(service.findOne(created.ticketId, adminUser())).resolves.toMatchObject({
+      ticketId: created.ticketId,
+      active: false,
+    });
+    await expect(service.findEvents(created.ticketId, adminUser())).resolves.toHaveLength(
+      2,
+    );
+    await expect(service.findOne(created.ticketId, requestUser())).rejects.toThrow(
+      NotFoundException,
+    );
+    await expect(
+      service.findAll(adminUser(), { includeInactive: true }),
+    ).resolves.toHaveLength(1);
+  });
+
   it('uses the authenticated user as the submitter', async () => {
     const ticket = await service.submit(submitDto(), requestUser());
 

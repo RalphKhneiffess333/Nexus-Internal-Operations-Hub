@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { HttpException, Injectable } from '@nestjs/common';
 import { Prisma, User } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
@@ -17,6 +17,17 @@ export type AdminUserRecord = Prisma.UserGetPayload<{
 @Injectable()
 export class UsersRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  async transaction<T>(
+    operation: (client: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await this.prisma.$transaction(operation);
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      mapPrismaError(error);
+    }
+  }
 
   async findById(userId: string): Promise<User | null> {
     try {
@@ -176,6 +187,39 @@ export class UsersRepository {
       return await client.departmentMember.findUnique({
         where: { userId_departmentId: { userId, departmentId } },
       });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }
+
+  async findDepartment(
+    departmentId: string,
+    client: UserPersistenceClient,
+  ) {
+    try {
+      return await client.department.findUnique({ where: { departmentId } });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }
+
+  async findMemberships(
+    userId: string,
+    client: UserPersistenceClient,
+  ) {
+    try {
+      return await client.departmentMember.findMany({ where: { userId } });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }
+
+  async deleteMemberships(
+    userId: string,
+    client: UserPersistenceClient,
+  ): Promise<void> {
+    try {
+      await client.departmentMember.deleteMany({ where: { userId } });
     } catch (error) {
       mapPrismaError(error);
     }
