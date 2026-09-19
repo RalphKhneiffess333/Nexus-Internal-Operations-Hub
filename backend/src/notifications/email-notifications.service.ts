@@ -13,6 +13,7 @@ import {
   handoffRequestedTemplate,
   ticketClaimedTemplate,
   ticketClosedTemplate,
+  ticketReminderTemplate,
   ticketReopenedTemplate,
   ticketSubmittedTemplate,
   type HandoffEmailContext,
@@ -121,6 +122,17 @@ export class EmailNotificationsService {
       await this.dispatch(
         recipients,
         ticketReopenedTemplate(this.ticketContext(ticket)),
+      );
+    });
+  }
+
+  async notifyTicketReminder(ticketId: string): Promise<void> {
+    await this.runSafely('unclaimed ticket reminder', async () => {
+      const ticket = await this.findTicket(ticketId);
+      if (!ticket) return;
+      await this.dispatch(
+        this.departmentRecipients(ticket),
+        ticketReminderTemplate(this.ticketContext(ticket)),
       );
     });
   }

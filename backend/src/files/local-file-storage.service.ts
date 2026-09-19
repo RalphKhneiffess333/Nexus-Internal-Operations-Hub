@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { Injectable } from '@nestjs/common';
-import type { FileStorage } from './file-storage.interface';
+import type { FileStorage, FileStorageEntry } from './file-storage.interface';
 
 @Injectable()
 export class LocalFileStorageService implements FileStorage {
@@ -27,6 +27,56 @@ export class LocalFileStorageService implements FileStorage {
         throw error;
       }
     }
+  }
+
+  async exists(storageKey: string): Promise<boolean> {
+    try {
+      await fs.access(this.resolveStoragePath(storageKey));
+      return true;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+      throw error;
+    }
+  }
+
+  async list(): Promise<FileStorageEntry[]> {
+    if (!(await this.existsDirectory())) return [];
+    return this.listDirectory(this.rootDirectory);
+  }
+
+  private async existsDirectory(): Promise<boolean> {
+    try {
+      const stats = await fs.stat(this.rootDirectory);
+      return stats.isDirectory();
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+      throw error;
+    }
+  }
+
+  private async listDirectory(directory: string): Promise<FileStorageEntry[]> {
+    const entries = await fs.readdir(directory, { withFileTypes: true });
+    const files: FileStorageEntry[] = [];
+
+    for (const entry of entries) {
+      const absolutePath = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        files.push(...(await this.listDirectory(absolutePath)));
+        continue;
+      }
+      if (!entry.isFile()) continue;
+
+      const stats = await fs.stat(absolutePath);
+      files.push({
+        storageKey: relative(this.rootDirectory, absolutePath).replaceAll(
+          '\\',
+          '/',
+        ),
+        modifiedAt: stats.mtime,
+      });
+    }
+
+    return files;
   }
 
   private resolveStoragePath(storageKey: string): string {

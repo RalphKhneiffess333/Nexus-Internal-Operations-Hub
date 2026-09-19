@@ -228,6 +228,8 @@ export class TicketsService {
             createdAt: now,
             updatedAt: now,
             closedAt: null,
+            unclaimedSince: now,
+            lastReminderAt: null,
           },
           {
             userId: actor.userId,
@@ -330,6 +332,8 @@ export class TicketsService {
         const now = new Date();
         ticket.status = TicketStatus.CLOSED;
         ticket.agentId = null;
+        ticket.unclaimedSince = null;
+        ticket.lastReminderAt = null;
         ticket.completionNotes = adminCloseOverride
           ? [
               `This ticket was closed by administrator ${actor.fullName}.`,
@@ -393,13 +397,15 @@ export class TicketsService {
       files,
       actor.userId,
       async (storedFiles) => {
+        const now = new Date();
         ticket.status = TicketStatus.REOPENED;
         ticket.agentId = null;
+        ticket.unclaimedSince = now;
+        ticket.lastReminderAt = null;
         ticket.closedAt = null;
         if (dto.description) {
           ticket.description = dto.description;
         }
-        const now = new Date();
         ticket.updatedAt = now;
         return this.ticketLifecycleRepository.saveWithEvent(
           ticket,
@@ -546,6 +552,8 @@ export class TicketsService {
     this.cancelTicketPolicy.assert(ticket, actor);
 
     ticket.active = false;
+    ticket.unclaimedSince = null;
+    ticket.lastReminderAt = null;
     const now = new Date();
     ticket.updatedAt = now;
     const mutation = await this.ticketLifecycleRepository.saveWithEvent(

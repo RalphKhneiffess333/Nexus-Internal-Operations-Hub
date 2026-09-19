@@ -72,6 +72,16 @@ export function ticketReopenedTemplate(
   );
 }
 
+export function ticketReminderTemplate(
+  context: TicketEmailContext,
+): EmailTemplate {
+  return ticketTemplate(
+    context,
+    'Unclaimed ticket reminder',
+    `Ticket ${context.ticketCode} has remained unclaimed beyond its configured reminder interval.`,
+  );
+}
+
 export function handoffRequestedTemplate(
   context: HandoffEmailContext,
 ): EmailTemplate {

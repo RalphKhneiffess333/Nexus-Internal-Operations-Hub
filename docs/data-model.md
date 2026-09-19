@@ -53,6 +53,8 @@ This table represents the current state of tickets, every ticket has:
 - The employee who submitted it
 - The agent who claimed it (If an agent claimed it)
 - A signal to indicate if the ticket has been deleted or not 
+- The timestamp when the ticket entered its current unclaimed lifecycle, if it is open or reopened without an agent
+- The timestamp of the last unclaimed reminder sent for that lifecycle
 
 NOTE: For integrity reasons, ticket records should not be deleted from the database, instead, soft deletion is performed by changing the active attribute of the specific ticket
 
@@ -104,6 +106,8 @@ every log has:
 - The action
 - The user who perfomed the action (Empty if it is a system action)
 - Log details (Structure specific to the action)
+
+The audit retention worker is the only supported deletion path. Database enforcement rejects updates and rejects deletes unless the record is older than two years and the controlled cleanup transaction has enabled the retention-cleanup database setting.
 
 #### System Configurations
 Stores key-value pairs of values the system uses in its operations (like priority values reminder intervals), every pair has:
@@ -255,6 +259,8 @@ The following are system and user log types stored in the "actions" attribute of
 - Audit logs must remain available for two years
 - System variables cannot have two duplicate keys
 - For reminder notification intervals, it must not be negative
+- A ticket in OPEN or REOPENED status without an agent has an `unclaimed_since` timestamp. It has no unclaimed timestamp while CLAIMED, CLOSED, or inactive.
+- `last_reminder_at` is reset when a ticket is submitted or reopened and is set when the reminder for that unclaimed lifecycle is claimed for delivery.
 
 ## Relational vs Document Database
 In our database, multiple properties can be observed from everything listed so far:
