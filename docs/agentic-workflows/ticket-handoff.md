@@ -1,3 +1,7 @@
+---
+title: "Ticket Handoff - Nexus"
+author: "Ralph Khneiffess"
+---
 # Task: Implement Complete Ticket Handoff Functionality in Nexus
 
 You are working in the existing **Nexus** codebase, a NestJS/Prisma/PostgreSQL backend with a React frontend.

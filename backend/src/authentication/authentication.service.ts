@@ -2,6 +2,10 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { User } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { AUTH_STATE_LIFETIME_MS } from './authentication.constants';
+import {
+  AuthenticatedRequestUser,
+  toAuthenticatedRequestUser,
+} from './request-user';
 import { AuthenticatedIdentity } from './strategies/authenticated-identity';
 import { MicrosoftAuthStrategy } from './strategies/microsoft-auth.strategy';
 import { Session, SessionDevice } from './sessions/session.entity';
@@ -68,6 +72,33 @@ export class AuthenticationService {
 
   logoutAllDevices(userId: string): void {
     this.sessionService.deleteSessionsForUser(userId);
+  }
+
+  /**
+   * Resolves the opaque session used by both HTTP guards and Socket.IO
+   * handshakes. Keeping this here prevents a second authentication flow from
+   * drifting away from the browser-session contract.
+   */
+  async authenticateSession(
+    sessionId: string | null | undefined,
+  ): Promise<AuthenticatedRequestUser | null> {
+    if (!sessionId) {
+      return null;
+    }
+
+    const session = this.sessionService.findById(sessionId);
+    if (!session) {
+      return null;
+    }
+
+    const user = await this.usersService.findById(session.userId);
+    if (!user || !user.isActive) {
+      this.sessionService.deleteSession(sessionId);
+      return null;
+    }
+
+    this.sessionService.refreshSession(sessionId);
+    return toAuthenticatedRequestUser(user);
   }
 
   private async resolveUser(identity: AuthenticatedIdentity): Promise<User> {

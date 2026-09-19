@@ -37,6 +37,6 @@ import { HandoffsService } from './handoffs/handoffs.service';
     HandoffsRepository,
     HandoffsService,
   ],
-  exports: [TicketEventsRepository, HandoffsService],
+  exports: [TicketEventsRepository, HandoffsService, TicketsService],
 })
 export class TicketsModule {}
