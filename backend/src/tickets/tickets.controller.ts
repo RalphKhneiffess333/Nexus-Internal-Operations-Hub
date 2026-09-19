@@ -15,6 +15,7 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import { UserRole } from '@prisma/client';
 import { Roles } from '../authorization/decorators/roles.decorator';
 import type { AuthenticatedRequest } from '../authentication/request-user';
+import { IdentifierValidationPipe } from '../common/pipes/identifier-validation.pipe';
 import { CloseTicketDto } from './dto/close-ticket.dto';
 import { ModifyTicketDto } from './dto/modify-ticket.dto';
 import { ReopenTicketDto } from './dto/reopen-ticket.dto';
@@ -104,15 +105,18 @@ export class TicketsController {
 
   @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
   @Get(':id/events')
-  findEvents(@Param('id') id: string, @Req() request: AuthenticatedRequest) {
+  findEvents(
+    @Param('id', IdentifierValidationPipe) id: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
     return this.ticketsService.findEvents(id, request.user!);
   }
 
   @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
   @Get(':id/events/:eventId')
   findEvent(
-    @Param('id') id: string,
-    @Param('eventId') eventId: string,
+    @Param('id', IdentifierValidationPipe) id: string,
+    @Param('eventId', IdentifierValidationPipe) eventId: string,
     @Req() request: AuthenticatedRequest,
   ) {
     return this.ticketsService.findEvent(id, eventId, request.user!);
@@ -121,9 +125,9 @@ export class TicketsController {
   @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
   @Get(':id/events/:eventId/attachments/:attachmentId')
   downloadAttachment(
-    @Param('id') id: string,
-    @Param('eventId') eventId: string,
-    @Param('attachmentId') attachmentId: string,
+    @Param('id', IdentifierValidationPipe) id: string,
+    @Param('eventId', IdentifierValidationPipe) eventId: string,
+    @Param('attachmentId', IdentifierValidationPipe) attachmentId: string,
     @Req() request: AuthenticatedRequest,
   ): Promise<StreamableFile> {
     return this.ticketsService.downloadAttachment(
@@ -136,7 +140,10 @@ export class TicketsController {
 
   @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
   @Get(':id')
-  findOne(@Param('id') id: string, @Req() request: AuthenticatedRequest) {
+  findOne(
+    @Param('id', IdentifierValidationPipe) id: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
     return this.ticketsService.findOne(id, request.user!);
   }
 
@@ -148,7 +155,7 @@ export class TicketsController {
     }),
   )
   modify(
-    @Param('id') id: string,
+    @Param('id', IdentifierValidationPipe) id: string,
     @Body() dto: ModifyTicketDto,
     @UploadedFiles() files: UploadedFileInput[] | undefined,
     @Req() request: AuthenticatedRequest,
@@ -158,7 +165,10 @@ export class TicketsController {
 
   @Roles(UserRole.Agent, UserRole.Admin)
   @Post(':id/claim')
-  claim(@Param('id') id: string, @Req() request: AuthenticatedRequest) {
+  claim(
+    @Param('id', IdentifierValidationPipe) id: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
     return this.ticketsService.claim(id, request.user!);
   }
 
@@ -170,7 +180,7 @@ export class TicketsController {
     }),
   )
   close(
-    @Param('id') id: string,
+    @Param('id', IdentifierValidationPipe) id: string,
     @Body() dto: CloseTicketDto,
     @UploadedFiles() files: UploadedFileInput[] | undefined,
     @Req() request: AuthenticatedRequest,
@@ -186,7 +196,7 @@ export class TicketsController {
     }),
   )
   reopen(
-    @Param('id') id: string,
+    @Param('id', IdentifierValidationPipe) id: string,
     @Body() dto: ReopenTicketDto,
     @UploadedFiles() files: UploadedFileInput[] | undefined,
     @Req() request: AuthenticatedRequest,
@@ -196,14 +206,17 @@ export class TicketsController {
 
   @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
   @Post(':id/cancel')
-  cancel(@Param('id') id: string, @Req() request: AuthenticatedRequest) {
+  cancel(
+    @Param('id', IdentifierValidationPipe) id: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
     return this.ticketsService.cancel(id, request.user!);
   }
 
   @Roles(UserRole.Agent, UserRole.Admin)
   @Get(':id/handoffs/eligible-agents')
   listEligibleHandoffAgents(
-    @Param('id') id: string,
+    @Param('id', IdentifierValidationPipe) id: string,
     @Req() request: AuthenticatedRequest,
   ) {
     return this.handoffsService.listEligibleAgents(id, request.user!);
@@ -212,7 +225,7 @@ export class TicketsController {
   @Roles(UserRole.Agent, UserRole.Admin)
   @Get(':id/handoffs')
   listHandoffs(
-    @Param('id') id: string,
+    @Param('id', IdentifierValidationPipe) id: string,
     @Query() query: HandoffQueryDto,
     @Req() request: AuthenticatedRequest,
   ) {
@@ -222,7 +235,7 @@ export class TicketsController {
   @Roles(UserRole.Agent, UserRole.Admin)
   @Post(':id/handoffs')
   createHandoff(
-    @Param('id') id: string,
+    @Param('id', IdentifierValidationPipe) id: string,
     @Body() dto: CreateHandoffDto,
     @Req() request: AuthenticatedRequest,
   ) {

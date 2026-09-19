@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class ReopenTicketDto {
   @IsOptional()
@@ -7,6 +7,7 @@ export class ReopenTicketDto {
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim() : value,
   )
+  @IsNotEmpty()
   @MaxLength(10000)
   description?: string;
 }

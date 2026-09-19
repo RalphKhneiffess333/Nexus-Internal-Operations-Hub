@@ -1,12 +1,10 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { Roles } from '../authorization/decorators/roles.decorator';
-import {
-  AuditQueryDto,
-  TicketEventsQueryDto,
-} from './dto/audit-query.dto';
+import { AuditQueryDto, TicketEventsQueryDto } from './dto/audit-query.dto';
 import { AuditService } from './audit.service';
 import { TicketEventsRepository } from '../tickets/events/ticket-events.repository';
+import { IdentifierValidationPipe } from '../common/pipes/identifier-validation.pipe';
 
 @Controller('admin/audit-logs')
 @Roles(UserRole.Admin)
@@ -31,7 +29,7 @@ export class AuditController {
   }
 
   @Get(':auditLogId')
-  findOne(@Param('auditLogId') auditLogId: string) {
+  findOne(@Param('auditLogId', IdentifierValidationPipe) auditLogId: string) {
     return this.auditService.findById(auditLogId);
   }
 }

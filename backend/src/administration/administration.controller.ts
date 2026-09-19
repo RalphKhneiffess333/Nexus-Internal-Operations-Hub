@@ -12,6 +12,7 @@ import {
 import { UserRole } from '@prisma/client';
 import { Roles } from '../authorization/decorators/roles.decorator';
 import type { AuthenticatedRequest } from '../authentication/request-user';
+import { IdentifierValidationPipe } from '../common/pipes/identifier-validation.pipe';
 import { AdministrationService } from './administration.service';
 import {
   CreateDepartmentDto,
@@ -35,26 +36,26 @@ export class AdministrationController {
     return this.administrationService.createDepartment(dto, req.user!);
   }
   @Patch('departments/:departmentId') updateDepartment(
-    @Param('departmentId') id: string,
+    @Param('departmentId', IdentifierValidationPipe) id: string,
     @Body() dto: UpdateDepartmentDto,
     @Req() req: AuthenticatedRequest,
   ) {
     return this.administrationService.updateDepartment(id, dto, req.user!);
   }
   @Delete('departments/:departmentId') deactivateDepartment(
-    @Param('departmentId') id: string,
+    @Param('departmentId', IdentifierValidationPipe) id: string,
     @Req() req: AuthenticatedRequest,
   ) {
     return this.administrationService.setDepartmentActive(id, false, req.user!);
   }
   @Post('departments/:departmentId/reactivate') reactivateDepartment(
-    @Param('departmentId') id: string,
+    @Param('departmentId', IdentifierValidationPipe) id: string,
     @Req() req: AuthenticatedRequest,
   ) {
     return this.administrationService.setDepartmentActive(id, true, req.user!);
   }
   @Get('departments/:departmentId/members') listMembers(
-    @Param('departmentId') id: string,
+    @Param('departmentId', IdentifierValidationPipe) id: string,
   ) {
     return this.administrationService.listMembers(id);
   }
@@ -63,7 +64,7 @@ export class AdministrationController {
     return this.administrationService.listConfigurations();
   }
   @Patch('configurations/:key') updateConfiguration(
-    @Param('key') key: string,
+    @Param('key', IdentifierValidationPipe) key: string,
     @Body() dto: UpdateConfigurationDto,
     @Req() req: AuthenticatedRequest,
   ) {

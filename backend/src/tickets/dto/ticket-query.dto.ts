@@ -11,6 +11,9 @@ import {
 export class TicketQueryDto {
   @IsOptional()
   @IsString()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @Length(1, 100)
   search?: string;
 
@@ -20,6 +23,9 @@ export class TicketQueryDto {
 
   @IsOptional()
   @IsString()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @Length(1, 100)
   departmentId?: string;
 
@@ -28,9 +34,11 @@ export class TicketQueryDto {
   priority?: TicketPriority;
 
   @IsOptional()
-  @Transform(
-    ({ value }: { value: unknown }) => value === true || value === 'true',
-  )
+  @Transform(({ value }: { value: unknown }) => {
+    if (value === true || value === 'true') return true;
+    if (value === false || value === 'false') return false;
+    return value;
+  })
   @IsBoolean()
   includeInactive?: boolean;
 }

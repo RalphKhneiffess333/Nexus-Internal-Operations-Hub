@@ -1,6 +1,15 @@
 import { TicketEventAction } from '@prisma/client';
-import { IsEnum, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
-import { Type } from 'class-transformer';
+import {
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Length,
+  Max,
+  Min,
+} from 'class-validator';
+import { Transform, Type } from 'class-transformer';
 
 export const auditActions = [
   'USER_PREPROVISIONING',
@@ -34,7 +43,12 @@ export class AuditQueryDto {
   action?: (typeof auditActions)[number];
 
   @IsOptional()
-  @IsUUID()
+  @IsString()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsNotEmpty()
+  @Length(1, 100)
   actorId?: string;
 }
 

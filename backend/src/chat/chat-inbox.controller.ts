@@ -1,6 +1,7 @@
 import { Controller, Get, Param, Post, Req } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import type { AuthenticatedRequest } from '../authentication/request-user';
+import { IdentifierValidationPipe } from '../common/pipes/identifier-validation.pipe';
 import { Roles } from '../authorization/decorators/roles.decorator';
 import { ChatService } from './chat.service';
 
@@ -17,7 +18,7 @@ export class ChatInboxController {
   @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
   @Post(':ticketId/read')
   markRead(
-    @Param('ticketId') ticketId: string,
+    @Param('ticketId', IdentifierValidationPipe) ticketId: string,
     @Req() request: AuthenticatedRequest,
   ) {
     return this.chatService.markConversationRead(ticketId, request.user!);
