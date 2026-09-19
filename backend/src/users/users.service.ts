@@ -22,6 +22,7 @@ import { SessionService } from '../authentication/sessions/session.service';
 import type { AuthenticatedRequestUser } from '../authentication/request-user';
 import { PrismaService } from '../database/prisma.service';
 import { HandoffsService } from '../tickets/handoffs/handoffs.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import {
   AdminUserQueryDto,
   CreateAdminUserDto,
@@ -52,6 +53,7 @@ export class UsersService {
     @Inject(forwardRef(() => HandoffsService))
     private readonly handoffsService: HandoffsService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly notifications: NotificationsService,
   ) {}
 
   findById(userId: string): Promise<User | null> {
@@ -243,10 +245,7 @@ export class UsersService {
       return this.toSafeResponse(updated);
     });
     if (roleChanged) {
-      this.eventEmitter.emit(RealtimeInternalEvent.SessionInvalidated, {
-        userId,
-        reason: 'ROLE_CHANGED',
-      });
+      this.notifyAccountChanged(userId);
     }
     return response;
   }
@@ -293,6 +292,7 @@ export class UsersService {
         reason: 'DEACTIVATED',
       });
     }
+    this.notifyAccountChanged(userId);
     return this.findForAdministration(result.userId);
   }
 
@@ -330,6 +330,7 @@ export class UsersService {
         },
       );
     });
+    this.notifyAccountChanged(userId);
     return this.findForAdministration(userId);
   }
 
@@ -370,6 +371,7 @@ export class UsersService {
         },
       );
     });
+    this.notifyAccountChanged(userId);
     return this.findForAdministration(userId);
   }
 
@@ -489,6 +491,16 @@ export class UsersService {
       updatedAt: user.updatedAt,
       departments: departmentMembers.map((membership) => membership.department),
     };
+  }
+
+  private notifyAccountChanged(userId: string): void {
+    this.notifications.notify({
+      type: 'ACCOUNT_UPDATED',
+      message:
+        'Your account configuration or role/department has been updated by an administrator. You must refresh the page to continue.',
+      recipientUserIds: [userId],
+      blocking: true,
+    });
   }
 
   private mapConflict(error: unknown): never {

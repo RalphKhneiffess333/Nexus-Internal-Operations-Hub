@@ -31,6 +31,7 @@ import { ViewTicketPolicy } from './policies/view-ticket.policy';
 import { TicketsRepository } from './repositories/tickets.repository';
 import { TicketLifecycleRepository } from './repositories/ticket-lifecycle.repository';
 import { TicketRealtimePublisher } from './realtime/ticket-realtime.publisher';
+import { NotificationsService } from '../notifications/notifications.service';
 import { TicketsService } from './tickets.service';
 
 describe('TicketsService invalid transitions', () => {
@@ -70,6 +71,7 @@ describe('TicketsService invalid transitions', () => {
       TicketRealtimePublisher['publishMutation']
     >;
   };
+  let notifications: { notify: jest.MockedFunction<NotificationsService['notify']>; notifyDepartmentAgents: jest.MockedFunction<NotificationsService['notifyDepartmentAgents']> };
 
   beforeEach(() => {
     ticketsRepository = {
@@ -99,6 +101,10 @@ describe('TicketsService invalid transitions', () => {
     ticketRealtimePublisher = {
       publishMutation: jest.fn<TicketRealtimePublisher['publishMutation']>(),
     };
+    notifications = {
+      notify: jest.fn<NotificationsService['notify']>(),
+      notifyDepartmentAgents: jest.fn<NotificationsService['notifyDepartmentAgents']>().mockResolvedValue(undefined),
+    };
 
     service = new TicketsService(
       ticketsRepository as unknown as TicketsRepository,
@@ -115,6 +121,7 @@ describe('TicketsService invalid transitions', () => {
       new CancelTicketPolicy(),
       new ViewTicketPolicy(),
       ticketRealtimePublisher as unknown as TicketRealtimePublisher,
+      notifications as unknown as NotificationsService,
     );
   });
 

@@ -15,6 +15,7 @@ import {
   getTicketPool,
 } from '../../features/tickets/ticket-api'
 import { canWorkTickets } from '../../features/tickets/ticket-types'
+import { useNotifications } from '../../features/notifications/use-notifications'
 
 const TICKET_VIEWS = {
   admin: {
@@ -89,6 +90,7 @@ const POOL_VIEWS = {
 export function TicketsPage({ view = 'submitted' }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const { user } = useAuthentication()
+  const { unclaimedTickets, setUnclaimedTickets } = useNotifications()
   const requestedPoolMode = searchParams.get('view')
   const searchFilter = searchParams.get('search') ?? ''
   const statusFilter = searchParams.get('status') ?? ''
@@ -189,6 +191,7 @@ export function TicketsPage({ view = 'submitted' }) {
         priority: priorityFilter,
       })
       setTickets(Array.isArray(result) ? result : [])
+      if (isUnclaimedPool) setUnclaimedTickets(Array.isArray(result) ? result.length : 0)
     } catch (loadError) {
       setError(loadError.message || config.error)
       setTickets([])
@@ -196,7 +199,7 @@ export function TicketsPage({ view = 'submitted' }) {
       setLoadedRequestKey(loadKey)
       setLoading(false)
     }
-  }, [config, loadKey, searchFilter, appliedStatusFilter, departmentFilter, priorityFilter])
+  }, [config, loadKey, searchFilter, appliedStatusFilter, departmentFilter, isUnclaimedPool, priorityFilter, setUnclaimedTickets])
 
   useEffect(() => {
     let active = true
@@ -212,6 +215,9 @@ export function TicketsPage({ view = 'submitted' }) {
         if (active) {
           setError('')
           setTickets(Array.isArray(result) ? result : [])
+          if (isUnclaimedPool) {
+            setUnclaimedTickets(Array.isArray(result) ? result.length : 0)
+          }
         }
       } catch (loadError) {
         if (active) {
@@ -234,7 +240,7 @@ export function TicketsPage({ view = 'submitted' }) {
     return () => {
       active = false
     }
-  }, [config, loadKey, searchFilter, appliedStatusFilter, departmentFilter, priorityFilter])
+  }, [config, loadKey, searchFilter, appliedStatusFilter, departmentFilter, isUnclaimedPool, priorityFilter, setUnclaimedTickets])
 
   return (
     <section className="page">
@@ -258,7 +264,7 @@ export function TicketsPage({ view = 'submitted' }) {
             className={poolMode === 'unclaimed' ? 'is-active' : ''}
             onClick={() => updateView('', { clearStatus: true })}
           >
-            Unclaimed tickets
+            Unclaimed tickets {unclaimedTickets > 0 ? <span className="section-notification-badge">{unclaimedTickets}</span> : null}
           </button>
           <button
             type="button"

@@ -30,6 +30,7 @@ export function OperationsSocketProvider({ children }) {
   const socketRef = useRef(null)
   const subscriptionsRef = useRef(new Map())
   const chatSubscriptionsRef = useRef(new Map())
+  const notificationSubscriptionsRef = useRef(new Set())
   const seenEventIdsRef = useRef(new Set())
   const hasConnectedRef = useRef(false)
   const [connectionState, setConnectionState] = useState('disconnected')
@@ -115,6 +116,12 @@ export function OperationsSocketProvider({ children }) {
     [joinChatRoom],
   )
 
+  const subscribeToNotifications = useCallback((listener) => {
+    if (typeof listener !== 'function') return () => {}
+    notificationSubscriptionsRef.current.add(listener)
+    return () => notificationSubscriptionsRef.current.delete(listener)
+  }, [])
+
   useEffect(() => {
     if (!user?.userId) {
       socketRef.current?.disconnect()
@@ -178,6 +185,16 @@ export function OperationsSocketProvider({ children }) {
         listener(event)
       })
     })
+    socket.on('app.notification', (event) => {
+      if (!event?.eventId || !event?.payload?.message) return
+      const seenEventIds = seenEventIdsRef.current
+      if (seenEventIds.has(event.eventId)) return
+      seenEventIds.add(event.eventId)
+      if (seenEventIds.size > MAX_SEEN_EVENT_IDS) {
+        seenEventIds.delete(seenEventIds.values().next().value)
+      }
+      notificationSubscriptionsRef.current.forEach((listener) => listener(event))
+    })
     socket.connect()
 
     return () => {
@@ -193,8 +210,9 @@ export function OperationsSocketProvider({ children }) {
       connectionState,
       subscribeToTicket,
       subscribeToChat,
+      subscribeToNotifications,
     }),
-    [connectionState, subscribeToChat, subscribeToTicket],
+    [connectionState, subscribeToChat, subscribeToNotifications, subscribeToTicket],
   )
 
   return (

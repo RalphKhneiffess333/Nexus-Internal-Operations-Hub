@@ -4,11 +4,13 @@ import { TicketChatPanel } from '../../components/tickets/TicketChatPanel'
 import { TicketStatusBadge } from '../../components/tickets/TicketStatusBadge'
 import { LoadingState } from '../../components/ui/LoadingState'
 import { useAuthentication } from '../../features/authentication/use-authentication'
+import { useNotifications } from '../../features/notifications/use-notifications'
 import { getTicket, markChatConversationRead } from '../../features/tickets/ticket-api'
 
 export function TicketChatPage() {
   const { ticketId } = useParams()
   const { user } = useAuthentication()
+  const { markChatRead } = useNotifications()
   const [ticket, setTicket] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -33,6 +35,11 @@ export function TicketChatPage() {
       // A failed read receipt must never block access to the conversation.
     }
   }, [ticketId])
+
+  useEffect(() => {
+    // Opening a specific conversation removes that ticket from the sidebar's unopened count.
+    markChatRead(ticketId)
+  }, [markChatRead, ticketId])
 
   useEffect(() => {
     // The selected ticket is synchronized from the server when this route is mounted.

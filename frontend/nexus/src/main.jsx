@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import App from './App.jsx'
 import { AuthenticationProvider } from './features/authentication/AuthenticationProvider.jsx'
 import { OperationsSocketProvider } from './features/realtime/OperationsSocketProvider.jsx'
+import { NotificationProvider } from './features/notifications/NotificationProvider.jsx'
 import './index.css'
 
 createRoot(document.getElementById('root')).render(
@@ -11,7 +12,9 @@ createRoot(document.getElementById('root')).render(
     <BrowserRouter>
       <AuthenticationProvider>
         <OperationsSocketProvider>
-          <App />
+          <NotificationProvider>
+            <App />
+          </NotificationProvider>
         </OperationsSocketProvider>
       </AuthenticationProvider>
     </BrowserRouter>

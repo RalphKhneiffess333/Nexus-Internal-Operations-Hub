@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { LoadingState } from '../../components/ui/LoadingState'
 import { TicketStatusBadge } from '../../components/tickets/TicketStatusBadge'
+import { useNotifications } from '../../features/notifications/use-notifications'
 import { getChatConversations } from '../../features/tickets/ticket-api'
 import { formatDateTime } from '../../features/tickets/ticket-types'
 
@@ -13,11 +14,13 @@ function messagePreview(conversation) {
 }
 
 export function ChatsPage() {
+  const { markAllChatsRead } = useNotifications()
   const [conversations, setConversations] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   const loadConversations = useCallback(async ({ silent = false } = {}) => {
+    markAllChatsRead()
     if (!silent) {
       setLoading(true)
       setError('')
@@ -32,7 +35,7 @@ export function ChatsPage() {
     } finally {
       if (!silent) setLoading(false)
     }
-  }, [])
+  }, [markAllChatsRead])
 
   useEffect(() => {
     // The inbox is synchronized from the server when this route is mounted.

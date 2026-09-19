@@ -514,6 +514,15 @@ export class HandoffsService {
 
     const resolved = await this.handoffsRepository.findById(handoffId);
     if (!resolved) throw new NotFoundException('Handoff request was not found');
+    if (status === HandoffStatus.REJECTED) {
+      this.notifications.notify({
+        type: 'HANDOFF_RESOLVED',
+        message: `Your handoff request for ticket ${resolved.ticket.ticketCode} was denied.`,
+        recipientUserIds: [resolved.requester.userId],
+        ticketId: resolved.ticket.ticketId,
+        link: '/tickets/handoffs',
+      });
+    }
     return this.toResponse(resolved);
   }
 
