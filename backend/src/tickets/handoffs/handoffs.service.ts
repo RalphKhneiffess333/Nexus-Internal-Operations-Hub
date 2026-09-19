@@ -21,6 +21,7 @@ import { TicketRealtimePublisher } from '../realtime/ticket-realtime.publisher';
 import { CreateHandoffDto, HandoffQueryDto } from './handoff.dto';
 import { HandoffPolicy } from './handoff.policy';
 import { HandoffRecord, HandoffsRepository } from './handoffs.repository';
+import { EmailNotificationsService } from '../../notifications/email-notifications.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 
 export interface HandoffUserSummary {
@@ -63,6 +64,7 @@ export class HandoffsService {
     private readonly viewTicketPolicy: ViewTicketPolicy,
     private readonly ticketRealtimePublisher: TicketRealtimePublisher,
     private readonly notifications: NotificationsService,
+    private readonly emailNotifications: EmailNotificationsService,
   ) {}
 
   async create(
@@ -171,6 +173,7 @@ export class HandoffsService {
       ticketId: created.ticket.ticketId,
       link: '/tickets/handoffs',
     });
+    void this.emailNotifications.notifyHandoffRequested(created.handoffId);
     return this.toResponse(created);
   }
 
@@ -345,6 +348,7 @@ export class HandoffsService {
       ticketId: accepted.ticket.ticketId,
       link: '/tickets/handoffs',
     });
+    void this.emailNotifications.notifyHandoffAccepted(accepted.handoffId);
     return this.toResponse(accepted);
   }
 
@@ -522,6 +526,7 @@ export class HandoffsService {
         ticketId: resolved.ticket.ticketId,
         link: '/tickets/handoffs',
       });
+      void this.emailNotifications.notifyHandoffRejected(resolved.handoffId);
     }
     return this.toResponse(resolved);
   }

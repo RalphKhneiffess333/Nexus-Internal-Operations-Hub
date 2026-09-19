@@ -38,6 +38,7 @@ import {
 } from './repositories/tickets.repository';
 import { TicketLifecycleRepository } from './repositories/ticket-lifecycle.repository';
 import { TicketRealtimePublisher } from './realtime/ticket-realtime.publisher';
+import { EmailNotificationsService } from '../notifications/email-notifications.service';
 import { NotificationsService } from '../notifications/notifications.service';
 
 export interface TicketActionPermissions {
@@ -82,6 +83,7 @@ export class TicketsService {
     private readonly viewTicketPolicy: ViewTicketPolicy,
     private readonly ticketRealtimePublisher: TicketRealtimePublisher,
     private readonly notifications: NotificationsService,
+    private readonly emailNotifications?: EmailNotificationsService,
   ) {}
 
   async findAll(
@@ -254,6 +256,10 @@ export class TicketsService {
       TicketEventAction.SUBMISSION,
       actor.userId,
     );
+    void this.emailNotifications?.notifyTicketSubmitted(
+      mutation.ticket.ticketId,
+      actor.userId,
+    );
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
     return this.withPermission(mutation.ticket, actor, actorDepartmentIds);
   }
@@ -298,6 +304,10 @@ export class TicketsService {
       actor.userId,
       'TICKET_CLAIMED',
       `Your ticket ${claimed.ticket.ticketCode} has been claimed.`,
+    );
+    void this.emailNotifications?.notifyTicketClaimed(
+      claimed.ticket.ticketId,
+      actor.userId,
     );
     return this.withPermission(claimed.ticket, actor, actorDepartmentIds);
   }
@@ -348,6 +358,10 @@ export class TicketsService {
       actor.userId,
       'TICKET_CLOSED',
       `Your ticket ${mutation.ticket.ticketCode} has been closed.`,
+    );
+    void this.emailNotifications?.notifyTicketClosed(
+      mutation.ticket.ticketId,
+      actor.userId,
     );
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
     return this.withPermission(mutation.ticket, actor, actorDepartmentIds);
@@ -400,6 +414,10 @@ export class TicketsService {
     await this.notifyTicketLifecycle(
       mutation.ticket,
       TicketEventAction.REOPEN,
+      actor.userId,
+    );
+    void this.emailNotifications?.notifyTicketReopened(
+      mutation.ticket.ticketId,
       actor.userId,
     );
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);

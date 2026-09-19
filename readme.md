@@ -101,7 +101,30 @@ The seeded identity-provider record uses the code `MICROSOFT_ENTRA_ID`. Users ar
 In the organization-locked setup, users are checked through the configured Microsoft tenant to ensure only internal accounts can use the app. 
 For current testing, the backend uses Microsoft's `common` login endpoint so any Microsoft work, school, or personal account can be used.
 
-## 8. Frontend Optional Configuration
+## 8. Optional Email Notifications
+
+Nexus can send asynchronous transactional emails through Nodemailer over SMTP after successful ticket and handoff operations. Email delivery is isolated from the request path: missing configuration, provider failures, and exhausted retries are logged and dropped without failing the ticket operation.
+
+Add these values to `backend/.env` when email delivery is needed:
+
+```env
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your_smtp_username
+SMTP_PASSWORD=your_smtp_password
+SMTP_FROM_EMAIL=noreply@example.com
+SMTP_FROM_NAME=Nexus
+SMTP_ENABLED=true
+SMTP_TIMEOUT_MS=10000
+EMAIL_MAX_ATTEMPTS=3
+EMAIL_RETRY_DELAY_MS=250
+APP_BASE_URL=http://localhost:5173
+```
+
+The system emails ticket submission, claim, close, reopen, and handoff request/accept/reject events. It intentionally does not email ticket cancellation or automatic handoff-cancellation events. Email delivery has no database outbox or idempotency records; each successful domain operation schedules one best-effort notification with bounded retries.
+
+## 9. Frontend Optional Configuration
 For the frontend, copy `frontend/nexus/.env.example` if you need to override the API origin:
 
 ```bash
@@ -124,7 +147,7 @@ VITE_API_URL=
 
 Do not commit `.env`. `.env.example` is the template without real credentials.
 
-## 9. Initializing Database
+## 10. Initializing Database
 From the repository root, apply migrations and load sample departments in one go:
 
 ```bash
@@ -144,7 +167,7 @@ npm run prisma:seed
 - `prisma:migrate` creates the schema. A fresh database reaches the required tables by running this once.
 - `prisma:seed` upserts the identity provider, IT/HR departments, and sample users. The API does **not** seed on startup. Re-running seed is safe; it will not wipe tickets.
 
-## 10. Managing users and roles
+## 11. Managing users and roles
 
 When someone signs in with Microsoft Entra ID and no matching Nexus user exists yet, Nexus automatically creates a local user record with the `Employee` role.
 
@@ -163,7 +186,7 @@ The CLI uses `backend/.env`, connects to the configured `DATABASE_URL`, and can:
 
 This is especially useful for manual testing because ticket pool and department views depend on the signed-in user's role and department memberships.
 
-## 11. Testing with commands
+## 12. Testing with commands
 
 To run all unit, integration, API E2E, and browser E2E tests, from the root, run:
 
@@ -190,7 +213,7 @@ All require `backend/.env.integration` pointing at a separate PostgreSQL databas
 - `npm run test:browser:e2e` runs Playwright browser E2E tests against the backend and frontend.
 - `npm run test:e2e` runs both API E2E and browser E2E tests.
 
-## 12. How to run the app
+## 13. How to run the app
 
 From the repository root:
 
@@ -271,7 +294,7 @@ The printed sessions are stored in memory. Restarting the backend invalidates
 them and prints new values. Restarting test mode does not clear existing test
 tickets from the integration database.
 
-## 13. What URLs does the app open on
+## 14. What URLs does the app open on
 
 The API listens on [http://localhost:3000](http://localhost:3000)
 
@@ -279,7 +302,7 @@ The frontend listens on [http://localhost:5173](http://localhost:5173)
 
 If `PORT` is set in the backend environment, that value is used instead of `3000`.
 
-## 14. Which folders to look at first
+## 15. Which folders to look at first
 
 
 | Path                                                | Why                                                               |
@@ -296,7 +319,7 @@ If `PORT` is set in the backend environment, that value is used instead of `3000
 
 Start with `backend/src/tickets/tickets.controller.ts` to see the routes, then `tickets.service.ts` and `tickets/policies/`.
 
-## 15. Manual production browser testing flow
+## 16. Manual production browser testing flow
 
 For a simple end-to-end manual test covering microsoft authentication, start with two Microsoft accounts:
 
@@ -317,7 +340,7 @@ For a simple end-to-end manual test covering microsoft authentication, start wit
 
 This flow verifies Microsoft login, local user resolution, role-based navigation, department-based ticket visibility, ticket submission, claiming, and closing.
 
-## 16. Manually testing the backend API (URLs, payloads, data to use)
+## 17. Manually testing the backend API (URLs, payloads, data to use)
 
 Base URL: `http://localhost:3000`
 
