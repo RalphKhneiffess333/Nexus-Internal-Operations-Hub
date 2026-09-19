@@ -155,7 +155,7 @@ export class TicketsService {
   ): Promise<TicketWithPermissions[]> {
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
     const tickets = await this.ticketsRepository.findTicketPool(
-      actor.role === UserRole.Admin ? undefined : actorDepartmentIds,
+      actorDepartmentIds,
       filters,
     );
     return this.withPermissions(tickets, actor, actorDepartmentIds);
@@ -205,7 +205,7 @@ export class TicketsService {
     const department = await this.departmentsRepository.findById(
       dto.departmentId,
     );
-    this.submitTicketPolicy.assert(department);
+    this.submitTicketPolicy.assert(department, actor.role);
 
     const mutation = await this.withStoredFiles(
       files,
@@ -249,7 +249,11 @@ export class TicketsService {
       actor.userId,
       TicketEventAction.SUBMISSION,
     );
-    await this.notifyTicketLifecycle(mutation.ticket, TicketEventAction.SUBMISSION, actor.userId);
+    await this.notifyTicketLifecycle(
+      mutation.ticket,
+      TicketEventAction.SUBMISSION,
+      actor.userId,
+    );
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
     return this.withPermission(mutation.ticket, actor, actorDepartmentIds);
   }
@@ -289,7 +293,12 @@ export class TicketsService {
       actor.userId,
       TicketEventAction.CLAIM,
     );
-    this.notifySubmitter(claimed.ticket, actor.userId, 'TICKET_CLAIMED', `Your ticket ${claimed.ticket.ticketCode} has been claimed.`);
+    this.notifySubmitter(
+      claimed.ticket,
+      actor.userId,
+      'TICKET_CLAIMED',
+      `Your ticket ${claimed.ticket.ticketCode} has been claimed.`,
+    );
     return this.withPermission(claimed.ticket, actor, actorDepartmentIds);
   }
 
@@ -334,7 +343,12 @@ export class TicketsService {
       actor.userId,
       TicketEventAction.CLOSE,
     );
-    this.notifySubmitter(mutation.ticket, actor.userId, 'TICKET_CLOSED', `Your ticket ${mutation.ticket.ticketCode} has been closed.`);
+    this.notifySubmitter(
+      mutation.ticket,
+      actor.userId,
+      'TICKET_CLOSED',
+      `Your ticket ${mutation.ticket.ticketCode} has been closed.`,
+    );
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
     return this.withPermission(mutation.ticket, actor, actorDepartmentIds);
   }
@@ -383,7 +397,11 @@ export class TicketsService {
       actor.userId,
       TicketEventAction.REOPEN,
     );
-    await this.notifyTicketLifecycle(mutation.ticket, TicketEventAction.REOPEN, actor.userId);
+    await this.notifyTicketLifecycle(
+      mutation.ticket,
+      TicketEventAction.REOPEN,
+      actor.userId,
+    );
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
     return this.withPermission(mutation.ticket, actor, actorDepartmentIds);
   }
@@ -479,7 +497,12 @@ export class TicketsService {
       TicketEventAction.MODIFICATION,
     );
     if (oldPriority !== mutation.ticket.priority) {
-      this.notifySubmitter(mutation.ticket, actor.userId, 'TICKET_UPDATED', `The priority of ticket ${mutation.ticket.ticketCode} was updated.`);
+      this.notifySubmitter(
+        mutation.ticket,
+        actor.userId,
+        'TICKET_UPDATED',
+        `The priority of ticket ${mutation.ticket.ticketCode} was updated.`,
+      );
     }
     return this.withPermission(mutation.ticket, actor, actorDepartmentIds);
   }
@@ -529,7 +552,9 @@ export class TicketsService {
     action: 'SUBMISSION' | 'REOPEN',
     actorId: string,
   ): Promise<void> {
-    const department = await this.departmentsRepository.findById(ticket.departmentId);
+    const department = await this.departmentsRepository.findById(
+      ticket.departmentId,
+    );
     const reopened = action === TicketEventAction.REOPEN;
     await this.notifications.notifyDepartmentAgents(
       ticket.departmentId,

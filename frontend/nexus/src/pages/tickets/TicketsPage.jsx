@@ -106,7 +106,7 @@ export function TicketsPage({ view = 'submitted' }) {
   const isAgentDepartmentView =
     view === 'pool' &&
     (poolMode === 'all' || poolMode === 'unclaimed') &&
-    user?.role === 'Agent'
+    (user?.role === 'Agent' || user?.role === 'Admin')
   const requestedMyTicketMode = searchParams.get('view')
   const myTicketMode =
     canWorkTickets(user) &&

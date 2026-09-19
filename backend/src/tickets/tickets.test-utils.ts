@@ -13,6 +13,7 @@ import {
   EMPLOYEE_ID,
   HR_DEPARTMENT_ID,
   IT_DEPARTMENT_ID,
+  ADMINISTRATION_DEPARTMENT_ID,
   resetTicketData,
   seedTestDatabase,
 } from '../database/seed';
@@ -30,6 +31,7 @@ export {
   EMPLOYEE_2_ID,
   HR_DEPARTMENT_ID,
   IT_DEPARTMENT_ID,
+  ADMINISTRATION_DEPARTMENT_ID,
 };
 
 export async function createTicketsTestingModule(): Promise<TestingModule> {

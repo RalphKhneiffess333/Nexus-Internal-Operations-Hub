@@ -17,6 +17,7 @@ import { PrismaService } from '../database/prisma.service';
 import { SessionService } from '../authentication/sessions/session.service';
 import type { AuthenticatedRequestUser } from '../authentication/request-user';
 import { AuditService } from '../audit/audit.service';
+import { ADMINISTRATION_DEPARTMENT_CODE } from '../departments/department.constants';
 import {
   CreateDepartmentDto,
   PageQueryDto,
@@ -48,14 +49,17 @@ export class AdministrationService {
   ) {}
 
   async listDepartments(query: PageQueryDto) {
-    const where: Prisma.DepartmentWhereInput = query.search
-      ? {
-          OR: [
-            { code: { contains: query.search, mode: 'insensitive' } },
-            { name: { contains: query.search, mode: 'insensitive' } },
-          ],
-        }
-      : {};
+    const where: Prisma.DepartmentWhereInput = {
+      code: { not: ADMINISTRATION_DEPARTMENT_CODE },
+      ...(query.search
+        ? {
+            OR: [
+              { code: { contains: query.search, mode: 'insensitive' } },
+              { name: { contains: query.search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    };
     const [items, total] = await this.prisma.$transaction([
       this.prisma.department.findMany({
         where,
@@ -75,10 +79,15 @@ export class AdministrationService {
   ) {
     return this.prisma
       .$transaction(async (tx) => {
+        const code = dto.code.trim().toUpperCase();
+        if (code === ADMINISTRATION_DEPARTMENT_CODE)
+          throw new BadRequestException(
+            'The Administration department is reserved by the system',
+          );
         const department = await tx.department.create({
           data: {
             departmentId: randomUUID(),
-            code: dto.code.trim().toUpperCase(),
+            code,
             name: dto.name.trim(),
             desc: dto.description.trim(),
             active: true,
@@ -110,6 +119,10 @@ export class AdministrationService {
           where: { departmentId },
         });
         if (!before) throw new NotFoundException('Department was not found');
+        if (before.code === ADMINISTRATION_DEPARTMENT_CODE)
+          throw new BadRequestException(
+            'The Administration department is reserved by the system',
+          );
         const after = await tx.department.update({
           where: { departmentId },
           data: {
@@ -162,6 +175,10 @@ export class AdministrationService {
         },
       });
       if (!department) throw new NotFoundException('Department was not found');
+      if (department.code === ADMINISTRATION_DEPARTMENT_CODE)
+        throw new BadRequestException(
+          'The Administration department cannot be deactivated',
+        );
       if (department.active === active) return department;
       if (!active && department.tickets.length > 0)
         throw new ConflictException(
@@ -208,6 +225,13 @@ export class AdministrationService {
       ]);
       if (!user) throw new NotFoundException('User was not found');
       if (!department) throw new NotFoundException('Department was not found');
+      if (
+        department.code === ADMINISTRATION_DEPARTMENT_CODE &&
+        user.role !== UserRole.Admin
+      )
+        throw new BadRequestException(
+          'Only administrators can belong to the Administration department',
+        );
       if (user.role === UserRole.Employee)
         throw new BadRequestException(
           'Only agents and administrators can belong to departments',
@@ -239,9 +263,17 @@ export class AdministrationService {
     return this.prisma.$transaction(async (tx) => {
       const membership = await tx.departmentMember.findUnique({
         where: { userId_departmentId: { userId, departmentId } },
+        include: { user: true, department: true },
       });
       if (!membership)
         throw new NotFoundException('Department membership was not found');
+      if (
+        membership.department.code === ADMINISTRATION_DEPARTMENT_CODE &&
+        membership.user.role === UserRole.Admin
+      )
+        throw new BadRequestException(
+          'Administrators must remain members of the Administration department',
+        );
       await this.reconcileMembership(tx, userId, departmentId, actor.userId);
       await tx.departmentMember.delete({
         where: { userId_departmentId: { userId, departmentId } },

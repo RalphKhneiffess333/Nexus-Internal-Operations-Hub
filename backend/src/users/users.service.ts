@@ -24,6 +24,10 @@ import { PrismaService } from '../database/prisma.service';
 import { HandoffsService } from '../tickets/handoffs/handoffs.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
+  ADMINISTRATION_DEPARTMENT_CODE,
+  ADMINISTRATION_DEPARTMENT_ID,
+} from '../departments/department.constants';
+import {
   AdminUserQueryDto,
   CreateAdminUserDto,
   UpdateRoleDto,
@@ -204,10 +208,17 @@ export class UsersService {
           AuditAction.USER_PREPROVISIONING,
           { userId: created.userId, email: created.email, role: created.role },
         );
+        if (created.role === UserRole.Admin) {
+          await this.ensureAdministrationMembership(
+            created.userId,
+            actor.userId,
+            tx,
+          );
+        }
         return created;
       })
       .catch((error) => this.mapConflict(error));
-    return this.toSafeResponse(user);
+    return this.findForAdministration(user.userId);
   }
 
   async mapRole(
@@ -228,6 +239,9 @@ export class UsersService {
         tx,
       );
       roleChanged = true;
+      if (user.role === UserRole.Admin && dto.role !== UserRole.Admin) {
+        await this.removeAdministrationMembership(userId, actor.userId, tx);
+      }
       if (dto.role === UserRole.Employee)
         await this.handoffsService.cancelPendingForUser(
           userId,
@@ -236,6 +250,9 @@ export class UsersService {
         );
       if (dto.role === UserRole.Employee)
         await this.reconcileMemberships(userId, actor.userId, tx);
+      if (dto.role === UserRole.Admin && user.role !== UserRole.Admin) {
+        await this.ensureAdministrationMembership(userId, actor.userId, tx);
+      }
       await this.auditService.append(
         tx,
         actor.userId,
@@ -246,6 +263,7 @@ export class UsersService {
     });
     if (roleChanged) {
       this.notifyAccountChanged(userId);
+      return this.findForAdministration(userId);
     }
     return response;
   }
@@ -258,7 +276,11 @@ export class UsersService {
     const result = await this.prisma.$transaction(async (tx) => {
       const user = await this.usersRepository.findByIdForUpdate(userId, tx);
       if (!user) throw new NotFoundException('User was not found');
-      if (user.isActive === dto.active) return user;
+      if (user.isActive === dto.active) {
+        if (user.role === UserRole.Admin)
+          await this.ensureAdministrationMembership(userId, actor.userId, tx);
+        return user;
+      }
       if (user.role === UserRole.Admin && !dto.active)
         await this.assertNotLastAdmin(userId, tx);
       const updated = await this.usersRepository.updateWithClient(
@@ -273,6 +295,9 @@ export class UsersService {
           tx,
         );
         await this.reconcileMemberships(userId, actor.userId, tx);
+      }
+      if (user.role === UserRole.Admin) {
+        await this.ensureAdministrationMembership(userId, actor.userId, tx);
       }
       await this.auditService.append(
         tx,
@@ -308,6 +333,14 @@ export class UsersService {
       });
       if (!user) throw new NotFoundException('User was not found');
       if (!department) throw new NotFoundException('Department was not found');
+      if (
+        department.code === ADMINISTRATION_DEPARTMENT_CODE &&
+        user.role !== UserRole.Admin
+      ) {
+        throw new BadRequestException(
+          'Only administrators can belong to the Administration department',
+        );
+      }
       if (user.role === UserRole.Employee) {
         throw new BadRequestException(
           'Only agents and administrators can belong to departments',
@@ -340,6 +373,20 @@ export class UsersService {
     actor: AuthenticatedRequestUser,
   ) {
     await this.prisma.$transaction(async (tx) => {
+      const [user, department] = await Promise.all([
+        this.usersRepository.findByIdForUpdate(userId, tx),
+        tx.department.findUnique({ where: { departmentId } }),
+      ]);
+      if (!user) throw new NotFoundException('User was not found');
+      if (!department) throw new NotFoundException('Department was not found');
+      if (
+        department.code === ADMINISTRATION_DEPARTMENT_CODE &&
+        user.role === UserRole.Admin
+      ) {
+        throw new BadRequestException(
+          'Administrators must remain members of the Administration department',
+        );
+      }
       const membership = await this.usersRepository.findMembership(
         userId,
         departmentId,
@@ -373,6 +420,89 @@ export class UsersService {
     });
     this.notifyAccountChanged(userId);
     return this.findForAdministration(userId);
+  }
+
+  private async ensureAdministrationMembership(
+    userId: string,
+    actorId: string,
+    tx: Prisma.TransactionClient,
+  ) {
+    const department = await tx.department.findUnique({
+      where: { departmentId: ADMINISTRATION_DEPARTMENT_ID },
+    });
+    if (
+      !department ||
+      department.code !== ADMINISTRATION_DEPARTMENT_CODE ||
+      !department.active
+    ) {
+      throw new BadRequestException(
+        'The Administration department is not configured or active',
+      );
+    }
+    const existing = await this.usersRepository.findMembership(
+      userId,
+      ADMINISTRATION_DEPARTMENT_ID,
+      tx,
+    );
+    if (existing) return existing;
+    const membership = await this.usersRepository.upsertMembership(
+      userId,
+      ADMINISTRATION_DEPARTMENT_ID,
+      tx,
+    );
+    await this.auditService.append(
+      tx,
+      actorId,
+      AuditAction.DEPARTMENT_MAPPING,
+      {
+        userId,
+        departmentId: ADMINISTRATION_DEPARTMENT_ID,
+        mapping: 'ADDED',
+        reason: 'ADMIN_ROLE',
+      },
+    );
+    return membership;
+  }
+
+  private async removeAdministrationMembership(
+    userId: string,
+    actorId: string,
+    tx: Prisma.TransactionClient,
+  ) {
+    const membership = await this.usersRepository.findMembership(
+      userId,
+      ADMINISTRATION_DEPARTMENT_ID,
+      tx,
+    );
+    if (!membership) return;
+    await this.handoffsService.cancelPendingForUserInDepartment(
+      userId,
+      ADMINISTRATION_DEPARTMENT_ID,
+      actorId,
+      tx,
+    );
+    await this.reconcileDepartmentTickets(
+      userId,
+      ADMINISTRATION_DEPARTMENT_ID,
+      actorId,
+      tx,
+    );
+    await this.usersRepository.deleteMembership(
+      userId,
+      ADMINISTRATION_DEPARTMENT_ID,
+      tx,
+    );
+    await this.auditService.append(
+      tx,
+      actorId,
+      AuditAction.DEPARTMENT_MAPPING,
+      {
+        userId,
+        departmentId: ADMINISTRATION_DEPARTMENT_ID,
+        mapping: 'REMOVED',
+        reason: 'ADMIN_ROLE',
+      },
+    );
   }
 
   private async reconcileMemberships(
