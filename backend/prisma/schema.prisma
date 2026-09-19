@@ -36,6 +36,19 @@ enum TicketEventAction {
   HANDOFF
 }
 
+enum AuditAction {
+  USER_PREPROVISIONING
+  ROLE_MAPPING
+  USER_ACTIVATION
+  USER_DEACTIVATION
+  DEPARTMENT_ADDITION
+  DEPARTMENT_MODIFICATION
+  DEPARTMENT_DELETION
+  DEPARTMENT_REACTIVATION
+  DEPARTMENT_MAPPING
+  SYSTEM_VARIABLE_MODIFICATION
+}
+
 model IdentityProvider {
   identityProviderId String   @id @map("identity_provider_id")
   code               String
@@ -63,8 +76,9 @@ model User {
   submittedTickets       Ticket[]           @relation("TicketSubmitter")
   assignedTickets        Ticket[]           @relation("TicketAgent")
   ticketEvents           TicketEvent[]
-  uploadedFiles           File[]
+  uploadedFiles          File[]
   departmentMembers      DepartmentMember[]
+  auditLogs              AuditLog[]
 
   @@unique([identityProviderId, identityProviderUserId])
   @@map("users")
@@ -143,15 +157,15 @@ model TicketEvent {
 }
 
 model File {
-  fileId       String       @id @map("file_id")
-  uploadedBy   String       @map("uploaded_by")
-  originalName String       @map("original_name")
-  storageKey   String       @unique @map("storage_key")
-  fileSize     Int          @map("file_size")
-  mimeType     String       @map("mime_type")
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
-  uploader     User         @relation(fields: [uploadedBy], references: [userId])
+  fileId       String      @id @map("file_id")
+  uploadedBy   String      @map("uploaded_by")
+  originalName String      @map("original_name")
+  storageKey   String      @unique @map("storage_key")
+  fileSize     Int         @map("file_size")
+  mimeType     String      @map("mime_type")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+  uploader     User        @relation(fields: [uploadedBy], references: [userId])
   attachment   Attachment?
 
   @@index([uploadedBy])
@@ -171,4 +185,29 @@ model Attachment {
   @@index([eventId])
   @@index([messageId])
   @@map("attachments")
+}
+
+model SystemConfiguration {
+  configurationId String   @id @map("configuration_id")
+  key             String   @unique
+  value           String
+  description     String
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("system_configurations")
+}
+
+model AuditLog {
+  auditLogId String      @id @map("audit_log_id")
+  action     AuditAction
+  actorId    String?     @map("actor_id")
+  details    Json
+  createdAt  DateTime    @default(now()) @map("created_at")
+  actor      User?       @relation(fields: [actorId], references: [userId], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([action, createdAt])
+  @@index([actorId, createdAt])
+  @@map("audit_logs")
 }

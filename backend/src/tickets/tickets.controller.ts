@@ -9,6 +9,7 @@ import {
   StreamableFile,
   UploadedFiles,
   UseInterceptors,
+  Query,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { UserRole } from '@prisma/client';
@@ -18,6 +19,7 @@ import { CloseTicketDto } from './dto/close-ticket.dto';
 import { ModifyTicketDto } from './dto/modify-ticket.dto';
 import { ReopenTicketDto } from './dto/reopen-ticket.dto';
 import { SubmitTicketDto } from './dto/submit-ticket.dto';
+import { TicketQueryDto } from './dto/ticket-query.dto';
 import { TicketsService } from './tickets.service';
 import { MAX_FILE_SIZE, MAX_FILES_PER_EVENT } from '../files/file-validation';
 import type { UploadedFileInput } from '../files/file-validation';
@@ -43,38 +45,56 @@ export class TicketsController {
 
   @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
   @Get()
-  findAll(@Req() request: AuthenticatedRequest) {
-    return this.ticketsService.findAll(request.user!);
+  findAll(
+    @Query() query: TicketQueryDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.ticketsService.findAll(request.user!, query);
   }
 
   @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
   @Get('submitted')
-  findSubmitted(@Req() request: AuthenticatedRequest) {
-    return this.ticketsService.findSubmitted(request.user!);
+  findSubmitted(
+    @Query() query: TicketQueryDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.ticketsService.findSubmitted(request.user!, query);
   }
 
   @Roles(UserRole.Agent, UserRole.Admin)
   @Get('claimed')
-  findClaimed(@Req() request: AuthenticatedRequest) {
-    return this.ticketsService.findClaimed(request.user!);
+  findClaimed(
+    @Query() query: TicketQueryDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.ticketsService.findClaimed(request.user!, query);
   }
 
   @Roles(UserRole.Agent, UserRole.Admin)
   @Get('resolved')
-  findResolved(@Req() request: AuthenticatedRequest) {
-    return this.ticketsService.findResolved(request.user!);
+  findResolved(
+    @Query() query: TicketQueryDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.ticketsService.findResolved(request.user!, query);
   }
 
   @Roles(UserRole.Agent, UserRole.Admin)
   @Get('department')
-  findDepartmentTickets(@Req() request: AuthenticatedRequest) {
-    return this.ticketsService.findDepartmentTickets(request.user!);
+  findDepartmentTickets(
+    @Query() query: TicketQueryDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.ticketsService.findDepartmentTickets(request.user!, query);
   }
 
   @Roles(UserRole.Agent, UserRole.Admin)
   @Get('pool')
-  findPool(@Req() request: AuthenticatedRequest) {
-    return this.ticketsService.findPool(request.user!);
+  findPool(
+    @Query() query: TicketQueryDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.ticketsService.findPool(request.user!, query);
   }
 
   @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)

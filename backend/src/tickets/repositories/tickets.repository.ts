@@ -4,6 +4,7 @@ import {
   Prisma,
   Ticket,
   TicketEventAction,
+  TicketPriority,
   TicketStatus,
 } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
@@ -31,6 +32,36 @@ export type TicketRecord = Prisma.TicketGetPayload<{
   include: typeof ticketInclude;
 }>;
 
+export interface TicketFilters {
+  search?: string;
+  status?: TicketStatus;
+  departmentId?: string;
+  priority?: TicketPriority;
+}
+
+function ticketFilterWhere(filters: TicketFilters): Prisma.TicketWhereInput {
+  const search = filters.search?.trim();
+
+  return {
+    ...(search
+      ? {
+          OR: [
+            { ticketCode: { contains: search, mode: 'insensitive' } },
+            { title: { contains: search, mode: 'insensitive' } },
+            {
+              submitter: {
+                fullName: { contains: search, mode: 'insensitive' },
+              },
+            },
+          ],
+        }
+      : {}),
+    ...(filters.status ? { status: filters.status } : {}),
+    ...(filters.departmentId ? { departmentId: filters.departmentId } : {}),
+    ...(filters.priority ? { priority: filters.priority } : {}),
+  };
+}
+
 @Injectable()
 export class TicketsRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -46,9 +77,10 @@ export class TicketsRepository {
     }
   }
 
-  async findAll(): Promise<TicketRecord[]> {
+  async findAll(filters: TicketFilters = {}): Promise<TicketRecord[]> {
     try {
       return await this.prisma.ticket.findMany({
+        where: ticketFilterWhere(filters),
         include: ticketInclude,
       });
     } catch (error) {
@@ -56,10 +88,10 @@ export class TicketsRepository {
     }
   }
 
-  async findActive(): Promise<TicketRecord[]> {
+  async findActive(filters: TicketFilters = {}): Promise<TicketRecord[]> {
     try {
       return await this.prisma.ticket.findMany({
-        where: { active: true },
+        where: { active: true, ...ticketFilterWhere(filters) },
         orderBy: { createdAt: 'desc' },
         include: ticketInclude,
       });
@@ -68,12 +100,16 @@ export class TicketsRepository {
     }
   }
 
-  async findActiveBySubmitter(submittedBy: string): Promise<TicketRecord[]> {
+  async findActiveBySubmitter(
+    submittedBy: string,
+    filters: TicketFilters = {},
+  ): Promise<TicketRecord[]> {
     try {
       return await this.prisma.ticket.findMany({
         where: {
           active: true,
           submittedBy,
+          ...ticketFilterWhere(filters),
         },
         orderBy: { createdAt: 'desc' },
         include: ticketInclude,
@@ -83,12 +119,16 @@ export class TicketsRepository {
     }
   }
 
-  async findActiveByAgent(agentId: string): Promise<TicketRecord[]> {
+  async findActiveByAgent(
+    agentId: string,
+    filters: TicketFilters = {},
+  ): Promise<TicketRecord[]> {
     try {
       return await this.prisma.ticket.findMany({
         where: {
           active: true,
           agentId,
+          ...ticketFilterWhere(filters),
         },
         orderBy: { updatedAt: 'desc' },
         include: ticketInclude,
@@ -98,13 +138,16 @@ export class TicketsRepository {
     }
   }
 
-  async findActiveResolvedByAgent(agentId: string): Promise<TicketRecord[]> {
+  async findActiveResolvedByAgent(
+    agentId: string,
+    filters: TicketFilters = {},
+  ): Promise<TicketRecord[]> {
     try {
       const closeEvents = await this.prisma.ticketEvent.findMany({
         where: {
           action: TicketEventAction.CLOSE,
           userId: agentId,
-          ticket: { active: true },
+          ticket: { active: true, ...ticketFilterWhere(filters) },
         },
         select: {
           ticketId: true,
@@ -122,6 +165,7 @@ export class TicketsRepository {
         where: {
           active: true,
           ticketId: { in: resolvedTicketIds },
+          ...ticketFilterWhere(filters),
         },
         orderBy: { updatedAt: 'desc' },
         include: ticketInclude,
@@ -133,8 +177,15 @@ export class TicketsRepository {
 
   async findActiveByDepartmentIds(
     departmentIds: string[],
+    filters: TicketFilters = {},
   ): Promise<TicketRecord[]> {
-    if (departmentIds.length === 0) {
+    const scopedDepartmentIds = filters.departmentId
+      ? departmentIds.filter(
+          (departmentId) => departmentId === filters.departmentId,
+        )
+      : departmentIds;
+
+    if (scopedDepartmentIds.length === 0) {
       return [];
     }
 
@@ -142,9 +193,8 @@ export class TicketsRepository {
       return await this.prisma.ticket.findMany({
         where: {
           active: true,
-          departmentId: {
-            in: departmentIds,
-          },
+          ...ticketFilterWhere(filters),
+          departmentId: { in: scopedDepartmentIds },
         },
         orderBy: { createdAt: 'desc' },
         include: ticketInclude,
@@ -154,8 +204,26 @@ export class TicketsRepository {
     }
   }
 
-  async findTicketPool(departmentIds?: string[]): Promise<TicketRecord[]> {
-    if (departmentIds && departmentIds.length === 0) {
+  async findTicketPool(
+    departmentIds?: string[],
+    filters: TicketFilters = {},
+  ): Promise<TicketRecord[]> {
+    if (
+      filters.status &&
+      filters.status !== TicketStatus.OPEN &&
+      filters.status !== TicketStatus.REOPENED
+    ) {
+      return [];
+    }
+
+    const scopedDepartmentIds =
+      departmentIds && filters.departmentId
+        ? departmentIds.filter(
+            (departmentId) => departmentId === filters.departmentId,
+          )
+        : departmentIds;
+
+    if (scopedDepartmentIds && scopedDepartmentIds.length === 0) {
       return [];
     }
 
@@ -164,13 +232,14 @@ export class TicketsRepository {
         where: {
           active: true,
           agentId: null,
-          status: {
+          ...ticketFilterWhere(filters),
+          status: filters.status ?? {
             in: [TicketStatus.OPEN, TicketStatus.REOPENED],
           },
-          ...(departmentIds
+          ...(scopedDepartmentIds
             ? {
                 departmentId: {
-                  in: departmentIds,
+                  in: scopedDepartmentIds,
                 },
               }
             : {}),

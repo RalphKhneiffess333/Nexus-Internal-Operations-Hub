@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { DatabaseModule } from '../database/database.module';
 import { PrismaService } from '../database/prisma.service';
 import {
+  AGENT_ID,
   HR_DEPARTMENT_ID,
   IT_DEPARTMENT_ID,
   seedDatabase,
@@ -61,5 +62,13 @@ describe('DepartmentsService', () => {
         data: { active: true },
       });
     }
+  });
+
+  it('lists only active departments assigned to a user', async () => {
+    const departments = await service.findMine(AGENT_ID);
+
+    expect(departments.map((department) => department.departmentId)).toEqual([
+      IT_DEPARTMENT_ID,
+    ]);
   });
 });

@@ -78,7 +78,9 @@ describe('TicketsService invalid transitions', () => {
         .mockResolvedValue([IT_DEPARTMENT_ID]),
     };
     filesService = {
-      storeForUser: jest.fn<FilesService['storeForUser']>().mockResolvedValue([]),
+      storeForUser: jest
+        .fn<FilesService['storeForUser']>()
+        .mockResolvedValue([]),
       cleanup: jest.fn<FilesService['cleanup']>().mockResolvedValue(undefined),
     };
     fileAttachmentsRepository = {} as FileAttachmentsRepository;
@@ -283,7 +285,9 @@ describe('TicketsService invalid transitions', () => {
     expect(ticketLifecycleRepository.saveWithEvent).not.toHaveBeenCalled();
   });
 
-  function ticket(overrides: Partial<Ticket> = {}): Ticket {
+  function ticket(
+    overrides: Partial<Ticket> = {},
+  ): NonNullable<Awaited<ReturnType<TicketsRepository['findById']>>> {
     return {
       ticketId: 'ticket-1',
       ticketCode: 'TKT-0001',
@@ -299,6 +303,11 @@ describe('TicketsService invalid transitions', () => {
       createdAt: new Date('2026-09-16T00:00:00.000Z'),
       updatedAt: new Date('2026-09-16T00:00:00.000Z'),
       closedAt: null,
+      submitter: {
+        fullName: 'Alex Employee',
+        email: 'alex@company.com',
+      },
+      agent: null,
       ...overrides,
     };
   }

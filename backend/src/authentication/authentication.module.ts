@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { UsersModule } from '../users/users.module';
 import { AuthenticationController } from './authentication.controller';
@@ -9,7 +9,7 @@ import { SessionStore } from './sessions/session.store';
 import { MicrosoftAuthStrategy } from './strategies/microsoft-auth.strategy';
 
 @Module({
-  imports: [UsersModule],
+  imports: [forwardRef(() => UsersModule)],
   controllers: [AuthenticationController],
   providers: [
     AuthenticationService,

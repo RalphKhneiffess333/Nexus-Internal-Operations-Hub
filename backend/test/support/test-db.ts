@@ -13,7 +13,7 @@ export { AGENT_ID, EMPLOYEE_ID, IT_DEPARTMENT_ID };
 
 export const prisma = new PrismaClient();
 
-export function installSeededDatabaseHooks<TestArgs, WorkerArgs>(
+export function installSeededDatabaseHooks<TestArgs extends {}, WorkerArgs extends {}>(
   test: TestType<TestArgs, WorkerArgs>,
 ): void {
   test.beforeAll(async () => {

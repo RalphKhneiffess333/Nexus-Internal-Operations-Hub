@@ -300,13 +300,19 @@ export function TicketDetailsPage() {
   const showHeaderActions =
     ticket && !editing && (canEdit || canCancel || canClaim || canClose || canReopen)
   const latestAttachmentEvent = latestEventWithAttachments(events)
+  const backPath = location.state?.from ?? '/tickets'
+  const backLabel = backPath.startsWith('/admin/logs')
+    ? 'Logs'
+    : backPath.startsWith('/tickets/pool')
+      ? 'Ticket pools'
+      : 'All tickets'
 
   return (
     <section className="page">
       <header className="page-header">
         <div>
-          <Link to={location.state?.from ?? '/tickets'} className="back-link">
-            ← {location.state?.from?.startsWith('/tickets/pool') ? 'Ticket pools' : 'All tickets'}
+          <Link to={backPath} className="back-link">
+            ← {backLabel}
           </Link>
           <h1>Ticket details</h1>
           <p className="page-description">

@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, TicketEventAction } from '@prisma/client';
 import { mapPrismaError } from '../../database/prisma-error';
 import { PrismaService } from '../../database/prisma.service';
 import type { TicketPersistenceClient } from '../repositories/tickets.repository';
@@ -69,7 +69,7 @@ export class TicketEventsRepository {
         },
       });
       return ticketEventId;
-
+      
     } catch (error) {
       mapPrismaError(error);
     }
@@ -83,6 +83,25 @@ export class TicketEventsRepository {
         include: eventInclude,
       });
 
+      return this.withUserReferences(events);
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }
+
+  async findAll(
+    skip = 0,
+    take = 100,
+    action?: TicketEventAction,
+  ): Promise<TicketEventRecord[]> {
+    try {
+      const events = await this.prisma.ticketEvent.findMany({
+        where: action ? { action } : undefined,
+        orderBy: [{ createdAt: 'desc' }, { ticketEventId: 'desc' }],
+        skip,
+        take,
+        include: eventInclude,
+      });
       return this.withUserReferences(events);
     } catch (error) {
       mapPrismaError(error);

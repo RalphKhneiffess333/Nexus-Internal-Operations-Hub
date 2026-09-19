@@ -9,4 +9,8 @@ export class DepartmentsService {
   findAll(): Promise<Department[]> {
     return this.departmentsRepository.findAllActive();
   }
+
+  findMine(userId: string): Promise<Department[]> {
+    return this.departmentsRepository.findAllActiveByUserId(userId);
+  }
 }
