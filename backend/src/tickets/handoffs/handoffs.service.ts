@@ -368,7 +368,7 @@ export class HandoffsService {
   private async resolve(
     handoffId: string,
     actor: AuthenticatedRequestUser,
-    status: HandoffStatus.REJECTED | HandoffStatus.CANCELLED,
+    status: Extract<HandoffStatus, 'REJECTED' | 'CANCELLED'>,
   ): Promise<HandoffResponse> {
     const existing = await this.handoffsRepository.findById(handoffId);
     if (!existing) throw new NotFoundException('Handoff request was not found');

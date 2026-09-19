@@ -86,8 +86,8 @@ model User {
   uploadedFiles          File[]
   departmentMembers      DepartmentMember[]
   auditLogs              AuditLog[]
-  handoffsRequested      HandoffRequest[] @relation("HandoffRequester")
-  handoffsReceived       HandoffRequest[] @relation("HandoffRequestedAgent")
+  handoffsRequested      HandoffRequest[]   @relation("HandoffRequester")
+  handoffsReceived       HandoffRequest[]   @relation("HandoffRequestedAgent")
 
   @@unique([identityProviderId, identityProviderUserId])
   @@map("users")
@@ -121,23 +121,23 @@ model DepartmentMember {
 }
 
 model Ticket {
-  ticketId        String         @id @map("ticket_id")
-  ticketCode      String         @unique @map("ticket_code")
+  ticketId        String           @id @map("ticket_id")
+  ticketCode      String           @unique @map("ticket_code")
   title           String
   description     String
   priority        TicketPriority
-  status          TicketStatus   @default(OPEN)
-  departmentId    String         @map("department_id")
-  submittedBy     String         @map("submitted_by")
-  agentId         String?        @map("agent_id")
-  active          Boolean        @default(true)
-  completionNotes String?        @map("completion_notes")
-  createdAt       DateTime       @default(now()) @map("created_at")
-  updatedAt       DateTime       @updatedAt @map("updated_at")
-  closedAt        DateTime?      @map("closed_at")
-  department      Department     @relation(fields: [departmentId], references: [departmentId])
-  submitter       User           @relation("TicketSubmitter", fields: [submittedBy], references: [userId])
-  agent           User?          @relation("TicketAgent", fields: [agentId], references: [userId])
+  status          TicketStatus     @default(OPEN)
+  departmentId    String           @map("department_id")
+  submittedBy     String           @map("submitted_by")
+  agentId         String?          @map("agent_id")
+  active          Boolean          @default(true)
+  completionNotes String?          @map("completion_notes")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  closedAt        DateTime?        @map("closed_at")
+  department      Department       @relation(fields: [departmentId], references: [departmentId])
+  submitter       User             @relation("TicketSubmitter", fields: [submittedBy], references: [userId])
+  agent           User?            @relation("TicketAgent", fields: [agentId], references: [userId])
   events          TicketEvent[]
   handoffs        HandoffRequest[]
 
@@ -211,7 +211,7 @@ model Attachment {
   createdAt    DateTime     @default(now()) @map("created_at")
   updatedAt    DateTime     @updatedAt @map("updated_at")
   file         File         @relation(fields: [fileId], references: [fileId])
-  event        TicketEvent? @relation(fields: [eventId], references: [ticketEventId])
+  event        TicketEvent? @relation(fields: [eventId], references: [ticketEventId], onDelete: SetNull)
 
   @@index([eventId])
   @@index([messageId])
