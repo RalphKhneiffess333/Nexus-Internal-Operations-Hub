@@ -20,7 +20,7 @@ export function TicketListItem({ ticket, departments = [] }) {
         className="ticket-row-link"
         to={`/tickets/${ticket.ticketId}`}
         state={{ from: ticketLocation }}
-        aria-label={`View ticket ${ticket.ticketCode}`}
+        aria-label={`View ticket ${ticket.title} ${ticket.ticketCode}`}
       />
       <div className="ticket-row-content">
         <div className="ticket-row-top">

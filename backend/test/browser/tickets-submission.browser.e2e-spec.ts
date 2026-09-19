@@ -73,9 +73,12 @@ test('submitted ticket lists render persisted ticket data', async ({
   await signIn(page, request, EMPLOYEE_ID);
   await page.goto('/tickets');
 
-  await expect(page.getByText(ticket.ticketCode)).toBeVisible();
-  await expect(page.getByText('Laptop battery replacement')).toBeVisible();
-  await expect(page.getByText('Moderate')).toBeVisible();
-  await expect(page.getByText('Information Technology')).toBeVisible();
+  const ticketCard = page
+    .getByRole('article')
+    .filter({ hasText: ticket.ticketCode });
+  await expect(ticketCard).toBeVisible();
+  await expect(ticketCard.getByText('Laptop battery replacement')).toBeVisible();
+  await expect(ticketCard.getByText('Moderate', { exact: true })).toBeVisible();
+  await expect(ticketCard.getByText('Information Technology', { exact: true })).toBeVisible();
   await expectStatus(page, 'Open');
 });

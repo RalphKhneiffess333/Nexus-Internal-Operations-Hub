@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router-dom'
 import { ConfirmDialog } from '../../components/tickets/ConfirmDialog'
 import { TicketDetails } from '../../components/tickets/TicketDetails'
 import { TicketMessageDialog } from '../../components/tickets/TicketMessageDialog'
@@ -39,7 +39,6 @@ function latestEventWithAttachments(events) {
 export function TicketDetailsPage() {
   const { ticketId } = useParams()
   const location = useLocation()
-  const navigate = useNavigate()
   const { user } = useAuthentication()
   const [ticket, setTicket] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -212,8 +211,11 @@ export function TicketDetailsPage() {
     setCancelling(true)
     setFormError('')
     try {
-      await cancelTicket(ticketId)
-      navigate(location.state?.from ?? '/tickets', { replace: true })
+      const cancelled = await cancelTicket(ticketId)
+      setTicket(cancelled)
+      setConfirmingCancel(false)
+      setNotice('This ticket has been cancelled.')
+      void loadTicketEvents()
     } catch (cancelError) {
       setFormError(
         cancelError.message ||
