@@ -21,4 +21,24 @@ export class HandoffQueryDto {
   @IsString()
   @Length(1, 100)
   ticketId?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 100)
+  search?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 100)
+  departmentId?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 100)
+  requesterId?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 100)
+  requestedAgentId?: string;
 }

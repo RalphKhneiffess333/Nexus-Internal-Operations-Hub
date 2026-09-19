@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { formatDateTime, HandoffStatus } from '../../features/tickets/ticket-types'
+import { UserLink } from '../users/UserLink'
 
 const STATUS_LABELS = {
   [HandoffStatus.PENDING]: 'Pending',
@@ -20,8 +21,6 @@ export function HandoffRequestCard({
   const incoming = handoff.requestedAgent?.userId === currentUserId
   const outgoing = handoff.requester?.userId === currentUserId
   const canManage = handoff.status === HandoffStatus.PENDING && !busy
-  const otherParty = incoming ? handoff.requester : handoff.requestedAgent
-  const actionLabel = incoming ? 'Requested by' : 'Requested from'
 
   return (
     <article className={`handoff-card handoff-card-${handoff.status.toLowerCase()}`}>
@@ -35,8 +34,24 @@ export function HandoffRequestCard({
 
       <dl className="handoff-card-details">
         <div>
-          <dt>{actionLabel}</dt>
-          <dd>{otherParty?.fullName ?? 'Unknown user'}</dd>
+          <dt>Requested by</dt>
+          <dd>
+            {handoff.requester ? (
+              <UserLink user={handoff.requester} />
+            ) : (
+              'Unknown user'
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt>Requested to</dt>
+          <dd>
+            {handoff.requestedAgent ? (
+              <UserLink user={handoff.requestedAgent} />
+            ) : (
+              'Unknown user'
+            )}
+          </dd>
         </div>
         <div>
           <dt>Department</dt>
@@ -44,7 +59,13 @@ export function HandoffRequestCard({
         </div>
         <div>
           <dt>Current agent</dt>
-          <dd>{handoff.ticket?.currentAgent?.fullName ?? 'Unassigned'}</dd>
+          <dd>
+            {handoff.ticket?.currentAgent ? (
+              <UserLink user={handoff.ticket.currentAgent} />
+            ) : (
+              'Unassigned'
+            )}
+          </dd>
         </div>
       </dl>
 

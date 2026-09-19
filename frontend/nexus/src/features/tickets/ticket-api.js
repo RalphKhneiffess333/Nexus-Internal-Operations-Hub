@@ -90,6 +90,10 @@ export function getOutgoingHandoffs(params = {}) {
   return apiRequest(withQuery('/handoffs/outgoing', params))
 }
 
+export function getHandoffs(params = {}) {
+  return apiRequest(withQuery('/handoffs', params))
+}
+
 export function createTicket(data, files = []) {
   return apiRequest('/tickets', {
     method: 'POST',

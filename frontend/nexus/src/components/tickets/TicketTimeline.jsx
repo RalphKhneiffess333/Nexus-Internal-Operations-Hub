@@ -32,7 +32,7 @@ const EVENT_PRESENTATION = {
   },
   [TicketEventAction.HANDOFF]: {
     label: 'HANDOFF',
-    summary: 'Ticket handoff updated',
+    summary: 'Ticket ownership transferred',
   },
 }
 
@@ -244,7 +244,12 @@ export function TicketTimeline({
   downloadingAttachmentId,
   onDownloadAttachment,
 }) {
-  const orderedEvents = [...events].sort((left, right) => {
+  const visibleEvents = events.filter(
+    (event) =>
+      event.action !== TicketEventAction.HANDOFF ||
+      event.details?.action === 'ACCEPTED',
+  )
+  const orderedEvents = [...visibleEvents].sort((left, right) => {
     const timestampDifference =
       new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()
 

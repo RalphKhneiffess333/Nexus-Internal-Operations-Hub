@@ -38,6 +38,8 @@ export function HandoffPanel({ ticket, onTicketChanged }) {
   }, [ticket.ticketId])
 
   useEffect(() => {
+    // Initial data load synchronizes this panel with the handoff API.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadHandoffs()
   }, [loadHandoffs])
 

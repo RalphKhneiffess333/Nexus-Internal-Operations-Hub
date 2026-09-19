@@ -92,7 +92,14 @@ export class HandoffsRepository {
   async findForActor(
     userId: string,
     direction: 'incoming' | 'outgoing' | 'all',
-    query: { status?: HandoffStatus; ticketId?: string } = {},
+    query: {
+      status?: HandoffStatus;
+      ticketId?: string;
+      search?: string;
+      departmentId?: string;
+      requesterId?: string;
+      requestedAgentId?: string;
+    } = {},
   ): Promise<HandoffRecord[]> {
     const identityWhere =
       direction === 'incoming'
@@ -101,11 +108,33 @@ export class HandoffsRepository {
           ? { requesterId: userId }
           : { OR: [{ requesterId: userId }, { requestedAgentId: userId }] };
     try {
+      const search = query.search?.trim();
       return await this.prisma.handoffRequest.findMany({
         where: {
           ...identityWhere,
           ...(query.status ? { status: query.status } : {}),
           ...(query.ticketId ? { ticketId: query.ticketId } : {}),
+          ...(query.requesterId ? { requesterId: query.requesterId } : {}),
+          ...(query.requestedAgentId
+            ? { requestedAgentId: query.requestedAgentId }
+            : {}),
+          ...(query.departmentId || search
+            ? {
+                ticket: {
+                  ...(query.departmentId
+                    ? { departmentId: query.departmentId }
+                    : {}),
+                  ...(search
+                    ? {
+                        OR: [
+                          { ticketCode: { contains: search, mode: 'insensitive' } },
+                          { title: { contains: search, mode: 'insensitive' } },
+                        ],
+                      }
+                    : {}),
+                },
+              }
+            : {}),
         },
         orderBy: [{ createdAt: 'desc' }, { handoffId: 'desc' }],
         include: handoffInclude,

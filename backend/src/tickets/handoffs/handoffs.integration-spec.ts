@@ -11,6 +11,7 @@ import {
   AGENT_2_ID,
   AGENT_ID,
   IT_AGENT_2_ID,
+  IT_DEPARTMENT_ID,
   agentUser,
   claimTicket,
   closeTicket,
@@ -208,6 +209,46 @@ describe('Ticket handoffs integration', () => {
       status: HandoffStatus.CANCELLED,
     });
     expect(await persistedTicket(ticket.ticketId)).toMatchObject({ agentId: IT_AGENT_2_ID });
+  });
+
+  it('filters handoffs by participants, ticket text, department, and status', async () => {
+    const matchingTicket = await submitOpenTicket(ticketsService, {
+      title: 'VPN access request',
+    });
+    await claimTicket(ticketsService, matchingTicket.ticketId, agentUser(AGENT_ID));
+    await handoffsService.create(
+      matchingTicket.ticketId,
+      { requestedAgentId: IT_AGENT_2_ID },
+      agentUser(AGENT_ID),
+    );
+
+    const otherTicket = await claimedTicket();
+    await handoffsService.create(
+      otherTicket.ticketId,
+      { requestedAgentId: ADMIN_ID },
+      agentUser(AGENT_ID),
+    );
+
+    const outgoing = await handoffsService.list(agentUser(AGENT_ID), 'outgoing', {
+      requestedAgentId: IT_AGENT_2_ID,
+      requesterId: AGENT_ID,
+      departmentId: IT_DEPARTMENT_ID,
+      search: 'VPN',
+      status: HandoffStatus.PENDING,
+    });
+    expect(outgoing).toHaveLength(1);
+    expect(outgoing[0]).toMatchObject({
+      requester: { userId: AGENT_ID },
+      requestedAgent: { userId: IT_AGENT_2_ID },
+      ticket: { title: 'VPN access request', department: { departmentId: IT_DEPARTMENT_ID } },
+    });
+
+    const incoming = await handoffsService.list(agentUser(IT_AGENT_2_ID), 'incoming', {
+      requesterId: AGENT_ID,
+      search: 'VPN',
+    });
+    expect(incoming).toHaveLength(1);
+    expect(incoming[0].handoffId).toBe(outgoing[0].handoffId);
   });
 
   async function claimedTicket() {

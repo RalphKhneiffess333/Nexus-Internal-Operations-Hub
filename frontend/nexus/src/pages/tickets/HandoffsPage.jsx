@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
+import { HandoffFilters } from '../../components/tickets/HandoffFilters'
 import { HandoffRequestCard } from '../../components/tickets/HandoffRequestCard'
 import { LoadingState } from '../../components/ui/LoadingState'
 import { useAuthentication } from '../../features/authentication/use-authentication'
+import { useDepartments } from '../../features/departments/use-departments'
 import {
   acceptHandoff,
   cancelHandoff,
+  getHandoffs,
   getIncomingHandoffs,
   getOutgoingHandoffs,
   rejectHandoff,
@@ -16,18 +19,41 @@ export function HandoffsPage() {
   const [view, setView] = useState('incoming')
   const [incoming, setIncoming] = useState([])
   const [outgoing, setOutgoing] = useState([])
+  const [participantOptions, setParticipantOptions] = useState([])
+  const [searchInput, setSearchInput] = useState('')
+  const [search, setSearch] = useState('')
+  const [filters, setFilters] = useState({
+    requestedAgentId: '',
+    requesterId: '',
+    departmentId: '',
+    status: '',
+  })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [actionError, setActionError] = useState('')
   const [busy, setBusy] = useState(false)
+  const { departments } = useDepartments()
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setSearch(searchInput.trim()), 250)
+    return () => window.clearTimeout(timeout)
+  }, [searchInput])
 
   const loadHandoffs = useCallback(async () => {
     setLoading(true)
     setError('')
     try {
       const [incomingResult, outgoingResult] = await Promise.all([
-        getIncomingHandoffs(),
-        getOutgoingHandoffs(),
+        getIncomingHandoffs({
+          ...filters,
+          requestedAgentId: '',
+          search,
+        }),
+        getOutgoingHandoffs({
+          ...filters,
+          requesterId: '',
+          search,
+        }),
       ])
       setIncoming(Array.isArray(incomingResult) ? incomingResult : [])
       setOutgoing(Array.isArray(outgoingResult) ? outgoingResult : [])
@@ -36,11 +62,51 @@ export function HandoffsPage() {
     } finally {
       setLoading(false)
     }
+  }, [filters, search])
+
+  const loadParticipantOptions = useCallback(async () => {
+    try {
+      const result = await getHandoffs()
+      const handoffs = Array.isArray(result) ? result : []
+      const users = new Map()
+      handoffs.forEach((handoff) => {
+        if (handoff.requester) users.set(handoff.requester.userId, handoff.requester)
+        if (handoff.requestedAgent) users.set(handoff.requestedAgent.userId, handoff.requestedAgent)
+      })
+      setParticipantOptions(
+        [...users.values()].sort((left, right) => left.fullName.localeCompare(right.fullName)),
+      )
+    } catch {
+      setParticipantOptions([])
+    }
   }, [])
 
   useEffect(() => {
+    // Initial data load synchronizes this page with the handoff API.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadHandoffs()
   }, [loadHandoffs])
+
+  useEffect(() => {
+    // Participant options are loaded independently from the active filters.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadParticipantOptions()
+  }, [loadParticipantOptions])
+
+  function updateFilter(name, value) {
+    setFilters((current) => ({ ...current, [name]: value }))
+  }
+
+  function clearFilters() {
+    setSearchInput('')
+    setSearch('')
+    setFilters({
+      requestedAgentId: '',
+      requesterId: '',
+      departmentId: '',
+      status: '',
+    })
+  }
 
   async function resolveHandoff(action, handoff) {
     setBusy(true)
@@ -69,12 +135,12 @@ export function HandoffsPage() {
         </div>
       </header>
 
-      <div className="handoff-page-tabs" role="tablist" aria-label="Handoff requests">
+      <div className="pool-switcher" role="tablist" aria-label="Handoff requests">
         <button
           type="button"
           role="tab"
           aria-selected={view === 'incoming'}
-          className={`tab-button ${view === 'incoming' ? 'is-active' : ''}`}
+          className={view === 'incoming' ? 'is-active' : ''}
           onClick={() => setView('incoming')}
         >
           Incoming
@@ -83,12 +149,23 @@ export function HandoffsPage() {
           type="button"
           role="tab"
           aria-selected={view === 'outgoing'}
-          className={`tab-button ${view === 'outgoing' ? 'is-active' : ''}`}
+          className={view === 'outgoing' ? 'is-active' : ''}
           onClick={() => setView('outgoing')}
         >
           Outgoing
         </button>
       </div>
+
+      <HandoffFilters
+        departments={departments}
+        users={participantOptions}
+        view={view}
+        filters={filters}
+        searchInput={searchInput}
+        onSearch={setSearchInput}
+        onChange={updateFilter}
+        onClear={clearFilters}
+      />
 
       {error ? (
         <div className="banner error">

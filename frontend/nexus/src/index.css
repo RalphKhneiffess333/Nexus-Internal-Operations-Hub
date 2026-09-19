@@ -872,7 +872,7 @@ h3 {
 }
 .handoff-card-details {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   margin: 0;
 }
@@ -931,37 +931,18 @@ h3 {
 }
 .handoff-state p { margin: 0; color: var(--ink-soft); font-size: 12px; }
 .handoff-state-error { border-color: #efcbd3; background: #fff7f8; }
-.handoff-page-tabs {
-  display: flex;
-  gap: 6px;
-  width: fit-content;
-  margin: -10px 0 22px;
-  padding: 4px;
-  border: 1px solid var(--line);
-  border-radius: 11px;
-  background: #edf1f7;
-}
-.tab-button {
-  min-height: 34px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: 8px;
-  color: var(--ink-soft);
-  background: transparent;
-  font-size: 12px;
-  font-weight: 800;
-  cursor: pointer;
-}
-.tab-button.is-active {
-  color: var(--primary-dark);
-  background: var(--card);
-  box-shadow: var(--shadow-sm);
-}
 .empty-state {
   padding: 30px;
 }
 .empty-state h2 { margin: 0 0 8px; font-size: 18px; }
 .empty-state p { margin: 0; color: var(--ink-soft); font-size: 13px; }
+.handoff-clear {
+  align-self: end;
+  min-height: 38px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 11px;
+}
 .ticket-inactive-note {
   margin: 14px 4px 0;
 }
@@ -2480,13 +2461,6 @@ button.status-toggle {
   }
   .handoff-card-actions .btn {
     flex: 1 1 auto;
-  }
-  .handoff-page-tabs {
-    width: 100%;
-    margin-top: -4px;
-  }
-  .tab-button {
-    flex: 1 1 0;
   }
   .form-actions {
     flex-direction: column-reverse;
