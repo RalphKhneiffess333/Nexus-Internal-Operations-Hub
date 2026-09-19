@@ -17,6 +17,11 @@ import {
 } from './tickets.repository';
 import { HandoffsService } from '../handoffs/handoffs.service';
 
+export interface TicketLifecycleResult {
+  ticket: TicketRecord;
+  ticketEventId: string;
+}
+
 @Injectable()
 export class TicketLifecycleRepository {
   constructor(
@@ -31,7 +36,7 @@ export class TicketLifecycleRepository {
     ticket: CreateTicketInput,
     event: NewSubmissionEvent,
     files: StoredFileMetadata[] = [],
-  ): Promise<TicketRecord> {
+  ): Promise<TicketLifecycleResult> {
     return this.inTransaction(async (tx) => {
       const created = await this.ticketsRepository.create(ticket, tx);
       const eventId = await this.ticketEventsRepository.append(
@@ -39,7 +44,7 @@ export class TicketLifecycleRepository {
         tx,
       );
       await this.attachFiles(eventId, files, tx);
-      return created;
+      return { ticket: created, ticketEventId: eventId };
     });
   }
 
@@ -47,7 +52,7 @@ export class TicketLifecycleRepository {
     ticketId: string,
     agentId: string,
     event: NewClaimEvent,
-  ): Promise<TicketRecord | null> {
+  ): Promise<TicketLifecycleResult | null> {
     return this.inTransaction(async (tx) => {
       const claimed = await this.ticketsRepository.claimIfAvailable(
         ticketId,
@@ -59,8 +64,8 @@ export class TicketLifecycleRepository {
         return null;
       }
 
-      await this.ticketEventsRepository.append(event, tx);
-      return claimed;
+      const ticketEventId = await this.ticketEventsRepository.append(event, tx);
+      return { ticket: claimed, ticketEventId };
     });
   }
 
@@ -69,7 +74,7 @@ export class TicketLifecycleRepository {
     event: NewTicketMutationEvent,
     files: StoredFileMetadata[] = [],
     attachmentIdsToRemove: string[] = [],
-  ): Promise<TicketRecord> {
+  ): Promise<TicketLifecycleResult> {
     return this.inTransaction(async (tx) => {
       const current = await this.ticketsRepository.findByIdForUpdate(
         ticket.ticketId,
@@ -104,7 +109,7 @@ export class TicketLifecycleRepository {
         );
       }
       await this.attachFiles(eventId, files, tx);
-      return saved;
+      return { ticket: saved, ticketEventId: eventId };
     });
   }
 
@@ -127,7 +132,11 @@ export class TicketLifecycleRepository {
     client: Prisma.TransactionClient,
   ): Promise<void> {
     for (const file of files) {
-      await this.fileAttachmentsRepository.createForEvent(eventId, file, client);
+      await this.fileAttachmentsRepository.createForEvent(
+        eventId,
+        file,
+        client,
+      );
     }
   }
 }

@@ -70,8 +70,8 @@ export class SessionService implements OnModuleInit, OnModuleDestroy {
     this.sessionStore.delete(sessionId);
   }
 
-  deleteSessionsForUser(userId: string): void {
-    this.sessionStore.deleteByUserId(userId);
+  deleteSessionsForUser(userId: string): string[] {
+    return this.sessionStore.deleteByUserId(userId);
   }
 
   deleteExpiredSessions(): void {

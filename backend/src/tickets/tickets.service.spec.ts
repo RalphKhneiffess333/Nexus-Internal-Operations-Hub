@@ -1,6 +1,12 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { Ticket, TicketPriority, TicketStatus, UserRole } from '@prisma/client';
+import {
+  Ticket,
+  TicketEventAction,
+  TicketPriority,
+  TicketStatus,
+  UserRole,
+} from '@prisma/client';
 import {
   ADMIN_ID,
   EMPLOYEE_2_ID,
@@ -24,6 +30,7 @@ import { SubmitTicketPolicy } from './policies/submit-ticket.policy';
 import { ViewTicketPolicy } from './policies/view-ticket.policy';
 import { TicketsRepository } from './repositories/tickets.repository';
 import { TicketLifecycleRepository } from './repositories/ticket-lifecycle.repository';
+import { TicketRealtimePublisher } from './realtime/ticket-realtime.publisher';
 import { TicketsService } from './tickets.service';
 
 describe('TicketsService invalid transitions', () => {
@@ -58,6 +65,11 @@ describe('TicketsService invalid transitions', () => {
     cleanup: jest.MockedFunction<FilesService['cleanup']>;
   };
   let fileAttachmentsRepository: FileAttachmentsRepository;
+  let ticketRealtimePublisher: {
+    publishMutation: jest.MockedFunction<
+      TicketRealtimePublisher['publishMutation']
+    >;
+  };
 
   beforeEach(() => {
     ticketsRepository = {
@@ -84,6 +96,9 @@ describe('TicketsService invalid transitions', () => {
       cleanup: jest.fn<FilesService['cleanup']>().mockResolvedValue(undefined),
     };
     fileAttachmentsRepository = {} as FileAttachmentsRepository;
+    ticketRealtimePublisher = {
+      publishMutation: jest.fn<TicketRealtimePublisher['publishMutation']>(),
+    };
 
     service = new TicketsService(
       ticketsRepository as unknown as TicketsRepository,
@@ -99,6 +114,7 @@ describe('TicketsService invalid transitions', () => {
       new ModifyTicketPolicy(),
       new CancelTicketPolicy(),
       new ViewTicketPolicy(),
+      ticketRealtimePublisher as unknown as TicketRealtimePublisher,
     );
   });
 
@@ -215,18 +231,22 @@ describe('TicketsService invalid transitions', () => {
 
   it('allows admins to claim tickets in their own department', async () => {
     const existing = ticket();
-    const claimed = ticket({
+    const claimedTicket = ticket({
       status: TicketStatus.CLAIMED,
       agentId: ADMIN_ID,
-    }) as Awaited<ReturnType<TicketLifecycleRepository['claimWithEvent']>>;
-    claimed!.submitter = {
+    });
+    claimedTicket.submitter = {
       fullName: 'Alex Employee',
       email: 'alex@company.com',
     };
-    claimed!.agent = {
+    claimedTicket.agent = {
       fullName: 'Morgan Admin',
       email: 'morgan@company.com',
     };
+    const claimed = {
+      ticket: claimedTicket,
+      ticketEventId: 'ticket-event-1',
+    } as Awaited<ReturnType<TicketLifecycleRepository['claimWithEvent']>>;
     ticketsRepository.findById.mockResolvedValue(existing);
     ticketLifecycleRepository.claimWithEvent.mockResolvedValue(claimed);
 
@@ -236,6 +256,12 @@ describe('TicketsService invalid transitions', () => {
       agent: { userId: ADMIN_ID },
       status: TicketStatus.CLAIMED,
     });
+    expect(ticketRealtimePublisher.publishMutation).toHaveBeenCalledWith(
+      claimedTicket,
+      'ticket-event-1',
+      ADMIN_ID,
+      TicketEventAction.CLAIM,
+    );
   });
 
   it('rejects admins claiming outside their department without claiming', async () => {

@@ -17,12 +17,15 @@ export class SessionStore {
     this.sessions.delete(sessionId);
   }
 
-  deleteByUserId(userId: string): void {
+  deleteByUserId(userId: string): string[] {
+    const deletedSessionIds: string[] = [];
     for (const [sessionId, session] of this.sessions.entries()) {
       if (session.userId === userId) {
         this.sessions.delete(sessionId);
+        deletedSessionIds.push(sessionId);
       }
     }
+    return deletedSessionIds;
   }
 
   all(): Session[] {

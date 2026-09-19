@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { TicketPriority, UserRole } from '@prisma/client';
 import type { AuthenticatedRequestUser } from '../authentication/request-user';
 import { DatabaseModule } from '../database/database.module';
@@ -33,7 +34,7 @@ export {
 
 export async function createTicketsTestingModule(): Promise<TestingModule> {
   const moduleRef = await Test.createTestingModule({
-    imports: [DatabaseModule, TicketsModule],
+    imports: [EventEmitterModule.forRoot(), DatabaseModule, TicketsModule],
   }).compile();
 
   const prisma = moduleRef.get(PrismaService);

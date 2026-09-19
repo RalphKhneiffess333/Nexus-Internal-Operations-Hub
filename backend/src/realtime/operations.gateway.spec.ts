@@ -120,4 +120,46 @@ describe('OperationsGateway', () => {
 
     expect(gateway.isUserOnline('user-1')).toBe(false);
   });
+
+  it('fans ticket events out only through that ticket room', () => {
+    const emit = jest.fn();
+    const to = jest.fn(() => ({ emit }));
+    gateway.server = { to } as never;
+
+    gateway.handleTicketUpdated({
+      eventId: 'ticket-event-1',
+      occurredAt: '2026-09-19T10:00:00.000Z',
+      version: 1,
+      ticketId: 'ticket-1',
+      actorId: 'agent-1',
+      payload: {
+        ticketId: 'ticket-1',
+        ticketNumber: 'TKT-0001',
+        title: 'VPN access',
+        status: 'CLAIMED',
+        priority: 'HIGH',
+        updatedAt: '2026-09-19T10:00:00.000Z',
+      },
+    });
+
+    expect(to).toHaveBeenCalledWith('ticket:ticket-1');
+    expect(emit).toHaveBeenCalledWith('ticket.updated', expect.any(Object));
+  });
+
+  it('disconnects only sockets for invalidated sessions', async () => {
+    authenticationService.authenticateSession.mockResolvedValue(actor);
+    const client = socket();
+    await gateway.handleConnection(client as never);
+    gateway.server = {
+      sockets: { sockets: new Map([[client.id, client]]) },
+    } as never;
+
+    gateway.handleSessionInvalidated({
+      userId: actor.userId,
+      sessionIds: ['session-1'],
+      reason: 'LOGOUT',
+    });
+
+    expect(client.disconnect).toHaveBeenCalledWith(true);
+  });
 });

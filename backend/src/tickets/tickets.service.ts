@@ -37,6 +37,7 @@ import {
   TicketsRepository,
 } from './repositories/tickets.repository';
 import { TicketLifecycleRepository } from './repositories/ticket-lifecycle.repository';
+import { TicketRealtimePublisher } from './realtime/ticket-realtime.publisher';
 
 export interface TicketActionPermissions {
   canModify: boolean;
@@ -78,6 +79,7 @@ export class TicketsService {
     private readonly modifyTicketPolicy: ModifyTicketPolicy,
     private readonly cancelTicketPolicy: CancelTicketPolicy,
     private readonly viewTicketPolicy: ViewTicketPolicy,
+    private readonly ticketRealtimePublisher: TicketRealtimePublisher,
   ) {}
 
   async findAll(
@@ -206,7 +208,7 @@ export class TicketsService {
     );
     this.submitTicketPolicy.assert(department);
 
-    const ticket = await this.withStoredFiles(
+    const mutation = await this.withStoredFiles(
       files,
       actor.userId,
       async (storedFiles) => {
@@ -242,8 +244,14 @@ export class TicketsService {
         );
       },
     );
+    this.ticketRealtimePublisher.publishMutation(
+      mutation.ticket,
+      mutation.ticketEventId,
+      actor.userId,
+      TicketEventAction.SUBMISSION,
+    );
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
-    return this.withPermission(ticket, actor, actorDepartmentIds);
+    return this.withPermission(mutation.ticket, actor, actorDepartmentIds);
   }
 
   async claim(
@@ -275,7 +283,13 @@ export class TicketsService {
       );
     }
 
-    return this.withPermission(claimed, actor, actorDepartmentIds);
+    this.ticketRealtimePublisher.publishMutation(
+      claimed.ticket,
+      claimed.ticketEventId,
+      actor.userId,
+      TicketEventAction.CLAIM,
+    );
+    return this.withPermission(claimed.ticket, actor, actorDepartmentIds);
   }
 
   async close(
@@ -287,7 +301,7 @@ export class TicketsService {
     const ticket = await this.getActiveTicket(ticketId);
     this.closeTicketPolicy.assert(ticket, actor);
 
-    const closed = await this.withStoredFiles(
+    const mutation = await this.withStoredFiles(
       files,
       actor.userId,
       async (storedFiles) => {
@@ -313,8 +327,14 @@ export class TicketsService {
         );
       },
     );
+    this.ticketRealtimePublisher.publishMutation(
+      mutation.ticket,
+      mutation.ticketEventId,
+      actor.userId,
+      TicketEventAction.CLOSE,
+    );
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
-    return this.withPermission(closed, actor, actorDepartmentIds);
+    return this.withPermission(mutation.ticket, actor, actorDepartmentIds);
   }
 
   async reopen(
@@ -326,7 +346,7 @@ export class TicketsService {
     const ticket = await this.getActiveTicket(ticketId);
     this.reopenTicketPolicy.assert(ticket, actor);
 
-    const reopened = await this.withStoredFiles(
+    const mutation = await this.withStoredFiles(
       files,
       actor.userId,
       async (storedFiles) => {
@@ -355,8 +375,14 @@ export class TicketsService {
         );
       },
     );
+    this.ticketRealtimePublisher.publishMutation(
+      mutation.ticket,
+      mutation.ticketEventId,
+      actor.userId,
+      TicketEventAction.REOPEN,
+    );
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
-    return this.withPermission(reopened, actor, actorDepartmentIds);
+    return this.withPermission(mutation.ticket, actor, actorDepartmentIds);
   }
 
   async modify(
@@ -415,7 +441,7 @@ export class TicketsService {
 
     const now = new Date();
     ticket.updatedAt = now;
-    const updated = await this.withStoredFiles(
+    const mutation = await this.withStoredFiles(
       files,
       actor.userId,
       (storedFiles) =>
@@ -443,7 +469,13 @@ export class TicketsService {
     );
     await this.filesService.cleanup(filesToRemove);
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
-    return this.withPermission(updated, actor, actorDepartmentIds);
+    this.ticketRealtimePublisher.publishMutation(
+      mutation.ticket,
+      mutation.ticketEventId,
+      actor.userId,
+      TicketEventAction.MODIFICATION,
+    );
+    return this.withPermission(mutation.ticket, actor, actorDepartmentIds);
   }
 
   async cancel(
@@ -456,7 +488,7 @@ export class TicketsService {
     ticket.active = false;
     const now = new Date();
     ticket.updatedAt = now;
-    const cancelled = await this.ticketLifecycleRepository.saveWithEvent(
+    const mutation = await this.ticketLifecycleRepository.saveWithEvent(
       ticket,
       {
         ticketId,
@@ -468,8 +500,14 @@ export class TicketsService {
         createdAt: now,
       },
     );
+    this.ticketRealtimePublisher.publishMutation(
+      mutation.ticket,
+      mutation.ticketEventId,
+      actor.userId,
+      TicketEventAction.DELETE,
+    );
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
-    return this.withPermission(cancelled, actor, actorDepartmentIds);
+    return this.withPermission(mutation.ticket, actor, actorDepartmentIds);
   }
 
   private async getActorDepartmentIds(
@@ -494,9 +532,15 @@ export class TicketsService {
       );
     }
 
+    if (!Array.isArray(parsed)) {
+      throw new BadRequestException(
+        'Removed attachment IDs must be a JSON array',
+      );
+    }
+
+    const attachmentIds = parsed as unknown[];
     if (
-      !Array.isArray(parsed) ||
-      parsed.some(
+      attachmentIds.some(
         (attachmentId) => typeof attachmentId !== 'string' || !attachmentId,
       )
     ) {
@@ -505,7 +549,7 @@ export class TicketsService {
       );
     }
 
-    return [...new Set(parsed)];
+    return [...new Set(attachmentIds as string[])];
   }
 
   async downloadAttachment(

@@ -17,6 +17,7 @@ import { HandoffPolicy } from './handoffs/handoff.policy';
 import { HandoffsController } from './handoffs/handoffs.controller';
 import { HandoffsRepository } from './handoffs/handoffs.repository';
 import { HandoffsService } from './handoffs/handoffs.service';
+import { TicketRealtimePublisher } from './realtime/ticket-realtime.publisher';
 
 @Module({
   imports: [DepartmentsModule, FilesModule],
@@ -36,6 +37,7 @@ import { HandoffsService } from './handoffs/handoffs.service';
     HandoffPolicy,
     HandoffsRepository,
     HandoffsService,
+    TicketRealtimePublisher,
   ],
   exports: [TicketEventsRepository, HandoffsService, TicketsService],
 })

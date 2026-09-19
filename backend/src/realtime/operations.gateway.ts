@@ -7,6 +7,7 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
+import { OnEvent } from '@nestjs/event-emitter';
 import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { AuthenticationService } from '../authentication/authentication.service';
@@ -16,6 +17,12 @@ import { TicketsService } from '../tickets/tickets.service';
 import {
   OperationsClientEvent,
   OperationsServerEvent,
+  RealtimeInternalEvent,
+} from './realtime-events';
+import type {
+  SessionInvalidatedRealtimeEvent,
+  TicketEventCreatedRealtimeEvent,
+  TicketUpdatedRealtimeEvent,
 } from './realtime-events';
 import { ticketRoom, userRoom } from './realtime-rooms';
 
@@ -153,6 +160,34 @@ export class OperationsGateway
   disconnectUser(userId: string): void {
     for (const socketId of this.socketIdsByUserId.get(userId) ?? []) {
       this.server.sockets.sockets.get(socketId)?.disconnect(true);
+    }
+  }
+
+  @OnEvent(RealtimeInternalEvent.TicketUpdated)
+  handleTicketUpdated(event: TicketUpdatedRealtimeEvent): void {
+    this.server
+      .to(ticketRoom(event.ticketId))
+      .emit(OperationsServerEvent.TicketUpdated, event);
+  }
+
+  @OnEvent(RealtimeInternalEvent.TicketEventCreated)
+  handleTicketEventCreated(event: TicketEventCreatedRealtimeEvent): void {
+    this.server
+      .to(ticketRoom(event.ticketId))
+      .emit(OperationsServerEvent.TicketEventCreated, event);
+  }
+
+  @OnEvent(RealtimeInternalEvent.SessionInvalidated)
+  handleSessionInvalidated(event: SessionInvalidatedRealtimeEvent): void {
+    const socketIds = [...(this.socketIdsByUserId.get(event.userId) ?? [])];
+    for (const socketId of socketIds) {
+      const connection = this.socketsById.get(socketId);
+      if (
+        connection &&
+        (!event.sessionIds || event.sessionIds.includes(connection.sessionId))
+      ) {
+        this.server.sockets.sockets.get(socketId)?.disconnect(true);
+      }
     }
   }
 

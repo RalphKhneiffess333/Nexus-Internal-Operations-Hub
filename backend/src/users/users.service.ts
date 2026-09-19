@@ -6,6 +6,7 @@ import {
   forwardRef,
   Inject,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
   AuditAction,
   Prisma,
@@ -16,6 +17,7 @@ import {
 } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { AuditService } from '../audit/audit.service';
+import { RealtimeInternalEvent } from '../realtime/realtime-events';
 import { SessionService } from '../authentication/sessions/session.service';
 import type { AuthenticatedRequestUser } from '../authentication/request-user';
 import { PrismaService } from '../database/prisma.service';
@@ -49,6 +51,7 @@ export class UsersService {
     private readonly sessions: SessionService,
     @Inject(forwardRef(() => HandoffsService))
     private readonly handoffsService: HandoffsService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   findById(userId: string): Promise<User | null> {
@@ -130,9 +133,7 @@ export class UsersService {
             ],
           }
         : {}),
-      ...(query.status
-        ? { isActive: query.status === 'active' }
-        : {}),
+      ...(query.status ? { isActive: query.status === 'active' } : {}),
       ...(query.departmentId
         ? { departmentMembers: { some: { departmentId: query.departmentId } } }
         : {}),
@@ -212,7 +213,8 @@ export class UsersService {
     dto: UpdateRoleDto,
     actor: AuthenticatedRequestUser,
   ) {
-    return this.prisma.$transaction(async (tx) => {
+    let roleChanged = false;
+    const response = await this.prisma.$transaction(async (tx) => {
       const user = await this.usersRepository.findByIdForUpdate(userId, tx);
       if (!user) throw new NotFoundException('User was not found');
       if (user.role === dto.role) return this.toSafeResponse(user);
@@ -223,8 +225,13 @@ export class UsersService {
         { role: dto.role },
         tx,
       );
+      roleChanged = true;
       if (dto.role === UserRole.Employee)
-        await this.handoffsService.cancelPendingForUser(userId, actor.userId, tx);
+        await this.handoffsService.cancelPendingForUser(
+          userId,
+          actor.userId,
+          tx,
+        );
       if (dto.role === UserRole.Employee)
         await this.reconcileMemberships(userId, actor.userId, tx);
       await this.auditService.append(
@@ -235,6 +242,13 @@ export class UsersService {
       );
       return this.toSafeResponse(updated);
     });
+    if (roleChanged) {
+      this.eventEmitter.emit(RealtimeInternalEvent.SessionInvalidated, {
+        userId,
+        reason: 'ROLE_CHANGED',
+      });
+    }
+    return response;
   }
 
   async setActive(
@@ -254,7 +268,11 @@ export class UsersService {
         tx,
       );
       if (!dto.active) {
-        await this.handoffsService.cancelPendingForUser(userId, actor.userId, tx);
+        await this.handoffsService.cancelPendingForUser(
+          userId,
+          actor.userId,
+          tx,
+        );
         await this.reconcileMemberships(userId, actor.userId, tx);
       }
       await this.auditService.append(
@@ -267,7 +285,14 @@ export class UsersService {
       );
       return updated;
     });
-    if (!dto.active) this.sessions.deleteSessionsForUser(userId);
+    if (!dto.active) {
+      const sessionIds = this.sessions.deleteSessionsForUser(userId);
+      this.eventEmitter.emit(RealtimeInternalEvent.SessionInvalidated, {
+        userId,
+        sessionIds,
+        reason: 'DEACTIVATED',
+      });
+    }
     return this.findForAdministration(result.userId);
   }
 
@@ -278,21 +303,32 @@ export class UsersService {
   ) {
     await this.prisma.$transaction(async (tx) => {
       const user = await this.usersRepository.findByIdForUpdate(userId, tx);
-      const department = await tx.department.findUnique({ where: { departmentId } });
+      const department = await tx.department.findUnique({
+        where: { departmentId },
+      });
       if (!user) throw new NotFoundException('User was not found');
       if (!department) throw new NotFoundException('Department was not found');
       if (user.role === UserRole.Employee) {
-        throw new BadRequestException('Only agents and administrators can belong to departments');
+        throw new BadRequestException(
+          'Only agents and administrators can belong to departments',
+        );
       }
       if (!department.active) {
-        throw new BadRequestException('Inactive departments cannot accept members');
+        throw new BadRequestException(
+          'Inactive departments cannot accept members',
+        );
       }
       await this.usersRepository.upsertMembership(userId, departmentId, tx);
-      await this.auditService.append(tx, actor.userId, AuditAction.DEPARTMENT_MAPPING, {
-        userId,
-        departmentId,
-        mapping: 'ADDED',
-      });
+      await this.auditService.append(
+        tx,
+        actor.userId,
+        AuditAction.DEPARTMENT_MAPPING,
+        {
+          userId,
+          departmentId,
+          mapping: 'ADDED',
+        },
+      );
     });
     return this.findForAdministration(userId);
   }
@@ -303,21 +339,36 @@ export class UsersService {
     actor: AuthenticatedRequestUser,
   ) {
     await this.prisma.$transaction(async (tx) => {
-      const membership = await this.usersRepository.findMembership(userId, departmentId, tx);
-      if (!membership) throw new NotFoundException('Department membership was not found');
+      const membership = await this.usersRepository.findMembership(
+        userId,
+        departmentId,
+        tx,
+      );
+      if (!membership)
+        throw new NotFoundException('Department membership was not found');
       await this.handoffsService.cancelPendingForUserInDepartment(
         userId,
         departmentId,
         actor.userId,
         tx,
       );
-      await this.reconcileDepartmentTickets(userId, departmentId, actor.userId, tx);
-      await this.usersRepository.deleteMembership(userId, departmentId, tx);
-      await this.auditService.append(tx, actor.userId, AuditAction.DEPARTMENT_MAPPING, {
+      await this.reconcileDepartmentTickets(
         userId,
         departmentId,
-        mapping: 'REMOVED',
-      });
+        actor.userId,
+        tx,
+      );
+      await this.usersRepository.deleteMembership(userId, departmentId, tx);
+      await this.auditService.append(
+        tx,
+        actor.userId,
+        AuditAction.DEPARTMENT_MAPPING,
+        {
+          userId,
+          departmentId,
+          mapping: 'REMOVED',
+        },
+      );
     });
     return this.findForAdministration(userId);
   }
