@@ -18,6 +18,16 @@ export function Sidebar({ open, onNavigate }) {
 
       <nav className="sidebar-nav" aria-label="Main">
         <NavLink
+          to="/dashboard"
+          className={({ isActive }) =>
+            `nav-item ${isActive ? 'is-active' : ''}`
+          }
+          end
+          onClick={onNavigate}
+        >
+          Dashboard
+        </NavLink>
+        <NavLink
           to="/tickets"
           className={({ isActive }) =>
             `nav-item ${isActive ? 'is-active' : ''}`
