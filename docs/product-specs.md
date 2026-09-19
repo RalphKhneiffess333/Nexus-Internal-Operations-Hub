@@ -161,7 +161,6 @@ Nexus must send notifications to the concerned party for every meaningful event.
 - All department agents should receive a notification whenever a new ticket is opened
 - Employee should receive a notification whenever one of their ticket's status changes (Claimed or Closed).
 - Reminder notifications should be sent to department agents whenever a ticket has been hanging opened for more than 4 hours
-- Chat notifications for employee and agent whenever they receive a chat message
 - Ticket events and new chat messages should be reflected to users in real-time
 
 #### Ticket Handoff
@@ -228,7 +227,7 @@ Unwanted Behavior Scenarios:
 - An employee closes or claims tickets
 
 #### Department Management
-- The system administrator can create, modify or delete (soft delete) departments.
+- The system administrator can create, modify or deactivate departments.
 - The newly created department appears in request submission forms in the target department dropdown
 - Requests sent to this department should now appear as tickets in the department's ticket pool
 - The administrator can assign agents to departments
@@ -305,6 +304,7 @@ Unwanted Behavior Scenarios
 - Completion notes are saved and associated with the request
 - Upon successful closure, the ticket's status automatically changes to "closed".
 - The date and time of closure are recorded by the system.
+- An admin can close a ticket if the agent who claimed it is no longer available.
 
 Unwanted Behavior Scenarios:
 - An agent can close a ticket that is not assigned to them.
@@ -341,7 +341,6 @@ Unwanted Behavior Scenarios:
 - Nexus notifies the department agents when an employee submits a ticket to their department
 - Nexus notifies the employee when the status of one of their tickets changes
 - Nexus sends reminder notifications to agents when a request remains opened and unclaimed for a specific duration according to each ticket priority configured duration by admin.
-- Nexus notifies agents and employees when they receive a chat message.
 
 Unwanted Behavior Scenarios:
 - Nexus sends notifications to users who are not concerned with the corresponding events.

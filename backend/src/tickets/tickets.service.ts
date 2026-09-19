@@ -320,6 +320,8 @@ export class TicketsService {
   ): Promise<TicketWithPermissions> {
     const ticket = await this.getActiveTicket(ticketId);
     this.closeTicketPolicy.assert(ticket, actor);
+    const adminCloseOverride =
+      actor.role === UserRole.Admin && ticket.agentId !== actor.userId;
 
     const mutation = await this.withStoredFiles(
       files,
@@ -328,7 +330,16 @@ export class TicketsService {
         const now = new Date();
         ticket.status = TicketStatus.CLOSED;
         ticket.agentId = null;
-        ticket.completionNotes = dto.completionNotes ?? null;
+        ticket.completionNotes = adminCloseOverride
+          ? [
+              `This ticket was closed by administrator ${actor.fullName}.`,
+              dto.completionNotes?.trim()
+                ? `Administrator's completion notes: ${dto.completionNotes.trim()}`
+                : null,
+            ]
+              .filter((note): note is string => Boolean(note))
+              .join('\n')
+          : (dto.completionNotes ?? null);
         ticket.closedAt = now;
         ticket.updatedAt = now;
         return this.ticketLifecycleRepository.saveWithEvent(
@@ -344,6 +355,8 @@ export class TicketsService {
             createdAt: now,
           },
           storedFiles,
+          [],
+          adminCloseOverride,
         );
       },
     );
@@ -782,7 +795,7 @@ export class TicketsService {
       (actor.role === UserRole.Agent || actor.role === UserRole.Admin) &&
       ticket.active &&
       ticket.status === TicketStatus.CLAIMED &&
-      ticket.agentId === actor.userId
+      (ticket.agentId === actor.userId || actor.role === UserRole.Admin)
     );
   }
 

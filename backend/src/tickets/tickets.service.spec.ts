@@ -71,7 +71,12 @@ describe('TicketsService invalid transitions', () => {
       TicketRealtimePublisher['publishMutation']
     >;
   };
-  let notifications: { notify: jest.MockedFunction<NotificationsService['notify']>; notifyDepartmentAgents: jest.MockedFunction<NotificationsService['notifyDepartmentAgents']> };
+  let notifications: {
+    notify: jest.MockedFunction<NotificationsService['notify']>;
+    notifyDepartmentAgents: jest.MockedFunction<
+      NotificationsService['notifyDepartmentAgents']
+    >;
+  };
 
   beforeEach(() => {
     ticketsRepository = {
@@ -103,7 +108,9 @@ describe('TicketsService invalid transitions', () => {
     };
     notifications = {
       notify: jest.fn<NotificationsService['notify']>(),
-      notifyDepartmentAgents: jest.fn<NotificationsService['notifyDepartmentAgents']>().mockResolvedValue(undefined),
+      notifyDepartmentAgents: jest
+        .fn<NotificationsService['notifyDepartmentAgents']>()
+        .mockResolvedValue(undefined),
     };
 
     service = new TicketsService(
@@ -297,6 +304,52 @@ describe('TicketsService invalid transitions', () => {
     ).rejects.toThrow(ForbiddenException);
 
     expect(ticketLifecycleRepository.saveWithEvent).not.toHaveBeenCalled();
+  });
+
+  it("allows an administrator to close another agent's ticket with attribution", async () => {
+    const existing = ticket({
+      status: TicketStatus.CLAIMED,
+      agentId: AGENT_ID,
+    });
+    const closedTicket = ticket({
+      status: TicketStatus.CLOSED,
+      agentId: null,
+      completionNotes:
+        "This ticket was closed by administrator Morgan Admin.\nAdministrator's completion notes: Closed after review.",
+      closedAt: new Date('2026-09-16T02:00:00.000Z'),
+    });
+    const mutation = {
+      ticket: closedTicket,
+      ticketEventId: 'ticket-event-admin-close',
+    };
+    ticketsRepository.findById.mockResolvedValue(existing);
+    ticketLifecycleRepository.saveWithEvent.mockResolvedValue(mutation);
+
+    await expect(
+      service.close(
+        existing.ticketId,
+        { completionNotes: 'Closed after review.' },
+        adminUser(),
+      ),
+    ).resolves.toMatchObject({
+      status: TicketStatus.CLOSED,
+      completionNotes: closedTicket.completionNotes,
+    });
+
+    expect(ticketLifecycleRepository.saveWithEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        completionNotes: closedTicket.completionNotes,
+      }),
+      expect.objectContaining({
+        action: TicketEventAction.CLOSE,
+        details: expect.objectContaining({
+          completionNotes: closedTicket.completionNotes,
+        }),
+      }),
+      [],
+      [],
+      true,
+    );
   });
 
   it('rejects reopening by someone other than the submitter without saving', async () => {
