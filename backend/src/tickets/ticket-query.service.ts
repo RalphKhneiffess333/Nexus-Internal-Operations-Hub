@@ -172,15 +172,7 @@ export class TicketQueryService {
       throw new NotFoundException('Attachment was not found');
     }
 
-    let contents: Buffer;
-    try {
-      contents = await this.filesService.read(attachment.storageKey);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        throw new NotFoundException('Attachment file was not found');
-      }
-      throw error;
-    }
+    const contents = await this.filesService.read(attachment.storageKey);
 
     return new StreamableFile(contents, {
       type: attachment.mimeType,

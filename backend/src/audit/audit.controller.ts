@@ -3,16 +3,12 @@ import { UserRole } from '@prisma/client';
 import { Roles } from '../authorization/decorators/roles.decorator';
 import { AuditQueryDto, TicketEventsQueryDto } from './dto/audit-query.dto';
 import { AuditService } from './audit.service';
-import { TicketEventsRepository } from '../tickets/events/ticket-events.repository';
 import { IdentifierValidationPipe } from '../common/pipes/identifier-validation.pipe';
 
 @Controller('admin/audit-logs')
 @Roles(UserRole.Admin)
 export class AuditController {
-  constructor(
-    private readonly auditService: AuditService,
-    private readonly ticketEventsRepository: TicketEventsRepository,
-  ) {}
+  constructor(private readonly auditService: AuditService) {}
 
   @Get()
   list(@Query() query: AuditQueryDto) {
@@ -21,11 +17,7 @@ export class AuditController {
 
   @Get('ticket-events')
   ticketEvents(@Query() query: TicketEventsQueryDto) {
-    return this.ticketEventsRepository.findAll(
-      (query.page - 1) * query.pageSize,
-      query.pageSize,
-      query.action,
-    );
+    return this.auditService.listTicketEvents(query);
   }
 
   @Get(':auditLogId')

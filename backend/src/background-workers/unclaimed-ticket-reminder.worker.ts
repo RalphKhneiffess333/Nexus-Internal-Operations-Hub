@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { TicketPriority, TicketStatus } from '@prisma/client';
-import { PrismaService } from '../database/prisma.service';
+import { TicketPriority } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
 import { EmailNotificationsService } from '../notifications/email-notifications.service';
+import { UnclaimedTicketReminderRepository } from './unclaimed-ticket-reminder.repository';
 
 const priorityConfigurationKeys: Record<TicketPriority, string> = {
   [TicketPriority.LOW]: 'REMINDER_INTERVAL_LOW_MINUTES',
@@ -15,31 +15,14 @@ export class UnclaimedTicketReminderWorker {
   private readonly logger = new Logger(UnclaimedTicketReminderWorker.name);
 
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly repository: UnclaimedTicketReminderRepository,
     private readonly notifications: NotificationsService,
     private readonly emailNotifications: EmailNotificationsService,
   ) {}
 
   async runOnce(now = new Date()): Promise<void> {
     const intervals = await this.readIntervals();
-    const candidates = await this.prisma.ticket.findMany({
-      where: {
-        active: true,
-        agentId: null,
-        status: { in: [TicketStatus.OPEN, TicketStatus.REOPENED] },
-        unclaimedSince: { not: null },
-        lastReminderAt: null,
-      },
-      select: {
-        ticketId: true,
-        ticketCode: true,
-        title: true,
-        departmentId: true,
-        priority: true,
-        unclaimedSince: true,
-      },
-      orderBy: { unclaimedSince: 'asc' },
-    });
+    const candidates = await this.repository.findCandidates();
 
     for (const ticket of candidates) {
       const intervalMinutes = intervals[ticket.priority];
@@ -50,18 +33,12 @@ export class UnclaimedTicketReminderWorker {
       );
       if (dueAt > now) continue;
 
-      const claimed = await this.prisma.ticket.updateMany({
-        where: {
-          ticketId: ticket.ticketId,
-          active: true,
-          agentId: null,
-          status: { in: [TicketStatus.OPEN, TicketStatus.REOPENED] },
-          lastReminderAt: null,
-          unclaimedSince: ticket.unclaimedSince,
-        },
-        data: { lastReminderAt: now },
-      });
-      if (claimed.count === 0) continue;
+      const claimed = await this.repository.markReminderSent(
+        ticket.ticketId,
+        ticket.unclaimedSince,
+        now,
+      );
+      if (!claimed) continue;
 
       const message = `Ticket ${ticket.ticketCode} has remained unclaimed for longer than its ${ticket.priority.toLowerCase()} priority reminder interval.`;
       const link = `/tickets/${encodeURIComponent(ticket.ticketId)}`;
@@ -84,10 +61,9 @@ export class UnclaimedTicketReminderWorker {
   }
 
   private async readIntervals(): Promise<Record<TicketPriority, number>> {
-    const configurations = await this.prisma.systemConfiguration.findMany({
-      where: { key: { in: Object.values(priorityConfigurationKeys) } },
-      select: { key: true, value: true },
-    });
+    const configurations = await this.repository.findConfigurations(
+      Object.values(priorityConfigurationKeys),
+    );
     const values = new Map(
       configurations.map((configuration) => [
         configuration.key,

@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { DepartmentsModule } from '../departments/departments.module';
 import { FilesModule } from '../files/files.module';
-import { TicketEventsRepository } from './events/ticket-events.repository';
+import { TicketEventsModule } from './events/ticket-events.module';
 import { CancelTicketPolicy } from './policies/cancel-ticket.policy';
 import { ClaimTicketPolicy } from './policies/claim-ticket.policy';
 import { CloseTicketPolicy } from './policies/close-ticket.policy';
@@ -31,12 +31,16 @@ import { TicketQueryService } from './ticket-query.service';
 import { TicketLifecycleService } from './ticket-lifecycle.service';
 
 @Module({
-  imports: [DepartmentsModule, FilesModule, NotificationsModule],
+  imports: [
+    DepartmentsModule,
+    FilesModule,
+    NotificationsModule,
+    TicketEventsModule,
+  ],
   controllers: [TicketsController, HandoffsController],
   providers: [
     TicketsService,
     TicketsRepository,
-    TicketEventsRepository,
     TicketLifecycleRepository,
     SubmitTicketPolicy,
     ClaimTicketPolicy,
@@ -61,7 +65,7 @@ import { TicketLifecycleService } from './ticket-lifecycle.service';
     TicketLifecycleService,
   ],
   exports: [
-    TicketEventsRepository,
+    TicketEventsModule,
     HandoffsService,
     TicketsService,
     TicketsRepository,

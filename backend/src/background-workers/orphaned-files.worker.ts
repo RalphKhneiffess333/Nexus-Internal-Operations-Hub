@@ -1,10 +1,10 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../database/prisma.service';
 import {
   FILE_STORAGE,
   type FileStorage,
 } from '../files/file-storage.interface';
+import { OrphanedFilesRepository } from './orphaned-files.repository';
 
 @Injectable()
 export class OrphanedFilesWorker {
@@ -12,7 +12,7 @@ export class OrphanedFilesWorker {
   private readonly gracePeriodMs: number;
 
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly repository: OrphanedFilesRepository,
     config: ConfigService,
     @Inject(FILE_STORAGE) private readonly storage: FileStorage,
   ) {
@@ -25,15 +25,7 @@ export class OrphanedFilesWorker {
   async runOnce(now = new Date()): Promise<void> {
     const cutoff = new Date(now.getTime() - this.gracePeriodMs);
     const [databaseFiles, physicalFiles] = await Promise.all([
-      this.prisma.file.findMany({
-        where: { createdAt: { lt: cutoff } },
-        select: {
-          fileId: true,
-          storageKey: true,
-          createdAt: true,
-          attachment: { select: { attachmentId: true } },
-        },
-      }),
+      this.repository.findDatabaseFiles(cutoff),
       this.storage.list(),
     ]);
 
@@ -47,10 +39,7 @@ export class OrphanedFilesWorker {
       const exists = await this.storage.exists(file.storageKey);
       if (file.attachment && exists) continue;
 
-      await this.prisma.$transaction(async (tx) => {
-        await tx.attachment.deleteMany({ where: { fileId: file.fileId } });
-        await tx.file.delete({ where: { fileId: file.fileId } });
-      });
+      await this.repository.deleteDatabaseFile(file.fileId);
       removedDatabaseFiles += 1;
 
       if (exists) {

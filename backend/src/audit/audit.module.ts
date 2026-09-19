@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
 import { AuditService } from './audit.service';
 import { AuditController } from './audit.controller';
-import { TicketsModule } from '../tickets/tickets.module';
 import { AuditRepository } from './audit.repository';
+import { DatabaseModule } from '../database/database.module';
+import { TicketEventsModule } from '../tickets/events/ticket-events.module';
 
 @Module({
-  imports: [TicketsModule],
+  imports: [DatabaseModule, TicketEventsModule],
   controllers: [AuditController],
   providers: [AuditService, AuditRepository],
   exports: [AuditService],

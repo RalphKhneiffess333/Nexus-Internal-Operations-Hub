@@ -1,8 +1,11 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import { TicketPriority, TicketStatus } from '@prisma/client';
 import { AuditLogsCleanupWorker } from './audit-logs-cleanup.worker';
+import { AuditLogsCleanupRepository } from './audit-logs-cleanup.repository';
 import { OrphanedFilesWorker } from './orphaned-files.worker';
+import { OrphanedFilesRepository } from './orphaned-files.repository';
 import { UnclaimedTicketReminderWorker } from './unclaimed-ticket-reminder.worker';
+import { UnclaimedTicketReminderRepository } from './unclaimed-ticket-reminder.repository';
 import type { PrismaService } from '../database/prisma.service';
 import type { ConfigService } from '@nestjs/config';
 import type { FileStorage } from '../files/file-storage.interface';
@@ -50,8 +53,11 @@ describe('background workers', () => {
         .mockResolvedValue(undefined),
     };
 
-    const worker = new UnclaimedTicketReminderWorker(
+    const repository = new UnclaimedTicketReminderRepository(
       prisma as unknown as PrismaService,
+    );
+    const worker = new UnclaimedTicketReminderWorker(
+      repository,
       notifications as unknown as NotificationsService,
       emailNotifications as unknown as EmailNotificationsService,
     );
@@ -104,9 +110,10 @@ describe('background workers', () => {
       ),
     };
 
-    const worker = new AuditLogsCleanupWorker(
+    const repository = new AuditLogsCleanupRepository(
       prisma as unknown as PrismaService,
     );
+    const worker = new AuditLogsCleanupWorker(repository);
 
     await worker.runOnce(now);
 
@@ -170,8 +177,11 @@ describe('background workers', () => {
       delete: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
     };
 
-    const worker = new OrphanedFilesWorker(
+    const repository = new OrphanedFilesRepository(
       prisma as unknown as PrismaService,
+    );
+    const worker = new OrphanedFilesWorker(
+      repository,
       { get: jest.fn().mockReturnValue(undefined) } as unknown as ConfigService,
       storage as unknown as FileStorage,
     );

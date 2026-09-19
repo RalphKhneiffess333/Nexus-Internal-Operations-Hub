@@ -1,11 +1,15 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { AuditAction, Prisma } from '@prisma/client';
-import { AuditQueryDto } from './dto/audit-query.dto';
+import { AuditQueryDto, TicketEventsQueryDto } from './dto/audit-query.dto';
 import { AuditRepository } from './audit.repository';
+import { TicketEventsRepository } from '../tickets/events/ticket-events.repository';
 
 @Injectable()
 export class AuditService {
-  constructor(private readonly auditRepository: AuditRepository) {}
+  constructor(
+    private readonly auditRepository: AuditRepository,
+    private readonly ticketEventsRepository: TicketEventsRepository,
+  ) {}
 
   async append(
     client: Prisma.TransactionClient,
@@ -38,6 +42,14 @@ export class AuditService {
     const log = await this.auditRepository.findById(auditLogId);
     if (!log) throw new NotFoundException('Audit log was not found');
     return this.toResponse(log);
+  }
+
+  listTicketEvents(query: TicketEventsQueryDto) {
+    return this.ticketEventsRepository.findAll(
+      (query.page - 1) * query.pageSize,
+      query.pageSize,
+      query.action,
+    );
   }
 
   private toResponse(log: {
