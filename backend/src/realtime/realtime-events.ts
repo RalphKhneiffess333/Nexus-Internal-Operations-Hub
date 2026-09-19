@@ -31,6 +31,7 @@ export interface TicketUpdatedPayload {
   title: string;
   status: string;
   priority: string;
+  active: boolean;
   updatedAt: string;
 }
 

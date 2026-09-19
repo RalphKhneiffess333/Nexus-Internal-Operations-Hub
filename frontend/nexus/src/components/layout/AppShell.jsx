@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
+import { RealtimeConnectionIndicator } from '../ui/RealtimeConnectionIndicator'
 
 export function AppShell() {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -34,6 +35,7 @@ export function AppShell() {
           <Outlet />
         </main>
       </div>
+      <RealtimeConnectionIndicator />
     </div>
   )
 }

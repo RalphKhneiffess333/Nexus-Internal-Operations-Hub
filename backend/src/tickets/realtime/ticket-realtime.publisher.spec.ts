@@ -45,7 +45,10 @@ describe('TicketRealtimePublisher', () => {
         eventId: 'ticket-event-1',
         ticketId: 'ticket-1',
         actorId: 'agent-1',
-        payload: expect.objectContaining({ ticketNumber: 'TKT-0001' }),
+        payload: expect.objectContaining({
+          ticketNumber: 'TKT-0001',
+          active: true,
+        }),
       }),
     );
     expect(emit).toHaveBeenCalledWith(

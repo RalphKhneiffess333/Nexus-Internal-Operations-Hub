@@ -84,6 +84,47 @@ h3 {
   background: var(--paper);
 }
 
+.realtime-connection {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  padding: 7px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.88);
+  color: #cbd5e1;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+  pointer-events: none;
+}
+
+.realtime-connection span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #94a3b8;
+}
+
+.realtime-connection.is-connected span {
+  background: #34d399;
+}
+
+.realtime-connection.is-connecting span,
+.realtime-connection.is-reconnecting span {
+  background: #fbbf24;
+}
+
+.realtime-connection.is-error span {
+  background: #fb7185;
+}
+
 .sidebar {
   width: 264px;
   flex-shrink: 0;

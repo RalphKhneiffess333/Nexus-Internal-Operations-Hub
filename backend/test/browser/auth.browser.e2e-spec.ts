@@ -22,16 +22,17 @@ test('unauthenticated users see the Microsoft login landing page', async ({
   ).not.toBeVisible();
 });
 
-test('authenticated users enter the ticket workspace from the root route', async ({
+test('authenticated users enter the dashboard from the root route', async ({
   page,
   request,
 }) => {
   await signIn(page, request, EMPLOYEE_ID);
   await page.goto('/');
 
-  await expect(page).toHaveURL(/\/tickets$/);
+  await expect(page).toHaveURL(/\/dashboard$/);
   await expect(page.getByText('Employee 1')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'My tickets' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Dashboard' })).toBeVisible();
+  await expect(page.getByText('Live updates connected')).toBeVisible();
 });
 
 test('signing out clears the protected URL before another user signs in', async ({
@@ -54,6 +55,6 @@ test('signing out clears the protected URL before another user signs in', async 
   await signIn(page, request, AGENT_ID);
   await page.reload();
 
-  await expect(page).toHaveURL(/\/tickets$/);
-  await expect(page.getByRole('heading', { name: 'My tickets' })).toBeVisible();
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page.getByRole('link', { name: 'Dashboard' })).toBeVisible();
 });

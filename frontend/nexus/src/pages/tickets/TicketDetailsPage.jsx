@@ -11,6 +11,7 @@ import {
 import { validateTicketFields } from '../../components/tickets/ticket-validation'
 import { useDepartments } from '../../features/departments/use-departments'
 import { useAuthentication } from '../../features/authentication/use-authentication'
+import { useOperationsSocket } from '../../features/realtime/use-operations-socket'
 import { canWorkTickets } from '../../features/tickets/ticket-types'
 import { HandoffPanel } from '../../components/tickets/HandoffPanel'
 import {
@@ -40,6 +41,7 @@ export function TicketDetailsPage() {
   const { ticketId } = useParams()
   const location = useLocation()
   const { user } = useAuthentication()
+  const { subscribeToTicket } = useOperationsSocket()
   const [ticket, setTicket] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -75,23 +77,31 @@ export function TicketDetailsPage() {
     reload: reloadDepartments,
   } = useDepartments()
 
-  const loadTicket = useCallback(async () => {
-    setLoading(true)
-    setError('')
+  const loadTicket = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) {
+      setLoading(true)
+      setError('')
+    }
     try {
       const result = await getTicket(ticketId)
       setTicket(result)
     } catch (loadError) {
-      setTicket(null)
-      setError(loadError.message || 'Unable to load this ticket. Please try again.')
+      if (!silent) {
+        setTicket(null)
+        setError(
+          loadError.message || 'Unable to load this ticket. Please try again.',
+        )
+      }
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [ticketId])
 
-  const loadTicketEvents = useCallback(async () => {
-    setTimelineLoading(true)
-    setTimelineError('')
+  const loadTicketEvents = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) {
+      setTimelineLoading(true)
+      setTimelineError('')
+    }
     try {
       const result = await getTicketEvents(ticketId)
       setEvents(Array.isArray(result) ? result : [])
@@ -101,7 +111,7 @@ export function TicketDetailsPage() {
           'Unable to load the ticket timeline. Please try again.',
       )
     } finally {
-      setTimelineLoading(false)
+      if (!silent) setTimelineLoading(false)
     }
   }, [ticketId])
 
@@ -141,6 +151,36 @@ export function TicketDetailsPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadTicketEvents()
   }, [loadTicketEvents])
+
+  useEffect(
+    () =>
+      subscribeToTicket(ticketId, (event) => {
+        if (event?.payload?.active === false) {
+          setTicket((currentTicket) =>
+            currentTicket
+              ? {
+                  ...currentTicket,
+                  active: false,
+                  status: event.payload.status ?? currentTicket.status,
+                  updatedAt: event.payload.updatedAt ?? currentTicket.updatedAt,
+                  permissions: {
+                    ...currentTicket.permissions,
+                    canModify: false,
+                    canCancel: false,
+                    canClaim: false,
+                    canClose: false,
+                    canReopen: false,
+                  },
+                }
+              : currentTicket,
+          )
+          return
+        }
+        void loadTicket({ silent: true })
+        void loadTicketEvents({ silent: true })
+      }),
+    [loadTicket, loadTicketEvents, subscribeToTicket, ticketId],
+  )
 
   async function handleSelectEvent(event) {
     const requestId = eventDetailRequestId.current + 1
@@ -298,11 +338,11 @@ export function TicketDetailsPage() {
   }
 
   const permissions = ticket?.permissions ?? {}
-  const canEdit = Boolean(permissions.canModify)
-  const canCancel = Boolean(permissions.canCancel)
-  const canClaim = Boolean(permissions.canClaim)
-  const canClose = Boolean(permissions.canClose)
-  const canReopen = Boolean(permissions.canReopen)
+  const canEdit = Boolean(ticket?.active && permissions.canModify)
+  const canCancel = Boolean(ticket?.active && permissions.canCancel)
+  const canClaim = Boolean(ticket?.active && permissions.canClaim)
+  const canClose = Boolean(ticket?.active && permissions.canClose)
+  const canReopen = Boolean(ticket?.active && permissions.canReopen)
   const showHeaderActions =
     ticket && !editing && (canEdit || canCancel || canClaim || canClose || canReopen)
   const latestAttachmentEvent = latestEventWithAttachments(events)
@@ -383,7 +423,7 @@ export function TicketDetailsPage() {
       {!loading && error ? (
         <div className="banner error">
           <p>{error}</p>
-          <button type="button" className="btn ghost" onClick={loadTicket}>
+          <button type="button" className="btn ghost" onClick={() => void loadTicket()}>
             Try again
           </button>
         </div>

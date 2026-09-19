@@ -138,6 +138,7 @@ describe('OperationsGateway', () => {
         title: 'VPN access',
         status: 'CLAIMED',
         priority: 'HIGH',
+        active: true,
         updatedAt: '2026-09-19T10:00:00.000Z',
       },
     });

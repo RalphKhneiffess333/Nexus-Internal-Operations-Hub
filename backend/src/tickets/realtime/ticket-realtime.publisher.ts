@@ -33,6 +33,7 @@ export class TicketRealtimePublisher {
         title: ticket.title,
         status: ticket.status,
         priority: ticket.priority,
+        active: ticket.active,
         updatedAt: occurredAt,
       },
     };
