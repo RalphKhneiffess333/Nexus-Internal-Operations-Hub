@@ -191,9 +191,12 @@ export class TicketEventsRepository {
           case 'HANDOFF': {
             const typed = details as unknown as HandoffEventDetails;
             return {
+              ...(typed.handoffId ? { handoffId: typed.handoffId } : {}),
               requester: resolveUser(typed.requesterId),
               requestedAgent: resolveUser(typed.requestedAgentId),
               action: typed.action,
+              ...(typed.message ? { message: typed.message } : {}),
+              ...(typed.reason ? { reason: typed.reason } : {}),
               timestamp: typed.timestamp,
             };
           }

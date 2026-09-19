@@ -77,6 +77,26 @@ export class TicketsRepository {
     }
   }
 
+  async findByIdForUpdate(
+    ticketId: string,
+    client: Prisma.TransactionClient,
+  ): Promise<TicketRecord | null> {
+    try {
+      await client.$queryRaw`
+        SELECT "ticket_id"
+        FROM "tickets"
+        WHERE "ticket_id" = ${ticketId}
+        FOR UPDATE
+      `;
+      return await client.ticket.findUnique({
+        where: { ticketId },
+        include: ticketInclude,
+      });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }
+
   async findAll(filters: TicketFilters = {}): Promise<TicketRecord[]> {
     try {
       return await this.prisma.ticket.findMany({

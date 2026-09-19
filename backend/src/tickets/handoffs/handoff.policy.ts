@@ -105,6 +105,7 @@ export class HandoffPolicy {
     if (handoff.requestedAgentId !== actor.userId) {
       throw new ForbiddenException('Only the requested agent can reject this handoff');
     }
+    this.assertEligibleUser(actor, 'The requested agent');
   }
 
   assertCancel(handoff: HandoffRecord, ticket: Ticket, actor: EligibleUser): void {
@@ -112,6 +113,7 @@ export class HandoffPolicy {
     if (handoff.requesterId !== actor.userId) {
       throw new ForbiddenException('Only the requester can cancel this handoff');
     }
+    this.assertEligibleUser(actor, 'The requester');
     if (ticket.agentId !== actor.userId || ticket.status !== TicketStatus.CLAIMED) {
       throw new ConflictException('The requester is no longer the current ticket agent');
     }
