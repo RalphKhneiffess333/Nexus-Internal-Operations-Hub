@@ -36,6 +36,13 @@ enum TicketEventAction {
   HANDOFF
 }
 
+enum HandoffStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+}
+
 enum AuditAction {
   USER_PREPROVISIONING
   ROLE_MAPPING
@@ -79,6 +86,8 @@ model User {
   uploadedFiles          File[]
   departmentMembers      DepartmentMember[]
   auditLogs              AuditLog[]
+  handoffsRequested      HandoffRequest[]   @relation("HandoffRequester")
+  handoffsReceived       HandoffRequest[]   @relation("HandoffRequestedAgent")
 
   @@unique([identityProviderId, identityProviderUserId])
   @@map("users")
@@ -112,24 +121,25 @@ model DepartmentMember {
 }
 
 model Ticket {
-  ticketId        String         @id @map("ticket_id")
-  ticketCode      String         @unique @map("ticket_code")
+  ticketId        String           @id @map("ticket_id")
+  ticketCode      String           @unique @map("ticket_code")
   title           String
   description     String
   priority        TicketPriority
-  status          TicketStatus   @default(OPEN)
-  departmentId    String         @map("department_id")
-  submittedBy     String         @map("submitted_by")
-  agentId         String?        @map("agent_id")
-  active          Boolean        @default(true)
-  completionNotes String?        @map("completion_notes")
-  createdAt       DateTime       @default(now()) @map("created_at")
-  updatedAt       DateTime       @updatedAt @map("updated_at")
-  closedAt        DateTime?      @map("closed_at")
-  department      Department     @relation(fields: [departmentId], references: [departmentId])
-  submitter       User           @relation("TicketSubmitter", fields: [submittedBy], references: [userId])
-  agent           User?          @relation("TicketAgent", fields: [agentId], references: [userId])
+  status          TicketStatus     @default(OPEN)
+  departmentId    String           @map("department_id")
+  submittedBy     String           @map("submitted_by")
+  agentId         String?          @map("agent_id")
+  active          Boolean          @default(true)
+  completionNotes String?          @map("completion_notes")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  closedAt        DateTime?        @map("closed_at")
+  department      Department       @relation(fields: [departmentId], references: [departmentId])
+  submitter       User             @relation("TicketSubmitter", fields: [submittedBy], references: [userId])
+  agent           User?            @relation("TicketAgent", fields: [agentId], references: [userId])
   events          TicketEvent[]
+  handoffs        HandoffRequest[]
 
   @@index([submittedBy])
   @@index([departmentId])
@@ -156,6 +166,27 @@ model TicketEvent {
   @@map("ticket_events")
 }
 
+model HandoffRequest {
+  handoffId        String        @id @map("handoff_id")
+  ticketId         String        @map("ticket_id")
+  requesterId      String        @map("requester_id")
+  requestedAgentId String        @map("requested_agent_id")
+  status           HandoffStatus @default(PENDING)
+  message          String?
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+  resolvedAt       DateTime?     @map("resolved_at")
+  ticket           Ticket        @relation(fields: [ticketId], references: [ticketId], onDelete: Restrict)
+  requester        User          @relation("HandoffRequester", fields: [requesterId], references: [userId], onDelete: Restrict)
+  requestedAgent   User          @relation("HandoffRequestedAgent", fields: [requestedAgentId], references: [userId], onDelete: Restrict)
+
+  @@index([ticketId, status])
+  @@index([requestedAgentId, status])
+  @@index([requesterId, status])
+  @@index([createdAt])
+  @@map("handoff_requests")
+}
+
 model File {
   fileId       String      @id @map("file_id")
   uploadedBy   String      @map("uploaded_by")
@@ -180,7 +211,7 @@ model Attachment {
   createdAt    DateTime     @default(now()) @map("created_at")
   updatedAt    DateTime     @updatedAt @map("updated_at")
   file         File         @relation(fields: [fileId], references: [fileId])
-  event        TicketEvent? @relation(fields: [eventId], references: [ticketEventId])
+  event        TicketEvent? @relation(fields: [eventId], references: [ticketEventId], onDelete: SetNull)
 
   @@index([eventId])
   @@index([messageId])

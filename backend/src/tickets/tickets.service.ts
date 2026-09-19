@@ -43,6 +43,7 @@ export interface TicketActionPermissions {
   canCancel: boolean;
   canClaim: boolean;
   canClose: boolean;
+  canRequestHandoff: boolean;
   canReopen: boolean;
 }
 
@@ -606,6 +607,11 @@ export class TicketsService {
         canCancel: this.canCancel(ticket, actor),
         canClaim: this.canClaim(ticket, actor, actorDepartmentIds),
         canClose: this.canClose(ticket, actor),
+        canRequestHandoff: this.canRequestHandoff(
+          ticket,
+          actor,
+          actorDepartmentIds,
+        ),
         canReopen: this.canReopen(ticket, actor),
       },
     };
@@ -644,9 +650,26 @@ export class TicketsService {
 
   private canClose(ticket: Ticket, actor: AuthenticatedRequestUser): boolean {
     return (
+      actor.isActive &&
+      (actor.role === UserRole.Agent || actor.role === UserRole.Admin) &&
       ticket.active &&
       ticket.status === TicketStatus.CLAIMED &&
       ticket.agentId === actor.userId
+    );
+  }
+
+  private canRequestHandoff(
+    ticket: Ticket,
+    actor: AuthenticatedRequestUser,
+    actorDepartmentIds: string[],
+  ): boolean {
+    return (
+      actor.isActive &&
+      (actor.role === UserRole.Agent || actor.role === UserRole.Admin) &&
+      ticket.active &&
+      ticket.status === TicketStatus.CLAIMED &&
+      ticket.agentId === actor.userId &&
+      actorDepartmentIds.includes(ticket.departmentId)
     );
   }
 

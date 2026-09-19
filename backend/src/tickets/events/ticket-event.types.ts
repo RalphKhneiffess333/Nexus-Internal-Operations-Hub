@@ -46,12 +46,15 @@ export interface ModificationEventDetails {
 }
 
 export type HandoffEventAction =
-  'REQUESTED' | 'ACCEPTED' | 'DENIED' | 'CANCELLED';
+  'REQUESTED' | 'ACCEPTED' | 'REJECTED' | 'DENIED' | 'CANCELLED';
 
 export interface HandoffEventDetails {
+  handoffId?: string;
   requesterId: string;
   requestedAgentId: string;
   action: HandoffEventAction;
+  message?: string;
+  reason?: string;
   timestamp: string;
 }
 

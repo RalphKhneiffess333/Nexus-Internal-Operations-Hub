@@ -39,6 +39,15 @@ export function Sidebar({ open, onNavigate }) {
             >
               Ticket pools
             </NavLink>
+            <NavLink
+              to="/tickets/handoffs"
+              className={({ isActive }) =>
+                `nav-item ${isActive ? 'is-active' : ''}`
+              }
+              onClick={onNavigate}
+            >
+              Handoffs
+            </NavLink>
           </>
         ) : null}
 

@@ -19,6 +19,7 @@ import { AuditService } from '../audit/audit.service';
 import { SessionService } from '../authentication/sessions/session.service';
 import type { AuthenticatedRequestUser } from '../authentication/request-user';
 import { PrismaService } from '../database/prisma.service';
+import { HandoffsService } from '../tickets/handoffs/handoffs.service';
 import {
   AdminUserQueryDto,
   CreateAdminUserDto,
@@ -46,6 +47,8 @@ export class UsersService {
     private readonly auditService: AuditService,
     @Inject(forwardRef(() => SessionService))
     private readonly sessions: SessionService,
+    @Inject(forwardRef(() => HandoffsService))
+    private readonly handoffsService: HandoffsService,
   ) {}
 
   findById(userId: string): Promise<User | null> {
@@ -221,6 +224,8 @@ export class UsersService {
         tx,
       );
       if (dto.role === UserRole.Employee)
+        await this.handoffsService.cancelPendingForUser(userId, actor.userId, tx);
+      if (dto.role === UserRole.Employee)
         await this.reconcileMemberships(userId, actor.userId, tx);
       await this.auditService.append(
         tx,
@@ -248,8 +253,10 @@ export class UsersService {
         { isActive: dto.active },
         tx,
       );
-      if (!dto.active)
+      if (!dto.active) {
+        await this.handoffsService.cancelPendingForUser(userId, actor.userId, tx);
         await this.reconcileMemberships(userId, actor.userId, tx);
+      }
       await this.auditService.append(
         tx,
         actor.userId,
@@ -298,6 +305,12 @@ export class UsersService {
     await this.prisma.$transaction(async (tx) => {
       const membership = await this.usersRepository.findMembership(userId, departmentId, tx);
       if (!membership) throw new NotFoundException('Department membership was not found');
+      await this.handoffsService.cancelPendingForUserInDepartment(
+        userId,
+        departmentId,
+        actor.userId,
+        tx,
+      );
       await this.reconcileDepartmentTickets(userId, departmentId, actor.userId, tx);
       await this.usersRepository.deleteMembership(userId, departmentId, tx);
       await this.auditService.append(tx, actor.userId, AuditAction.DEPARTMENT_MAPPING, {
@@ -317,6 +330,16 @@ export class UsersService {
     const memberships = await tx.departmentMember.findMany({
       where: { userId },
     });
+    if (memberships.length === 0) {
+      await this.handoffsService.cancelPendingForUser(userId, actorId, tx);
+    }
+    for (const membership of memberships)
+      await this.handoffsService.cancelPendingForUserInDepartment(
+        userId,
+        membership.departmentId,
+        actorId,
+        tx,
+      );
     for (const membership of memberships)
       await this.reconcileDepartmentTickets(
         userId,
@@ -343,9 +366,26 @@ export class UsersService {
       },
     });
     for (const ticket of tickets) {
+      await this.handoffsService.cancelPendingForTicket(
+        ticket.ticketId,
+        actorId,
+        'DEPARTMENT_MEMBERSHIP_CHANGED',
+        tx,
+      );
+      const current = await tx.ticket.findUnique({
+        where: { ticketId: ticket.ticketId },
+      });
+      if (
+        !current ||
+        !current.active ||
+        current.status !== TicketStatus.CLAIMED ||
+        current.agentId !== userId
+      ) {
+        continue;
+      }
       const now = new Date();
       await tx.ticket.update({
-        where: { ticketId: ticket.ticketId },
+        where: { ticketId: current.ticketId },
         data: {
           status: TicketStatus.CLOSED,
           agentId: null,

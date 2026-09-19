@@ -5,9 +5,14 @@ import { UsersController } from './users.controller';
 import { UserProfileController } from './user-profile.controller';
 import { AuditModule } from '../audit/audit.module';
 import { AuthenticationModule } from '../authentication/authentication.module';
+import { TicketsModule } from '../tickets/tickets.module';
 
 @Module({
-  imports: [AuditModule, forwardRef(() => AuthenticationModule)],
+  imports: [
+    AuditModule,
+    forwardRef(() => AuthenticationModule),
+    forwardRef(() => TicketsModule),
+  ],
   controllers: [UsersController, UserProfileController],
   providers: [UsersService, UsersRepository],
   exports: [UsersService, UsersRepository],

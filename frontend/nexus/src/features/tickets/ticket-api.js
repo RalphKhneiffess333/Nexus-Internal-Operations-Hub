@@ -55,6 +55,45 @@ export function getTicketEvent(ticketId, eventId) {
   return apiRequest(`/tickets/${ticketId}/events/${eventId}`)
 }
 
+export function getTicketHandoffs(ticketId, status) {
+  return apiRequest(withQuery(`/tickets/${ticketId}/handoffs`, { status }))
+}
+
+export function getEligibleHandoffAgents(ticketId) {
+  return apiRequest(`/tickets/${ticketId}/handoffs/eligible-agents`)
+}
+
+export function createHandoff(ticketId, data) {
+  return apiRequest(`/tickets/${ticketId}/handoffs`, {
+    method: 'POST',
+    body: data,
+  })
+}
+
+export function acceptHandoff(handoffId) {
+  return apiRequest(`/handoffs/${handoffId}/accept`, { method: 'POST' })
+}
+
+export function rejectHandoff(handoffId) {
+  return apiRequest(`/handoffs/${handoffId}/reject`, { method: 'POST' })
+}
+
+export function cancelHandoff(handoffId) {
+  return apiRequest(`/handoffs/${handoffId}/cancel`, { method: 'POST' })
+}
+
+export function getIncomingHandoffs(params = {}) {
+  return apiRequest(withQuery('/handoffs/incoming', params))
+}
+
+export function getOutgoingHandoffs(params = {}) {
+  return apiRequest(withQuery('/handoffs/outgoing', params))
+}
+
+export function getHandoffs(params = {}) {
+  return apiRequest(withQuery('/handoffs', params))
+}
+
 export function createTicket(data, files = []) {
   return apiRequest('/tickets', {
     method: 'POST',

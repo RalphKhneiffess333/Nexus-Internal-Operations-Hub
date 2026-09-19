@@ -21,6 +21,13 @@ export const TicketEventAction = {
   HANDOFF: 'HANDOFF',
 }
 
+export const HandoffStatus = {
+  PENDING: 'PENDING',
+  ACCEPTED: 'ACCEPTED',
+  REJECTED: 'REJECTED',
+  CANCELLED: 'CANCELLED',
+}
+
 export const UserRole = {
   EMPLOYEE: 'Employee',
   AGENT: 'Agent',

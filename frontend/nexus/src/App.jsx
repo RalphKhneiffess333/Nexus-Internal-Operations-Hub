@@ -5,6 +5,7 @@ import { useAuthentication } from './features/authentication/use-authentication'
 import { LandingPage } from './pages/authentication/LandingPage'
 import { NewTicketPage } from './pages/tickets/NewTicketPage'
 import { TicketDetailsPage } from './pages/tickets/TicketDetailsPage'
+import { HandoffsPage } from './pages/tickets/HandoffsPage'
 import { TicketsPage } from './pages/tickets/TicketsPage'
 import { ManagementPage } from './pages/administration/ManagementPage'
 import { LogsPage } from './pages/administration/LogsPage'
@@ -45,6 +46,7 @@ export default function App() {
             element={<Navigate to="/tickets/pool?view=all" replace />}
           />
           <Route path="/tickets/pool" element={<TicketsPage view="pool" />} />
+          <Route path="/tickets/handoffs" element={<HandoffsPage />} />
           <Route path="/tickets/all" element={<AdminRoute><Navigate to="/tickets/pool?view=system" replace /></AdminRoute>} />
           <Route path="/admin/management" element={<AdminRoute><ManagementPage /></AdminRoute>} />
           <Route path="/admin/logs" element={<AdminRoute><LogsPage /></AdminRoute>} />
