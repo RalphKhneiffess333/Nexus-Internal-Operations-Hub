@@ -14,7 +14,6 @@ import { useAuthentication } from '../../features/authentication/use-authenticat
 import { useOperationsSocket } from '../../features/realtime/use-operations-socket'
 import { canWorkTickets } from '../../features/tickets/ticket-types'
 import { HandoffPanel } from '../../components/tickets/HandoffPanel'
-import { TicketChatPanel } from '../../components/tickets/TicketChatPanel'
 import {
   cancelTicket,
   claimTicket,
@@ -368,8 +367,7 @@ export function TicketDetailsPage() {
   const canClaim = Boolean(ticket?.active && permissions.canClaim)
   const canClose = Boolean(ticket?.active && permissions.canClose)
   const canReopen = Boolean(ticket?.active && permissions.canReopen)
-  const showHeaderActions =
-    ticket && !editing && (canEdit || canCancel || canClaim || canClose || canReopen)
+  const showTicketActions = !editing
   const latestAttachmentEvent = latestEventWithAttachments(events)
   const backPath = location.state?.from ?? '/tickets'
   const backLabel = backPath.startsWith('/admin/logs')
@@ -390,14 +388,17 @@ export function TicketDetailsPage() {
             Review the request, follow its progress, and take the next action.
           </p>
         </div>
-        {showHeaderActions ? (
-          <div className="header-actions">
-            {canEdit ? (
+        {ticket ? (
+          <div className="header-actions ticket-details-header-actions">
+            <Link to={`/chats/${ticket.ticketId}`} className="btn primary ticket-open-chat">
+              Open chat
+            </Link>
+            {showTicketActions && canEdit ? (
               <button type="button" className="btn ghost" onClick={() => setEditing(true)}>
                 Edit
               </button>
             ) : null}
-            {canCancel ? (
+            {showTicketActions && canCancel ? (
               <button
                 type="button"
                 className="btn danger"
@@ -406,7 +407,7 @@ export function TicketDetailsPage() {
                 Cancel ticket
               </button>
             ) : null}
-            {canClaim ? (
+            {showTicketActions && canClaim ? (
               <button
                 type="button"
                 className="btn primary"
@@ -415,7 +416,7 @@ export function TicketDetailsPage() {
                 Claim ticket
               </button>
             ) : null}
-            {canClose ? (
+            {showTicketActions && canClose ? (
               <button
                 type="button"
                 className="btn primary"
@@ -427,7 +428,7 @@ export function TicketDetailsPage() {
                 Close ticket
               </button>
             ) : null}
-            {canReopen ? (
+            {showTicketActions && canReopen ? (
               <button
                 type="button"
                 className="btn ghost"
@@ -526,8 +527,6 @@ export function TicketDetailsPage() {
                 }}
               />
             ) : null}
-
-            <TicketChatPanel key={ticket.ticketId} ticket={ticket} currentUser={user} />
 
             {ticket.active === false ? (
               <p className="muted ticket-inactive-note">

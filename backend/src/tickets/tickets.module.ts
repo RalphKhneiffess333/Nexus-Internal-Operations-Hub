@@ -18,9 +18,10 @@ import { HandoffsController } from './handoffs/handoffs.controller';
 import { HandoffsRepository } from './handoffs/handoffs.repository';
 import { HandoffsService } from './handoffs/handoffs.service';
 import { TicketRealtimePublisher } from './realtime/ticket-realtime.publisher';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [DepartmentsModule, FilesModule],
+  imports: [DepartmentsModule, FilesModule, NotificationsModule],
   controllers: [TicketsController, HandoffsController],
   providers: [
     TicketsService,

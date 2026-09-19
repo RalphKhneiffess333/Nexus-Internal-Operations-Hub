@@ -89,6 +89,7 @@ model User {
   handoffsRequested      HandoffRequest[]   @relation("HandoffRequester")
   handoffsReceived       HandoffRequest[]   @relation("HandoffRequestedAgent")
   chatMessages           ChatMessage[]      @relation("ChatMessageSender")
+  chatReadReceipts       ChatReadReceipt[]
 
   @@unique([identityProviderId, identityProviderUserId])
   @@map("users")
@@ -142,6 +143,7 @@ model Ticket {
   events          TicketEvent[]
   handoffs        HandoffRequest[]
   chatMessages    ChatMessage[]
+  chatReadReceipts ChatReadReceipt[]
 
   @@index([submittedBy])
   @@index([departmentId])
@@ -182,6 +184,18 @@ model ChatMessage {
   @@index([ticketId, createdAt])
   @@index([senderId])
   @@map("chat_messages")
+}
+
+model ChatReadReceipt {
+  ticketId   String   @map("ticket_id")
+  userId     String   @map("user_id")
+  lastReadAt DateTime @map("last_read_at")
+  ticket     Ticket   @relation(fields: [ticketId], references: [ticketId], onDelete: Restrict)
+  user       User     @relation(fields: [userId], references: [userId], onDelete: Restrict)
+
+  @@id([ticketId, userId])
+  @@index([userId, lastReadAt])
+  @@map("chat_read_receipts")
 }
 
 model HandoffRequest {

@@ -38,6 +38,7 @@ import {
 } from './repositories/tickets.repository';
 import { TicketLifecycleRepository } from './repositories/ticket-lifecycle.repository';
 import { TicketRealtimePublisher } from './realtime/ticket-realtime.publisher';
+import { NotificationsService } from '../notifications/notifications.service';
 
 export interface TicketActionPermissions {
   canModify: boolean;
@@ -80,6 +81,7 @@ export class TicketsService {
     private readonly cancelTicketPolicy: CancelTicketPolicy,
     private readonly viewTicketPolicy: ViewTicketPolicy,
     private readonly ticketRealtimePublisher: TicketRealtimePublisher,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async findAll(
@@ -247,6 +249,7 @@ export class TicketsService {
       actor.userId,
       TicketEventAction.SUBMISSION,
     );
+    await this.notifyTicketLifecycle(mutation.ticket, TicketEventAction.SUBMISSION, actor.userId);
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
     return this.withPermission(mutation.ticket, actor, actorDepartmentIds);
   }
@@ -286,6 +289,7 @@ export class TicketsService {
       actor.userId,
       TicketEventAction.CLAIM,
     );
+    this.notifySubmitter(claimed.ticket, actor.userId, 'TICKET_CLAIMED', `Your ticket ${claimed.ticket.ticketCode} has been claimed.`);
     return this.withPermission(claimed.ticket, actor, actorDepartmentIds);
   }
 
@@ -330,6 +334,7 @@ export class TicketsService {
       actor.userId,
       TicketEventAction.CLOSE,
     );
+    this.notifySubmitter(mutation.ticket, actor.userId, 'TICKET_CLOSED', `Your ticket ${mutation.ticket.ticketCode} has been closed.`);
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
     return this.withPermission(mutation.ticket, actor, actorDepartmentIds);
   }
@@ -378,6 +383,7 @@ export class TicketsService {
       actor.userId,
       TicketEventAction.REOPEN,
     );
+    await this.notifyTicketLifecycle(mutation.ticket, TicketEventAction.REOPEN, actor.userId);
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
     return this.withPermission(mutation.ticket, actor, actorDepartmentIds);
   }
@@ -472,6 +478,9 @@ export class TicketsService {
       actor.userId,
       TicketEventAction.MODIFICATION,
     );
+    if (oldPriority !== mutation.ticket.priority) {
+      this.notifySubmitter(mutation.ticket, actor.userId, 'TICKET_UPDATED', `The priority of ticket ${mutation.ticket.ticketCode} was updated.`);
+    }
     return this.withPermission(mutation.ticket, actor, actorDepartmentIds);
   }
 
@@ -513,6 +522,41 @@ export class TicketsService {
     return this.departmentsRepository.findActiveDepartmentIdsByUserId(
       actor.userId,
     );
+  }
+
+  private async notifyTicketLifecycle(
+    ticket: TicketRecord,
+    action: 'SUBMISSION' | 'REOPEN',
+    actorId: string,
+  ): Promise<void> {
+    const department = await this.departmentsRepository.findById(ticket.departmentId);
+    const reopened = action === TicketEventAction.REOPEN;
+    await this.notifications.notifyDepartmentAgents(
+      ticket.departmentId,
+      {
+        type: reopened ? 'TICKET_REOPENED' : 'TICKET_OPENED',
+        message: `New ticket ${reopened ? 'reopened' : 'opened'} in ${department?.name ?? 'your department'}.`,
+        ticketId: ticket.ticketId,
+        link: `/tickets/${ticket.ticketId}`,
+      },
+      actorId,
+    );
+  }
+
+  private notifySubmitter(
+    ticket: TicketRecord,
+    actorId: string,
+    type: 'TICKET_CLAIMED' | 'TICKET_CLOSED' | 'TICKET_UPDATED',
+    message: string,
+  ): void {
+    if (ticket.submittedBy === actorId) return;
+    this.notifications.notify({
+      type,
+      message,
+      recipientUserIds: [ticket.submittedBy],
+      ticketId: ticket.ticketId,
+      link: `/tickets/${ticket.ticketId}`,
+    });
   }
 
   private parseRemovedAttachmentIds(value?: string): string[] {

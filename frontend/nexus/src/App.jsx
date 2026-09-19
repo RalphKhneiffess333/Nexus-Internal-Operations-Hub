@@ -10,6 +10,8 @@ import { TicketsPage } from './pages/tickets/TicketsPage'
 import { ManagementPage } from './pages/administration/ManagementPage'
 import { LogsPage } from './pages/administration/LogsPage'
 import { DashboardPage } from './pages/dashboard/DashboardPage'
+import { ChatsPage } from './pages/chats/ChatsPage'
+import { TicketChatPage } from './pages/chats/TicketChatPage'
 import { UserRole } from './features/tickets/ticket-types'
 
 function AdminRoute({ children }) {
@@ -42,6 +44,8 @@ export default function App() {
         <Route element={<AppShell />}>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/chats" element={<ChatsPage />} />
+          <Route path="/chats/:ticketId" element={<TicketChatPage />} />
           <Route path="/tickets" element={<TicketsPage view="submitted" />} />
           <Route
             path="/tickets/department"

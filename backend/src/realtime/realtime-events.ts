@@ -2,6 +2,7 @@ export const RealtimeInternalEvent = {
   TicketUpdated: 'realtime.ticket.updated',
   TicketEventCreated: 'realtime.ticket.event-created',
   ChatMessageCreated: 'realtime.chat.message-created',
+  AppNotification: 'realtime.app-notification',
   SessionInvalidated: 'realtime.session.invalidated',
 } as const;
 
@@ -18,6 +19,7 @@ export const OperationsServerEvent = {
   TicketUpdated: 'ticket.updated',
   TicketEventCreated: 'ticket.event.created',
   ChatMessageCreated: 'chat.message.created',
+  AppNotification: 'app.notification',
 } as const;
 
 export interface RealtimeEnvelope<TPayload> {
@@ -75,6 +77,31 @@ export interface ChatMessageCreatedPayload {
 
 export type ChatMessageCreatedRealtimeEvent =
   RealtimeEnvelope<ChatMessageCreatedPayload>;
+
+export type AppNotificationType =
+  | 'TICKET_OPENED'
+  | 'TICKET_REOPENED'
+  | 'TICKET_CLAIMED'
+  | 'TICKET_CLOSED'
+  | 'TICKET_UPDATED'
+  | 'CHAT_MESSAGE'
+  | 'HANDOFF_REQUESTED'
+  | 'HANDOFF_RESOLVED'
+  | 'ACCOUNT_UPDATED';
+
+export interface AppNotificationRealtimeEvent {
+  eventId: string;
+  occurredAt: string;
+  version: number;
+  recipientUserIds: string[];
+  payload: {
+    type: AppNotificationType;
+    message: string;
+    ticketId?: string;
+    link?: string;
+    blocking: boolean;
+  };
+}
 
 export interface SessionInvalidatedRealtimeEvent {
   userId: string;

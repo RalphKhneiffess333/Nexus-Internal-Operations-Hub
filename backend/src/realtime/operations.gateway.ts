@@ -25,6 +25,7 @@ import type {
   ChatMessageCreatedRealtimeEvent,
   TicketEventCreatedRealtimeEvent,
   TicketUpdatedRealtimeEvent,
+  AppNotificationRealtimeEvent,
 } from './realtime-events';
 import { chatRoom, ticketRoom, userRoom } from './realtime-rooms';
 
@@ -221,6 +222,16 @@ export class OperationsGateway
     this.server
       .to(chatRoom(event.ticketId))
       .emit(OperationsServerEvent.ChatMessageCreated, event);
+  }
+
+  @OnEvent(RealtimeInternalEvent.AppNotification)
+  handleAppNotification(event: AppNotificationRealtimeEvent): void {
+    if (!this.server) return;
+    for (const userId of event.recipientUserIds) {
+      this.server
+        .to(userRoom(userId))
+        .emit(OperationsServerEvent.AppNotification, event);
+    }
   }
 
   @OnEvent(RealtimeInternalEvent.SessionInvalidated)

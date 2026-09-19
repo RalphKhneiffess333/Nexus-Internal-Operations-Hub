@@ -4,10 +4,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { TicketStatus, UserRole } from '@prisma/client';
+import { Ticket, TicketStatus, UserRole } from '@prisma/client';
 import type { AuthenticatedRequestUser } from '../../authentication/request-user';
 import { ViewTicketPolicy } from '../../tickets/policies/view-ticket.policy';
-import type { TicketRecord } from '../../tickets/repositories/tickets.repository';
 
 @Injectable()
 export class ChatPolicy {
@@ -15,7 +14,7 @@ export class ChatPolicy {
 
   assertCanView(
     actor: AuthenticatedRequestUser,
-    ticket: TicketRecord,
+    ticket: Ticket,
     actorDepartmentIds: string[],
   ): void {
     if (!ticket.active) {
@@ -27,7 +26,7 @@ export class ChatPolicy {
 
   assertCanSend(
     actor: AuthenticatedRequestUser,
-    ticket: TicketRecord,
+    ticket: Ticket,
     actorDepartmentIds: string[],
   ): void {
     this.assertCanView(actor, ticket, actorDepartmentIds);

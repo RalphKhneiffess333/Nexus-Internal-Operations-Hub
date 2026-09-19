@@ -21,6 +21,7 @@ import { TicketRealtimePublisher } from '../realtime/ticket-realtime.publisher';
 import { CreateHandoffDto, HandoffQueryDto } from './handoff.dto';
 import { HandoffPolicy } from './handoff.policy';
 import { HandoffRecord, HandoffsRepository } from './handoffs.repository';
+import { NotificationsService } from '../../notifications/notifications.service';
 
 export interface HandoffUserSummary {
   userId: string;
@@ -61,6 +62,7 @@ export class HandoffsService {
     private readonly handoffPolicy: HandoffPolicy,
     private readonly viewTicketPolicy: ViewTicketPolicy,
     private readonly ticketRealtimePublisher: TicketRealtimePublisher,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async create(
@@ -162,6 +164,13 @@ export class HandoffsService {
 
     const created = await this.handoffsRepository.findById(createdHandoffId);
     if (!created) throw new NotFoundException('Handoff request was not found');
+    this.notifications.notify({
+      type: 'HANDOFF_REQUESTED',
+      message: `You have a pending ticket handoff request for ticket ${created.ticket.ticketCode}.`,
+      recipientUserIds: [created.requestedAgent.userId],
+      ticketId: created.ticket.ticketId,
+      link: '/tickets/handoffs',
+    });
     return this.toResponse(created);
   }
 
@@ -329,6 +338,13 @@ export class HandoffsService {
 
     const accepted = await this.handoffsRepository.findById(handoffId);
     if (!accepted) throw new NotFoundException('Handoff request was not found');
+    this.notifications.notify({
+      type: 'HANDOFF_RESOLVED',
+      message: `Your handoff request for ticket ${accepted.ticket.ticketCode} was accepted.`,
+      recipientUserIds: [accepted.requester.userId],
+      ticketId: accepted.ticket.ticketId,
+      link: '/tickets/handoffs',
+    });
     return this.toResponse(accepted);
   }
 

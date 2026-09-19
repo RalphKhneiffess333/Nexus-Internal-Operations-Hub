@@ -55,6 +55,14 @@ export function getChatMessages(ticketId) {
   return apiRequest(`/tickets/${ticketId}/chat/messages`)
 }
 
+export function getChatConversations() {
+  return apiRequest('/chats')
+}
+
+export function markChatConversationRead(ticketId) {
+  return apiRequest(`/chats/${ticketId}/read`, { method: 'POST' })
+}
+
 export function createChatMessage(ticketId, content, files = []) {
   if (files.length === 0) {
     return apiRequest(`/tickets/${ticketId}/chat/messages`, {

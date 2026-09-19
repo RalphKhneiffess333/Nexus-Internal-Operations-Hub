@@ -69,6 +69,44 @@ describe('Chat integration', () => {
     );
   });
 
+  it('lists accessible ticket conversations with a last-message preview and read state', async () => {
+    const open = await submitOpenTicket(tickets);
+    await claimTicket(tickets, open.ticketId);
+    await chat.createMessage(
+      open.ticketId,
+      { content: 'Could you share the device serial number?' },
+      agentUser(),
+    );
+
+    const employeeInbox = await chat.listConversations(requestUser());
+    expect(employeeInbox).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          ticketId: open.ticketId,
+          ticketCode: open.ticketCode,
+          unread: true,
+          lastMessage: expect.objectContaining({
+            content: 'Could you share the device serial number?',
+            sender: expect.objectContaining({ userId: AGENT_ID }),
+          }),
+        }),
+      ]),
+    );
+
+    await chat.markConversationRead(open.ticketId, requestUser());
+    const readConversation = (await chat.listConversations(requestUser())).find(
+      (conversation) => conversation.ticketId === open.ticketId,
+    );
+    expect(readConversation?.unread).toBe(false);
+
+    const unrelatedEmployee = requestUser({
+      userId: EMPLOYEE_2_ID,
+      email: 'sam@company.com',
+      identityProviderUserId: EMPLOYEE_2_ID,
+    });
+    expect(await chat.listConversations(unrelatedEmployee)).toEqual([]);
+  });
+
   it('allows ticket viewers to read, but only the submitter and assigned agent to send', async () => {
     const open = await submitOpenTicket(tickets);
     await claimTicket(tickets, open.ticketId);

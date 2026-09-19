@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { UserLink } from '../users/UserLink'
 import { FilePicker } from './FilePicker'
 import { formatDateTime } from '../../features/tickets/ticket-types'
@@ -23,7 +23,12 @@ function mergeMessages(current, incoming) {
   return sortMessages([...byId.values()])
 }
 
-export function TicketChatPanel({ ticket, currentUser }) {
+export function TicketChatPanel({
+  ticket,
+  currentUser,
+  onConversationRead,
+  variant = 'panel',
+}) {
   const { connectionState, subscribeToChat } = useOperationsSocket()
   const [messages, setMessages] = useState([])
   const [loading, setLoading] = useState(true)
@@ -34,6 +39,8 @@ export function TicketChatPanel({ ticket, currentUser }) {
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState('')
   const [downloadingAttachmentId, setDownloadingAttachmentId] = useState('')
+  const messageListRef = useRef(null)
+  const shouldFollowLatestRef = useRef(true)
   const ticketId = ticket?.ticketId
 
   const writable = ticket?.active !== false && ticket?.status === 'CLAIMED' &&
@@ -58,7 +65,8 @@ export function TicketChatPanel({ ticket, currentUser }) {
     // The authoritative history request intentionally synchronizes this panel.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadMessages()
-  }, [loadMessages])
+    void onConversationRead?.()
+  }, [loadMessages, onConversationRead])
 
   useEffect(() => subscribeToChat(ticketId, (event) => {
     if (event?.type === 'reconnected') {
@@ -67,14 +75,28 @@ export function TicketChatPanel({ ticket, currentUser }) {
     }
     if (event?.payload?.messageId) {
       setMessages((current) => mergeMessages(current, [event.payload]))
+      if (event.payload.sender?.userId !== currentUser?.userId) {
+        void onConversationRead?.()
+      }
     }
-  }), [loadMessages, subscribeToChat, ticket?.status, ticketId])
+  }), [currentUser?.userId, loadMessages, onConversationRead, subscribeToChat, ticket?.status, ticketId])
 
   useEffect(() => {
     // Ticket lifecycle changes can change room access and writability.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadMessages({ silent: true })
   }, [loadMessages, ticket?.status])
+
+  useLayoutEffect(() => {
+    if (!shouldFollowLatestRef.current) return
+    const messageList = messageListRef.current
+    if (messageList) messageList.scrollTop = messageList.scrollHeight
+  }, [messages.length])
+
+  function handleMessageListScroll(event) {
+    const { clientHeight, scrollHeight, scrollTop } = event.currentTarget
+    shouldFollowLatestRef.current = scrollHeight - clientHeight - scrollTop < 40
+  }
 
   async function handleSend(event) {
     event.preventDefault()
@@ -84,6 +106,7 @@ export function TicketChatPanel({ ticket, currentUser }) {
     setSendError('')
     try {
       const created = await createChatMessage(ticket.ticketId, content.trim(), files)
+      shouldFollowLatestRef.current = true
       setMessages((current) => mergeMessages(current, [created]))
       setContent('')
       setFiles([])
@@ -124,14 +147,21 @@ export function TicketChatPanel({ ticket, currentUser }) {
   }, [connectionState])
 
   return (
-    <section className="ticket-chat-panel clay-card" aria-labelledby="ticket-chat-heading">
-      <div className="ticket-chat-heading">
-        <div>
-          <p className="eyebrow">Conversation</p>
-          <h2 id="ticket-chat-heading">Ticket chat</h2>
+    <section className={`ticket-chat-panel ticket-chat-${variant} clay-card`} aria-labelledby="ticket-chat-heading">
+      {variant === 'panel' ? (
+        <div className="ticket-chat-heading">
+          <div>
+            <p className="eyebrow">Conversation</p>
+            <h2 id="ticket-chat-heading">Ticket chat</h2>
+          </div>
+          <span className="ticket-chat-count">{messages.length}</span>
         </div>
-        <span className="ticket-chat-count">{messages.length}</span>
-      </div>
+      ) : (
+        <div className="ticket-chat-heading ticket-chat-full-heading">
+          <span id="ticket-chat-heading">Conversation</span>
+          <span className="ticket-chat-count">{messages.length}</span>
+        </div>
+      )}
 
       {connectionNote ? <p className="ticket-chat-connection">{connectionNote}</p> : null}
       {loading ? <p className="ticket-chat-state">Loading conversation…</p> : null}
@@ -139,7 +169,11 @@ export function TicketChatPanel({ ticket, currentUser }) {
       {!loading && !error && messages.length === 0 ? <p className="ticket-chat-state">No messages yet. {writable ? 'Start the conversation.' : 'This conversation is read-only.'}</p> : null}
 
       {!loading && messages.length > 0 ? (
-        <ol className="ticket-chat-list">
+        <ol
+          ref={messageListRef}
+          className="ticket-chat-list"
+          onScroll={handleMessageListScroll}
+        >
           {messages.map((message) => (
             <li key={message.messageId} className={`ticket-chat-message${message.sender?.userId === currentUser?.userId ? ' is-mine' : ''}`}>
               <div className="ticket-chat-message-meta"><UserLink user={message.sender} /><time dateTime={message.createdAt}>{formatDateTime(message.createdAt)}</time></div>
@@ -159,7 +193,7 @@ export function TicketChatPanel({ ticket, currentUser }) {
           <div className="ticket-chat-actions"><span>{content.length}/4000</span><button type="submit" className="btn primary" disabled={sending || (!content.trim() && files.length === 0)}>{sending ? 'Sending…' : 'Send message'}</button></div>
         </form>
       ) : (
-        <p className="ticket-chat-read-only">This chat is read-only while the ticket is unclaimed.</p>
+        <p className="ticket-chat-read-only">This chat is read-only because the ticket is not currently claimed.</p>
       )}
     </section>
   )

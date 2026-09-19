@@ -21,9 +21,11 @@ import {
 } from '../realtime/realtime-events';
 import { TicketsRepository } from '../tickets/repositories/tickets.repository';
 import { CreateChatMessageDto } from './dto/create-chat-message.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 import { ChatPolicy } from './policies/chat.policy';
 import {
   ChatRepository,
+  type ChatInboxTicketRecord,
   type ChatMessageRecord,
 } from './repositories/chat.repository';
 
@@ -52,6 +54,21 @@ export interface ChatMessageResponse {
   attachments: ChatAttachmentResponse[];
 }
 
+export interface ChatConversationResponse {
+  ticketId: string;
+  ticketCode: string;
+  title: string;
+  status: string;
+  lastMessage: {
+    messageId: string;
+    content: string | null;
+    createdAt: Date;
+    sender: ChatMessageResponse['sender'];
+    hasAttachments: boolean;
+  } | null;
+  unread: boolean;
+}
+
 @Injectable()
 export class ChatService {
   constructor(
@@ -63,6 +80,7 @@ export class ChatService {
     private readonly filesService: FilesService,
     private readonly fileAttachmentsRepository: FileAttachmentsRepository,
     private readonly eventEmitter: EventEmitter2,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async listMessages(
@@ -75,6 +93,31 @@ export class ChatService {
     this.chatPolicy.assertCanView(actor, ticket, departmentIds);
     const messages = await this.chatRepository.findByTicketId(ticketId);
     return messages.map((message) => this.toResponse(message));
+  }
+
+  async listConversations(
+    actor: AuthenticatedRequestUser,
+  ): Promise<ChatConversationResponse[]> {
+    const actorDepartmentIds = await this.getActorDepartmentIds(actor.userId);
+    const tickets = await this.chatRepository.findInboxTickets(actor.userId);
+    return tickets
+      .filter((ticket) =>
+        this.viewableByActor(ticket, actor, actorDepartmentIds),
+      )
+      .map((ticket) => this.toConversationResponse(ticket, actor.userId))
+      .sort((left, right) => {
+        const rightTime = right.lastMessage?.createdAt.getTime() ?? 0;
+        const leftTime = left.lastMessage?.createdAt.getTime() ?? 0;
+        return rightTime - leftTime || right.ticketCode.localeCompare(left.ticketCode);
+      });
+  }
+
+  async markConversationRead(
+    ticketId: string,
+    actor: AuthenticatedRequestUser,
+  ): Promise<void> {
+    await this.assertCanViewChat(ticketId, actor);
+    await this.chatRepository.markRead(ticketId, actor.userId, new Date());
   }
 
   async createMessage(
@@ -103,6 +146,12 @@ export class ChatService {
           actor.userId,
           content,
           new Date(),
+          tx,
+        );
+        await this.chatRepository.markRead(
+          ticketId,
+          actor.userId,
+          created.createdAt,
           tx,
         );
         for (const file of storedFiles) {
@@ -136,6 +185,18 @@ export class ChatService {
       });
       const response = this.toResponse(message);
       this.publishMessage(response, actor.userId);
+      const ticket = await this.ticketsRepository.findById(ticketId);
+      const recipientUserId =
+        ticket?.submittedBy === actor.userId ? ticket.agentId : ticket?.submittedBy;
+      if (recipientUserId) {
+        this.notifications.notify({
+          type: 'CHAT_MESSAGE',
+          message: `New message received on ticket ${ticket?.ticketCode ?? ''}.`,
+          recipientUserIds: [recipientUserId],
+          ticketId,
+          link: `/chats/${ticketId}`,
+        });
+      }
       return response;
     } catch (error) {
       await this.filesService.cleanup(storedFiles);
@@ -227,6 +288,46 @@ export class ChatService {
         createdAt: attachment.file.createdAt,
         updatedAt: attachment.file.updatedAt,
       })),
+    };
+  }
+
+  private viewableByActor(
+    ticket: ChatInboxTicketRecord,
+    actor: AuthenticatedRequestUser,
+    actorDepartmentIds: string[],
+  ): boolean {
+    try {
+      this.chatPolicy.assertCanView(actor, ticket, actorDepartmentIds);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private toConversationResponse(
+    ticket: ChatInboxTicketRecord,
+    actorId: string,
+  ): ChatConversationResponse {
+    const lastMessage = ticket.chatMessages[0] ?? null;
+    const lastReadAt = ticket.chatReadReceipts[0]?.lastReadAt;
+    return {
+      ticketId: ticket.ticketId,
+      ticketCode: ticket.ticketCode,
+      title: ticket.title,
+      status: ticket.status,
+      lastMessage: lastMessage
+        ? {
+            messageId: lastMessage.messageId,
+            content: lastMessage.content,
+            createdAt: lastMessage.createdAt,
+            sender: lastMessage.sender,
+            hasAttachments: lastMessage.attachments.length > 0,
+          }
+        : null,
+      unread:
+        Boolean(lastMessage) &&
+        lastMessage!.senderId !== actorId &&
+        (!lastReadAt || lastMessage!.createdAt > lastReadAt),
     };
   }
 }

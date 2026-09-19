@@ -1,9 +1,11 @@
 import { NavLink } from 'react-router-dom'
 import { useAuthentication } from '../../features/authentication/use-authentication'
+import { useOperationsSocket } from '../../features/realtime/use-operations-socket'
 import { canWorkTickets } from '../../features/tickets/ticket-types'
 
 export function Sidebar({ open, onNavigate }) {
   const { user, logoutCurrentSession } = useAuthentication()
+  const { connectionState } = useOperationsSocket()
   const showWorkQueues = canWorkTickets(user)
   const showAdministration = user?.role === 'Admin'
 
@@ -36,6 +38,15 @@ export function Sidebar({ open, onNavigate }) {
           onClick={onNavigate}
         >
           My tickets
+        </NavLink>
+        <NavLink
+          to="/chats"
+          className={({ isActive }) =>
+            `nav-item ${isActive ? 'is-active' : ''}`
+          }
+          onClick={onNavigate}
+        >
+          Chats
         </NavLink>
 
         {showWorkQueues ? (
@@ -75,7 +86,14 @@ export function Sidebar({ open, onNavigate }) {
 
       <div className="sidebar-account">
         <div>
-          <p>{user?.fullName ?? 'Signed in'}</p>
+          <p className="sidebar-account-name">
+            <span
+              className={`sidebar-connection-dot is-${connectionState}`}
+              role="status"
+              aria-label={`Live updates ${connectionState}`}
+            />
+            {user?.fullName ?? 'Signed in'}
+          </p>
           <span>{user?.email}</span>
         </div>
         <button type="button" className="sidebar-logout" onClick={logoutCurrentSession}>
