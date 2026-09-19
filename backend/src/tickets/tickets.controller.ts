@@ -23,10 +23,15 @@ import { TicketQueryDto } from './dto/ticket-query.dto';
 import { TicketsService } from './tickets.service';
 import { MAX_FILE_SIZE, MAX_FILES_PER_EVENT } from '../files/file-validation';
 import type { UploadedFileInput } from '../files/file-validation';
+import { CreateHandoffDto, HandoffQueryDto } from './handoffs/handoff.dto';
+import { HandoffsService } from './handoffs/handoffs.service';
 
 @Controller('tickets')
 export class TicketsController {
-  constructor(private readonly ticketsService: TicketsService) {}
+  constructor(
+    private readonly ticketsService: TicketsService,
+    private readonly handoffsService: HandoffsService,
+  ) {}
 
   @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
   @Post()
@@ -193,5 +198,34 @@ export class TicketsController {
   @Post(':id/cancel')
   cancel(@Param('id') id: string, @Req() request: AuthenticatedRequest) {
     return this.ticketsService.cancel(id, request.user!);
+  }
+
+  @Roles(UserRole.Agent, UserRole.Admin)
+  @Get(':id/handoffs/eligible-agents')
+  listEligibleHandoffAgents(
+    @Param('id') id: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.handoffsService.listEligibleAgents(id, request.user!);
+  }
+
+  @Roles(UserRole.Agent, UserRole.Admin)
+  @Get(':id/handoffs')
+  listHandoffs(
+    @Param('id') id: string,
+    @Query() query: HandoffQueryDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.handoffsService.listForTicket(id, request.user!, query.status);
+  }
+
+  @Roles(UserRole.Agent, UserRole.Admin)
+  @Post(':id/handoffs')
+  createHandoff(
+    @Param('id') id: string,
+    @Body() dto: CreateHandoffDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.handoffsService.create(id, dto, request.user!);
   }
 }

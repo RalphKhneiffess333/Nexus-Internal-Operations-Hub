@@ -13,10 +13,14 @@ import { TicketsRepository } from './repositories/tickets.repository';
 import { TicketLifecycleRepository } from './repositories/ticket-lifecycle.repository';
 import { TicketsController } from './tickets.controller';
 import { TicketsService } from './tickets.service';
+import { HandoffPolicy } from './handoffs/handoff.policy';
+import { HandoffsController } from './handoffs/handoffs.controller';
+import { HandoffsRepository } from './handoffs/handoffs.repository';
+import { HandoffsService } from './handoffs/handoffs.service';
 
 @Module({
   imports: [DepartmentsModule, FilesModule],
-  controllers: [TicketsController],
+  controllers: [TicketsController, HandoffsController],
   providers: [
     TicketsService,
     TicketsRepository,
@@ -29,7 +33,10 @@ import { TicketsService } from './tickets.service';
     ModifyTicketPolicy,
     CancelTicketPolicy,
     ViewTicketPolicy,
+    HandoffPolicy,
+    HandoffsRepository,
+    HandoffsService,
   ],
-  exports: [TicketEventsRepository],
+  exports: [TicketEventsRepository, HandoffsService],
 })
 export class TicketsModule {}

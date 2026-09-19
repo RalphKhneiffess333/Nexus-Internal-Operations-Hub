@@ -357,6 +357,7 @@ Unwanted Behavior Scenarios:
 - If the destination agent accepts the proposal, the ticket is handed him
 - This event is recorded in the system logs
 - The employee is notified of agent change
+- Every handoff can have an optional message attached to it
 
 Unwanted Behavior Scenarios:
 - An agent can handoff a ticket to an agent in another department

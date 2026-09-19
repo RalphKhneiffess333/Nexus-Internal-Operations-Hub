@@ -61,6 +61,7 @@ This table manages handoff request states, every request has:
 - The requester and requested agent of the handoff
 - The ticket being handed off
 - The handoff request status: "PENDING", "CANCELLED", "ACCEPTED", "REJECTED"
+- An optional message
 - The date resolved (if it was resolved)
 
 #### Ticket Events table
@@ -174,6 +175,7 @@ The following are the available ticket events stored in the "actions" attribute 
 - requester ID (linked to Users table)
 - requested ID (linked to Users table)
 - action: REQUESTED, ACCEPTED, DENIED, CANCELLED
+- message (optional)
 - timestamp
 
 ### Audit Logs

@@ -36,6 +36,13 @@ enum TicketEventAction {
   HANDOFF
 }
 
+enum HandoffStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+}
+
 enum AuditAction {
   USER_PREPROVISIONING
   ROLE_MAPPING
@@ -79,6 +86,8 @@ model User {
   uploadedFiles          File[]
   departmentMembers      DepartmentMember[]
   auditLogs              AuditLog[]
+  handoffsRequested      HandoffRequest[] @relation("HandoffRequester")
+  handoffsReceived       HandoffRequest[] @relation("HandoffRequestedAgent")
 
   @@unique([identityProviderId, identityProviderUserId])
   @@map("users")
@@ -130,6 +139,7 @@ model Ticket {
   submitter       User           @relation("TicketSubmitter", fields: [submittedBy], references: [userId])
   agent           User?          @relation("TicketAgent", fields: [agentId], references: [userId])
   events          TicketEvent[]
+  handoffs        HandoffRequest[]
 
   @@index([submittedBy])
   @@index([departmentId])
@@ -154,6 +164,27 @@ model TicketEvent {
   @@index([ticketId, createdAt])
   @@index([createdAt])
   @@map("ticket_events")
+}
+
+model HandoffRequest {
+  handoffId        String        @id @map("handoff_id")
+  ticketId         String        @map("ticket_id")
+  requesterId      String        @map("requester_id")
+  requestedAgentId String        @map("requested_agent_id")
+  status           HandoffStatus @default(PENDING)
+  message          String?
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+  resolvedAt       DateTime?     @map("resolved_at")
+  ticket           Ticket        @relation(fields: [ticketId], references: [ticketId], onDelete: Restrict)
+  requester        User          @relation("HandoffRequester", fields: [requesterId], references: [userId], onDelete: Restrict)
+  requestedAgent   User          @relation("HandoffRequestedAgent", fields: [requestedAgentId], references: [userId], onDelete: Restrict)
+
+  @@index([ticketId, status])
+  @@index([requestedAgentId, status])
+  @@index([requesterId, status])
+  @@index([createdAt])
+  @@map("handoff_requests")
 }
 
 model File {
