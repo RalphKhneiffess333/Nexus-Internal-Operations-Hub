@@ -39,6 +39,12 @@ import { TicketRealtimePublisher } from './realtime/ticket-realtime.publisher';
     HandoffsService,
     TicketRealtimePublisher,
   ],
-  exports: [TicketEventsRepository, HandoffsService, TicketsService],
+  exports: [
+    TicketEventsRepository,
+    HandoffsService,
+    TicketsService,
+    TicketsRepository,
+    ViewTicketPolicy,
+  ],
 })
 export class TicketsModule {}

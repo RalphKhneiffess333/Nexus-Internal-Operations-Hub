@@ -14,6 +14,7 @@ import { useAuthentication } from '../../features/authentication/use-authenticat
 import { useOperationsSocket } from '../../features/realtime/use-operations-socket'
 import { canWorkTickets } from '../../features/tickets/ticket-types'
 import { HandoffPanel } from '../../components/tickets/HandoffPanel'
+import { TicketChatPanel } from '../../components/tickets/TicketChatPanel'
 import {
   cancelTicket,
   claimTicket,
@@ -22,6 +23,7 @@ import {
   getTicketEvent,
   getTicketEvents,
   downloadTicketAttachment,
+  openTicketAttachment,
   reopenTicket,
   updateTicket,
 } from '../../features/tickets/ticket-api'
@@ -176,6 +178,15 @@ export function TicketDetailsPage() {
           )
           return
         }
+        setTicket((currentTicket) =>
+          currentTicket
+            ? {
+                ...currentTicket,
+                status: event?.payload?.status ?? currentTicket.status,
+                updatedAt: event?.payload?.updatedAt ?? currentTicket.updatedAt,
+              }
+            : currentTicket,
+        )
         void loadTicket({ silent: true })
         void loadTicketEvents({ silent: true })
       }),
@@ -337,6 +348,20 @@ export function TicketDetailsPage() {
     }
   }
 
+  async function handleOpenAttachment(attachment, eventId) {
+    setDownloadingAttachmentId(attachment.attachmentId)
+    setEventDetailError('')
+    try {
+      await openTicketAttachment(ticketId, eventId, attachment.attachmentId)
+    } catch (openError) {
+      setEventDetailError(
+        openError.message || 'Unable to open this attachment. Please try again.',
+      )
+    } finally {
+      setDownloadingAttachmentId('')
+    }
+  }
+
   const permissions = ticket?.permissions ?? {}
   const canEdit = Boolean(ticket?.active && permissions.canModify)
   const canCancel = Boolean(ticket?.active && permissions.canCancel)
@@ -476,6 +501,12 @@ export function TicketDetailsPage() {
                 timelineOpen={timelineOpen}
                 attachments={latestAttachmentEvent?.attachments}
                 downloadingAttachmentId={downloadingAttachmentId}
+                onOpenAttachment={(attachment) =>
+                  handleOpenAttachment(
+                    attachment,
+                    latestAttachmentEvent.ticketEventId,
+                  )
+                }
                 onDownloadAttachment={(attachment) =>
                   handleDownloadAttachment(
                     attachment,
@@ -495,6 +526,8 @@ export function TicketDetailsPage() {
                 }}
               />
             ) : null}
+
+            <TicketChatPanel key={ticket.ticketId} ticket={ticket} currentUser={user} />
 
             {ticket.active === false ? (
               <p className="muted ticket-inactive-note">
@@ -516,6 +549,7 @@ export function TicketDetailsPage() {
               departments={departments}
               onSelect={handleSelectEvent}
               onRetry={loadTicketEvents}
+              onOpenAttachment={handleOpenAttachment}
               onDownloadAttachment={handleDownloadAttachment}
             />
           ) : null}

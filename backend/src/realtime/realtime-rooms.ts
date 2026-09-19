@@ -5,3 +5,7 @@ export function userRoom(userId: string): string {
 export function ticketRoom(ticketId: string): string {
   return `ticket:${ticketId}`;
 }
+
+export function chatRoom(ticketId: string): string {
+  return `chat:${ticketId}`;
+}

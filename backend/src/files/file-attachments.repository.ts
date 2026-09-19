@@ -37,6 +37,8 @@ export interface FileAttachmentRecord extends TicketEventAttachment {
   storageKey: string;
 }
 
+export interface ChatMessageAttachment extends TicketEventAttachment {}
+
 const storedFileSelect = {
   uploadedBy: true,
   originalName: true,
@@ -71,6 +73,35 @@ export class FileAttachmentsRepository {
           attachmentId: randomUUID(),
           fileId: createdFile.fileId,
           eventId,
+        },
+      });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }
+
+  async createForMessage(
+    messageId: string,
+    file: StoredFileMetadata,
+    client: TicketPersistenceClient,
+  ): Promise<void> {
+    try {
+      const createdFile = await client.file.create({
+        data: {
+          fileId: randomUUID(),
+          uploadedBy: file.uploadedBy,
+          originalName: file.originalName,
+          storageKey: file.storageKey,
+          fileSize: file.fileSize,
+          mimeType: file.mimeType,
+        },
+      });
+
+      await client.attachment.create({
+        data: {
+          attachmentId: randomUUID(),
+          fileId: createdFile.fileId,
+          messageId,
         },
       });
     } catch (error) {
@@ -133,6 +164,37 @@ export class FileAttachmentsRepository {
         createdAt: attachment.file.createdAt,
         updatedAt: attachment.file.updatedAt,
       }));
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }
+
+  async findForChatMessage(
+    ticketId: string,
+    messageId: string,
+    attachmentId: string,
+  ): Promise<FileAttachmentRecord | null> {
+    try {
+      const attachment = await this.prisma.attachment.findFirst({
+        where: {
+          attachmentId,
+          messageId,
+          message: { ticketId },
+        },
+        include: { file: { select: attachmentFileSelect } },
+      });
+      if (!attachment) return null;
+
+      return {
+        attachmentId: attachment.attachmentId,
+        fileId: attachment.file.fileId,
+        originalName: attachment.file.originalName,
+        fileSize: attachment.file.fileSize,
+        mimeType: attachment.file.mimeType,
+        createdAt: attachment.file.createdAt,
+        updatedAt: attachment.file.updatedAt,
+        storageKey: attachment.file.storageKey,
+      };
     } catch (error) {
       mapPrismaError(error);
     }

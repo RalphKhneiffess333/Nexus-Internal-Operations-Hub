@@ -14,6 +14,7 @@ import { AuthenticationService } from '../authentication/authentication.service'
 import { SESSION_COOKIE_NAME } from '../authentication/authentication.constants';
 import { parseCookieHeader } from '../authentication/cookies';
 import { TicketsService } from '../tickets/tickets.service';
+import { ChatService } from '../chat/chat.service';
 import {
   OperationsClientEvent,
   OperationsServerEvent,
@@ -21,10 +22,11 @@ import {
 } from './realtime-events';
 import type {
   SessionInvalidatedRealtimeEvent,
+  ChatMessageCreatedRealtimeEvent,
   TicketEventCreatedRealtimeEvent,
   TicketUpdatedRealtimeEvent,
 } from './realtime-events';
-import { ticketRoom, userRoom } from './realtime-rooms';
+import { chatRoom, ticketRoom, userRoom } from './realtime-rooms';
 
 interface OperationsSocketData {
   sessionId?: string;
@@ -72,6 +74,7 @@ export class OperationsGateway
   constructor(
     private readonly authenticationService: AuthenticationService,
     private readonly ticketsService: TicketsService,
+    private readonly chatService: ChatService,
   ) {}
 
   async handleConnection(client: Socket): Promise<void> {
@@ -153,18 +156,52 @@ export class OperationsGateway
     return { ok: true };
   }
 
+  @SubscribeMessage(OperationsClientEvent.JoinChatRoom)
+  async joinChatRoom(
+    @MessageBody() body: TicketRoomRequest,
+    @ConnectedSocket() client: Socket,
+  ): Promise<RoomAcknowledgement> {
+    const ticketId =
+      typeof body?.ticketId === 'string' ? body.ticketId.trim() : '';
+    if (!ticketId) return { ok: false, code: 'INVALID_TICKET' };
+    const user = await this.authenticatePacket(client);
+    if (!user) return { ok: false, code: 'UNAUTHORIZED' };
+    try {
+      await this.chatService.assertCanViewChat(ticketId, user);
+    } catch {
+      return { ok: false, code: 'TICKET_UNAVAILABLE' };
+    }
+    await client.join(chatRoom(ticketId));
+    return { ok: true };
+  }
+
+  @SubscribeMessage(OperationsClientEvent.LeaveChatRoom)
+  async leaveChatRoom(
+    @MessageBody() body: TicketRoomRequest,
+    @ConnectedSocket() client: Socket,
+  ): Promise<RoomAcknowledgement> {
+    const ticketId =
+      typeof body?.ticketId === 'string' ? body.ticketId.trim() : '';
+    if (!ticketId) return { ok: false, code: 'INVALID_TICKET' };
+    await client.leave(chatRoom(ticketId));
+    return { ok: true };
+  }
+
   isUserOnline(userId: string): boolean {
     return Boolean(this.socketIdsByUserId.get(userId)?.size);
   }
 
   disconnectUser(userId: string): void {
+    const sockets = this.server?.sockets?.sockets;
+    if (!sockets) return;
     for (const socketId of this.socketIdsByUserId.get(userId) ?? []) {
-      this.server.sockets.sockets.get(socketId)?.disconnect(true);
+      sockets.get(socketId)?.disconnect(true);
     }
   }
 
   @OnEvent(RealtimeInternalEvent.TicketUpdated)
   handleTicketUpdated(event: TicketUpdatedRealtimeEvent): void {
+    if (!this.server) return;
     this.server
       .to(ticketRoom(event.ticketId))
       .emit(OperationsServerEvent.TicketUpdated, event);
@@ -172,13 +209,24 @@ export class OperationsGateway
 
   @OnEvent(RealtimeInternalEvent.TicketEventCreated)
   handleTicketEventCreated(event: TicketEventCreatedRealtimeEvent): void {
+    if (!this.server) return;
     this.server
       .to(ticketRoom(event.ticketId))
       .emit(OperationsServerEvent.TicketEventCreated, event);
   }
 
+  @OnEvent(RealtimeInternalEvent.ChatMessageCreated)
+  handleChatMessageCreated(event: ChatMessageCreatedRealtimeEvent): void {
+    if (!this.server) return;
+    this.server
+      .to(chatRoom(event.ticketId))
+      .emit(OperationsServerEvent.ChatMessageCreated, event);
+  }
+
   @OnEvent(RealtimeInternalEvent.SessionInvalidated)
   handleSessionInvalidated(event: SessionInvalidatedRealtimeEvent): void {
+    const sockets = this.server?.sockets?.sockets;
+    if (!sockets) return;
     const socketIds = [...(this.socketIdsByUserId.get(event.userId) ?? [])];
     for (const socketId of socketIds) {
       const connection = this.socketsById.get(socketId);
@@ -186,7 +234,7 @@ export class OperationsGateway
         connection &&
         (!event.sessionIds || event.sessionIds.includes(connection.sessionId))
       ) {
-        this.server.sockets.sockets.get(socketId)?.disconnect(true);
+        sockets.get(socketId)?.disconnect(true);
       }
     }
   }

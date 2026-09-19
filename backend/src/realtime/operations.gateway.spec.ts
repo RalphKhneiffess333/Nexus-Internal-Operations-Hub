@@ -2,6 +2,7 @@ import { describe, expect, it, jest, beforeEach } from '@jest/globals';
 import type { AuthenticatedRequestUser } from '../authentication/request-user';
 import { AuthenticationService } from '../authentication/authentication.service';
 import { TicketsService } from '../tickets/tickets.service';
+import { ChatService } from '../chat/chat.service';
 import { OperationsGateway } from './operations.gateway';
 import { OperationsServerEvent } from './realtime-events';
 
@@ -39,6 +40,7 @@ describe('OperationsGateway', () => {
     findOne: jest.MockedFunction<TicketsService['findOne']>;
   };
   let gateway: OperationsGateway;
+  let chatService: { assertCanViewChat: jest.MockedFunction<ChatService['assertCanViewChat']> };
 
   beforeEach(() => {
     authenticationService = {
@@ -48,9 +50,11 @@ describe('OperationsGateway', () => {
     ticketsService = {
       findOne: jest.fn<TicketsService['findOne']>(),
     };
+    chatService = { assertCanViewChat: jest.fn<ChatService['assertCanViewChat']>() };
     gateway = new OperationsGateway(
       authenticationService as unknown as AuthenticationService,
       ticketsService as unknown as TicketsService,
+      chatService as unknown as ChatService,
     );
   });
 
@@ -111,6 +115,17 @@ describe('OperationsGateway', () => {
     expect(client.join).not.toHaveBeenCalledWith('ticket:hidden-ticket');
   });
 
+  it('authorizes chat room subscriptions through the dedicated chat policy', async () => {
+    authenticationService.authenticateSession.mockResolvedValue(actor);
+    chatService.assertCanViewChat.mockResolvedValue(undefined);
+    const client = socket();
+    await gateway.handleConnection(client as never);
+
+    await expect(gateway.joinChatRoom({ ticketId: 'ticket-1' }, client as never)).resolves.toEqual({ ok: true });
+    expect(chatService.assertCanViewChat).toHaveBeenCalledWith('ticket-1', actor);
+    expect(client.join).toHaveBeenLastCalledWith('chat:ticket-1');
+  });
+
   it('removes disconnected sockets from presence tracking', async () => {
     authenticationService.authenticateSession.mockResolvedValue(actor);
     const client = socket();
@@ -147,6 +162,29 @@ describe('OperationsGateway', () => {
     expect(emit).toHaveBeenCalledWith('ticket.updated', expect.any(Object));
   });
 
+  it('fans chat messages out only through the private chat room', () => {
+    const emit = jest.fn();
+    const to = jest.fn(() => ({ emit }));
+    gateway.server = { to } as never;
+
+    gateway.handleChatMessageCreated({
+      eventId: 'message-1',
+      occurredAt: '2026-09-19T10:00:00.000Z',
+      version: 1,
+      ticketId: 'ticket-1',
+      actorId: 'employee-1',
+      payload: {
+        messageId: 'message-1', ticketId: 'ticket-1', content: 'Hello',
+        createdAt: new Date('2026-09-19T10:00:00.000Z'), updatedAt: new Date('2026-09-19T10:00:00.000Z'),
+        sender: { userId: 'employee-1', fullName: 'Employee', email: 'employee@nexus.test', role: 'Employee' },
+        attachments: [],
+      },
+    });
+
+    expect(to).toHaveBeenCalledWith('chat:ticket-1');
+    expect(emit).toHaveBeenCalledWith('chat.message.created', expect.any(Object));
+  });
+
   it('disconnects only sockets for invalidated sessions', async () => {
     authenticationService.authenticateSession.mockResolvedValue(actor);
     const client = socket();
@@ -162,5 +200,14 @@ describe('OperationsGateway', () => {
     });
 
     expect(client.disconnect).toHaveBeenCalledWith(true);
+  });
+
+  it('ignores invalidation safely before Socket.IO is initialized', () => {
+    expect(() =>
+      gateway.handleSessionInvalidated({
+        userId: actor.userId,
+        reason: 'LOGOUT',
+      }),
+    ).not.toThrow();
   });
 });

@@ -9,6 +9,7 @@ import { AdministrationModule } from './administration/administration.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { RealtimeModule } from './realtime/realtime.module';
+import { ChatModule } from './chat/chat.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { RealtimeModule } from './realtime/realtime.module';
     TicketsModule,
     AdministrationModule,
     DashboardModule,
+    ChatModule,
     RealtimeModule,
   ],
 })

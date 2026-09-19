@@ -29,6 +29,7 @@ export function OperationsSocketProvider({ children }) {
   const { user, refreshAuthentication } = useAuthentication()
   const socketRef = useRef(null)
   const subscriptionsRef = useRef(new Map())
+  const chatSubscriptionsRef = useRef(new Map())
   const seenEventIdsRef = useRef(new Set())
   const hasConnectedRef = useRef(false)
   const [connectionState, setConnectionState] = useState('disconnected')
@@ -37,6 +38,12 @@ export function OperationsSocketProvider({ children }) {
     const socket = socketRef.current
     if (!socket?.connected) return
     socket.emit('join ticket room', { ticketId })
+  }, [])
+
+  const joinChatRoom = useCallback((ticketId) => {
+    const socket = socketRef.current
+    if (!socket?.connected) return
+    socket.emit('join chat room', { ticketId })
   }, [])
 
   const dispatchTicketUpdate = useCallback((event) => {
@@ -49,10 +56,15 @@ export function OperationsSocketProvider({ children }) {
       seenEventIds.delete(seenEventIds.values().next().value)
     }
 
+    // A lifecycle transition can make a visible ticket's chat newly readable.
+    // Rejoin immediately so a first message after a claim is not lost before
+    // the ticket details screen finishes its own HTTP refresh.
+    joinChatRoom(event.ticketId)
+
     subscriptionsRef.current.get(event.ticketId)?.forEach((listener) => {
       listener(event)
     })
-  }, [])
+  }, [joinChatRoom])
 
   const subscribeToTicket = useCallback(
     (ticketId, listener) => {
@@ -77,6 +89,30 @@ export function OperationsSocketProvider({ children }) {
       }
     },
     [joinTicketRoom],
+  )
+
+  const subscribeToChat = useCallback(
+    (ticketId, listener) => {
+      if (!ticketId || typeof listener !== 'function') return () => {}
+
+      const subscribers = chatSubscriptionsRef.current.get(ticketId) ?? new Set()
+      subscribers.add(listener)
+      chatSubscriptionsRef.current.set(ticketId, subscribers)
+      joinChatRoom(ticketId)
+
+      return () => {
+        const currentSubscribers = chatSubscriptionsRef.current.get(ticketId)
+        if (!currentSubscribers) return
+        currentSubscribers.delete(listener)
+        if (currentSubscribers.size > 0) return
+
+        chatSubscriptionsRef.current.delete(ticketId)
+        if (socketRef.current?.connected) {
+          socketRef.current.emit('leave chat room', { ticketId })
+        }
+      }
+    },
+    [joinChatRoom],
   )
 
   useEffect(() => {
@@ -107,6 +143,14 @@ export function OperationsSocketProvider({ children }) {
           })
         }
       })
+      chatSubscriptionsRef.current.forEach((subscribers, ticketId) => {
+        joinChatRoom(ticketId)
+        if (reconnected) {
+          subscribers.forEach((listener) => {
+            listener({ type: 'reconnected', ticketId })
+          })
+        }
+      })
     })
     socket.on('disconnect', (reason) => {
       setConnectionState('reconnecting')
@@ -122,6 +166,18 @@ export function OperationsSocketProvider({ children }) {
     })
     socket.on('ticket.updated', dispatchTicketUpdate)
     socket.on('ticket.event.created', dispatchTicketUpdate)
+    socket.on('chat.message.created', (event) => {
+      if (!isTicketEnvelope(event) || !event.payload?.messageId) return
+      const seenEventIds = seenEventIdsRef.current
+      if (seenEventIds.has(event.eventId)) return
+      seenEventIds.add(event.eventId)
+      if (seenEventIds.size > MAX_SEEN_EVENT_IDS) {
+        seenEventIds.delete(seenEventIds.values().next().value)
+      }
+      chatSubscriptionsRef.current.get(event.ticketId)?.forEach((listener) => {
+        listener(event)
+      })
+    })
     socket.connect()
 
     return () => {
@@ -130,14 +186,15 @@ export function OperationsSocketProvider({ children }) {
         socketRef.current = null
       }
     }
-  }, [dispatchTicketUpdate, joinTicketRoom, refreshAuthentication, user?.userId])
+  }, [dispatchTicketUpdate, joinChatRoom, joinTicketRoom, refreshAuthentication, user?.userId])
 
   const value = useMemo(
     () => ({
       connectionState,
       subscribeToTicket,
+      subscribeToChat,
     }),
-    [connectionState, subscribeToTicket],
+    [connectionState, subscribeToChat, subscribeToTicket],
   )
 
   return (

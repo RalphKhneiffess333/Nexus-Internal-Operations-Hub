@@ -140,13 +140,10 @@ export class TicketsService {
     filters: TicketQueryDto = {},
   ): Promise<TicketWithPermissions[]> {
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
-    const tickets =
-      actor.role === UserRole.Admin
-        ? await this.ticketsRepository.findActive(filters)
-        : await this.ticketsRepository.findActiveByDepartmentIds(
-            actorDepartmentIds,
-            filters,
-          );
+    const tickets = await this.ticketsRepository.findActiveByDepartmentIds(
+      actorDepartmentIds,
+      filters,
+    );
     return this.withPermissions(tickets, actor, actorDepartmentIds);
   }
 
@@ -579,7 +576,7 @@ export class TicketsService {
     }
     return new StreamableFile(contents, {
       type: attachment.mimeType,
-      disposition: `attachment; filename*=UTF-8''${encodeURIComponent(attachment.originalName)}`,
+      disposition: `inline; filename*=UTF-8''${encodeURIComponent(attachment.originalName)}`,
     });
   }
 

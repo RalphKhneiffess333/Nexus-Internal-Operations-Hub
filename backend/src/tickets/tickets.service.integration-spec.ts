@@ -135,6 +135,17 @@ describe('TicketsService integration', () => {
     ).rejects.toThrow(ForbiddenException);
   });
 
+  it('limits the administrator department view to the administrator memberships', async () => {
+    const itTicket = await submitOpenTicket(service);
+    await submitOpenTicket(service, { departmentId: HR_DEPARTMENT_ID });
+
+    const departmentTickets = await service.findDepartmentTickets(adminUser());
+
+    expect(departmentTickets.map((ticket) => ticket.ticketId)).toEqual([
+      itTicket.ticketId,
+    ]);
+  });
+
   it('rejects resource operations by the wrong owner or department agent', async () => {
     const ticket = await submitOpenTicket(service);
 
