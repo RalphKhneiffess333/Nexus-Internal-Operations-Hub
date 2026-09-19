@@ -196,6 +196,7 @@ function TimelineSkeleton() {
 function AttachmentList({
   attachments = [],
   downloadingAttachmentId,
+  onOpen,
   onDownload,
   heading = 'Attachments',
 }) {
@@ -209,20 +210,27 @@ function AttachmentList({
       <ul>
         {attachments.map((attachment) => (
           <li key={attachment.attachmentId}>
-            <button
-              type="button"
-              className="timeline-attachment"
-              onClick={() => onDownload(attachment)}
-              disabled={downloadingAttachmentId === attachment.attachmentId}
-            >
-              <span aria-hidden="true">📎</span>
-              <span>{attachment.originalName}</span>
-              <span className="timeline-attachment-action">
+            <div className="timeline-attachment-actions">
+              <button
+                type="button"
+                className="timeline-attachment"
+                onClick={() => onOpen(attachment)}
+                disabled={downloadingAttachmentId === attachment.attachmentId}
+              >
+                <span aria-hidden="true">📎</span>
+                <span>{attachment.originalName}</span>
+              </button>
+              <button
+                type="button"
+                className="timeline-attachment-download"
+                onClick={() => onDownload(attachment)}
+                disabled={downloadingAttachmentId === attachment.attachmentId}
+              >
                 {downloadingAttachmentId === attachment.attachmentId
-                  ? 'Downloading…'
+                  ? 'Working…'
                   : 'Download'}
-              </span>
-            </button>
+              </button>
+            </div>
           </li>
         ))}
       </ul>
@@ -242,6 +250,7 @@ export function TicketTimeline({
   onSelect,
   onRetry,
   downloadingAttachmentId,
+  onOpenAttachment,
   onDownloadAttachment,
 }) {
   const visibleEvents = events.filter(
@@ -359,6 +368,9 @@ export function TicketTimeline({
                                       selectedEvent.action === TicketEventAction.REOPEN
                                     ? 'Files attached to description'
                                     : undefined
+                              }
+                              onOpen={(attachment) =>
+                                onOpenAttachment(attachment, selectedEvent.ticketEventId)
                               }
                               onDownload={(attachment) =>
                                 onDownloadAttachment(attachment, selectedEvent.ticketEventId)

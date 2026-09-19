@@ -16,7 +16,7 @@ export class DepartmentsController {
 
   @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
   @Get()
-  findAll() {
-    return this.departmentsService.findAll();
+  findAll(@Req() request: AuthenticatedRequest) {
+    return this.departmentsService.findAll(request.user!);
   }
 }

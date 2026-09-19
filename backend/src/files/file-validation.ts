@@ -34,6 +34,34 @@ const allowedTypes = new Map([
   ['.zip', 'application/zip'],
 ]);
 
+const additionalAllowedTypes = new Map<string, string[]>([
+  ['.md', ['text/markdown', 'text/plain']],
+  ['.avif', ['image/avif']],
+  ['.bmp', ['image/bmp']],
+  ['.ico', ['image/x-icon', 'image/vnd.microsoft.icon']],
+  ['.tif', ['image/tiff']],
+  ['.tiff', ['image/tiff']],
+  ['.rtf', ['application/rtf', 'text/rtf']],
+  ['.odt', ['application/vnd.oasis.opendocument.text']],
+  ['.ods', ['application/vnd.oasis.opendocument.spreadsheet']],
+  ['.odp', ['application/vnd.oasis.opendocument.presentation']],
+  ['.xml', ['application/xml', 'text/xml']],
+  ['.yaml', ['application/x-yaml', 'text/yaml']],
+  ['.yml', ['application/x-yaml', 'text/yaml']],
+  ['.log', ['text/plain']],
+  ['.7z', ['application/x-7z-compressed']],
+  ['.rar', ['application/vnd.rar', 'application/x-rar-compressed']],
+  ['.tar', ['application/x-tar']],
+  ['.gz', ['application/gzip', 'application/x-gzip']],
+  ['.mp3', ['audio/mpeg']],
+  ['.wav', ['audio/wav', 'audio/x-wav']],
+  ['.ogg', ['audio/ogg']],
+  ['.m4a', ['audio/mp4']],
+  ['.mp4', ['video/mp4']],
+  ['.webm', ['video/webm']],
+  ['.mov', ['video/quicktime']],
+]);
+
 const rejectedExtensions = new Set([
   '.bat',
   '.cmd',
@@ -81,8 +109,9 @@ export function validateUploadedFiles(
       );
     }
 
-    const expectedMimeType = allowedTypes.get(extension);
-    if (!expectedMimeType || file.mimetype !== expectedMimeType) {
+    const expectedMimeTypes = additionalAllowedTypes.get(extension) ??
+      (allowedTypes.get(extension) ? [allowedTypes.get(extension)!] : []);
+    if (!expectedMimeTypes.includes(file.mimetype)) {
       throw new BadRequestException(
         `File "${displayFilename}": the file extension and MIME type do not match an allowed file type`,
       );

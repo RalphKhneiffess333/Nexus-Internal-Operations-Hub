@@ -11,6 +11,7 @@ import {
 import { validateTicketFields } from '../../components/tickets/ticket-validation'
 import { useDepartments } from '../../features/departments/use-departments'
 import { useAuthentication } from '../../features/authentication/use-authentication'
+import { useOperationsSocket } from '../../features/realtime/use-operations-socket'
 import { canWorkTickets } from '../../features/tickets/ticket-types'
 import { HandoffPanel } from '../../components/tickets/HandoffPanel'
 import {
@@ -21,6 +22,7 @@ import {
   getTicketEvent,
   getTicketEvents,
   downloadTicketAttachment,
+  openTicketAttachment,
   reopenTicket,
   updateTicket,
 } from '../../features/tickets/ticket-api'
@@ -40,6 +42,7 @@ export function TicketDetailsPage() {
   const { ticketId } = useParams()
   const location = useLocation()
   const { user } = useAuthentication()
+  const { subscribeToTicket } = useOperationsSocket()
   const [ticket, setTicket] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -75,23 +78,31 @@ export function TicketDetailsPage() {
     reload: reloadDepartments,
   } = useDepartments()
 
-  const loadTicket = useCallback(async () => {
-    setLoading(true)
-    setError('')
+  const loadTicket = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) {
+      setLoading(true)
+      setError('')
+    }
     try {
       const result = await getTicket(ticketId)
       setTicket(result)
     } catch (loadError) {
-      setTicket(null)
-      setError(loadError.message || 'Unable to load this ticket. Please try again.')
+      if (!silent) {
+        setTicket(null)
+        setError(
+          loadError.message || 'Unable to load this ticket. Please try again.',
+        )
+      }
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [ticketId])
 
-  const loadTicketEvents = useCallback(async () => {
-    setTimelineLoading(true)
-    setTimelineError('')
+  const loadTicketEvents = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) {
+      setTimelineLoading(true)
+      setTimelineError('')
+    }
     try {
       const result = await getTicketEvents(ticketId)
       setEvents(Array.isArray(result) ? result : [])
@@ -101,7 +112,7 @@ export function TicketDetailsPage() {
           'Unable to load the ticket timeline. Please try again.',
       )
     } finally {
-      setTimelineLoading(false)
+      if (!silent) setTimelineLoading(false)
     }
   }, [ticketId])
 
@@ -141,6 +152,45 @@ export function TicketDetailsPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadTicketEvents()
   }, [loadTicketEvents])
+
+  useEffect(
+    () =>
+      subscribeToTicket(ticketId, (event) => {
+        if (event?.payload?.active === false) {
+          setTicket((currentTicket) =>
+            currentTicket
+              ? {
+                  ...currentTicket,
+                  active: false,
+                  status: event.payload.status ?? currentTicket.status,
+                  updatedAt: event.payload.updatedAt ?? currentTicket.updatedAt,
+                  permissions: {
+                    ...currentTicket.permissions,
+                    canModify: false,
+                    canCancel: false,
+                    canClaim: false,
+                    canClose: false,
+                    canReopen: false,
+                  },
+                }
+              : currentTicket,
+          )
+          return
+        }
+        setTicket((currentTicket) =>
+          currentTicket
+            ? {
+                ...currentTicket,
+                status: event?.payload?.status ?? currentTicket.status,
+                updatedAt: event?.payload?.updatedAt ?? currentTicket.updatedAt,
+              }
+            : currentTicket,
+        )
+        void loadTicket({ silent: true })
+        void loadTicketEvents({ silent: true })
+      }),
+    [loadTicket, loadTicketEvents, subscribeToTicket, ticketId],
+  )
 
   async function handleSelectEvent(event) {
     const requestId = eventDetailRequestId.current + 1
@@ -297,14 +347,27 @@ export function TicketDetailsPage() {
     }
   }
 
+  async function handleOpenAttachment(attachment, eventId) {
+    setDownloadingAttachmentId(attachment.attachmentId)
+    setEventDetailError('')
+    try {
+      await openTicketAttachment(ticketId, eventId, attachment.attachmentId)
+    } catch (openError) {
+      setEventDetailError(
+        openError.message || 'Unable to open this attachment. Please try again.',
+      )
+    } finally {
+      setDownloadingAttachmentId('')
+    }
+  }
+
   const permissions = ticket?.permissions ?? {}
-  const canEdit = Boolean(permissions.canModify)
-  const canCancel = Boolean(permissions.canCancel)
-  const canClaim = Boolean(permissions.canClaim)
-  const canClose = Boolean(permissions.canClose)
-  const canReopen = Boolean(permissions.canReopen)
-  const showHeaderActions =
-    ticket && !editing && (canEdit || canCancel || canClaim || canClose || canReopen)
+  const canEdit = Boolean(ticket?.active && permissions.canModify)
+  const canCancel = Boolean(ticket?.active && permissions.canCancel)
+  const canClaim = Boolean(ticket?.active && permissions.canClaim)
+  const canClose = Boolean(ticket?.active && permissions.canClose)
+  const canReopen = Boolean(ticket?.active && permissions.canReopen)
+  const showTicketActions = !editing
   const latestAttachmentEvent = latestEventWithAttachments(events)
   const backPath = location.state?.from ?? '/tickets'
   const backLabel = backPath.startsWith('/admin/logs')
@@ -325,14 +388,17 @@ export function TicketDetailsPage() {
             Review the request, follow its progress, and take the next action.
           </p>
         </div>
-        {showHeaderActions ? (
-          <div className="header-actions">
-            {canEdit ? (
+        {ticket ? (
+          <div className="header-actions ticket-details-header-actions">
+            <Link to={`/chats/${ticket.ticketId}`} className="btn primary ticket-open-chat">
+              Open chat
+            </Link>
+            {showTicketActions && canEdit ? (
               <button type="button" className="btn ghost" onClick={() => setEditing(true)}>
                 Edit
               </button>
             ) : null}
-            {canCancel ? (
+            {showTicketActions && canCancel ? (
               <button
                 type="button"
                 className="btn danger"
@@ -341,7 +407,7 @@ export function TicketDetailsPage() {
                 Cancel ticket
               </button>
             ) : null}
-            {canClaim ? (
+            {showTicketActions && canClaim ? (
               <button
                 type="button"
                 className="btn primary"
@@ -350,7 +416,7 @@ export function TicketDetailsPage() {
                 Claim ticket
               </button>
             ) : null}
-            {canClose ? (
+            {showTicketActions && canClose ? (
               <button
                 type="button"
                 className="btn primary"
@@ -362,7 +428,7 @@ export function TicketDetailsPage() {
                 Close ticket
               </button>
             ) : null}
-            {canReopen ? (
+            {showTicketActions && canReopen ? (
               <button
                 type="button"
                 className="btn ghost"
@@ -383,7 +449,7 @@ export function TicketDetailsPage() {
       {!loading && error ? (
         <div className="banner error">
           <p>{error}</p>
-          <button type="button" className="btn ghost" onClick={loadTicket}>
+          <button type="button" className="btn ghost" onClick={() => void loadTicket()}>
             Try again
           </button>
         </div>
@@ -436,6 +502,12 @@ export function TicketDetailsPage() {
                 timelineOpen={timelineOpen}
                 attachments={latestAttachmentEvent?.attachments}
                 downloadingAttachmentId={downloadingAttachmentId}
+                onOpenAttachment={(attachment) =>
+                  handleOpenAttachment(
+                    attachment,
+                    latestAttachmentEvent.ticketEventId,
+                  )
+                }
                 onDownloadAttachment={(attachment) =>
                   handleDownloadAttachment(
                     attachment,
@@ -476,6 +548,7 @@ export function TicketDetailsPage() {
               departments={departments}
               onSelect={handleSelectEvent}
               onRetry={loadTicketEvents}
+              onOpenAttachment={handleOpenAttachment}
               onDownloadAttachment={handleDownloadAttachment}
             />
           ) : null}

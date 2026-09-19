@@ -7,9 +7,13 @@ import { TicketsModule } from './tickets/tickets.module';
 import { UsersModule } from './users/users.module';
 import { AdministrationModule } from './administration/administration.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { RealtimeModule } from './realtime/realtime.module';
+import { ChatModule } from './chat/chat.module';
 
 @Module({
   imports: [
+    EventEmitterModule.forRoot(),
     DatabaseModule,
     UsersModule,
     AuthenticationModule,
@@ -18,6 +22,8 @@ import { DashboardModule } from './dashboard/dashboard.module';
     TicketsModule,
     AdministrationModule,
     DashboardModule,
+    ChatModule,
+    RealtimeModule,
   ],
 })
 export class AppModule {}

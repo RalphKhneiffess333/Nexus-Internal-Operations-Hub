@@ -1,0 +1,2 @@
+export const ADMINISTRATION_DEPARTMENT_ID = 'dept-administration';
+export const ADMINISTRATION_DEPARTMENT_CODE = 'ADMINISTRATION';

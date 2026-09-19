@@ -17,10 +17,13 @@ export class DepartmentsRepository {
     }
   }
 
-  async findAllActive(): Promise<Department[]> {
+  async findAllActive(excludeCode?: string): Promise<Department[]> {
     try {
       return await this.prisma.department.findMany({
-        where: { active: true },
+        where: {
+          active: true,
+          ...(excludeCode ? { code: { not: excludeCode } } : {}),
+        },
         orderBy: { name: 'asc' },
       });
     } catch (error) {

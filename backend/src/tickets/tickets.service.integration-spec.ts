@@ -5,6 +5,7 @@ import { TicketsService } from './tickets.service';
 import {
   AGENT_ID,
   AGENT_2_ID,
+  ADMINISTRATION_DEPARTMENT_ID,
   EMPLOYEE_2_ID,
   EMPLOYEE_ID,
   HR_DEPARTMENT_ID,
@@ -135,6 +136,48 @@ describe('TicketsService integration', () => {
     ).rejects.toThrow(ForbiddenException);
   });
 
+  it('allows agents to submit administrator requests without exposing the queue to agents', async () => {
+    const request = await submitOpenTicket(
+      service,
+      { departmentId: ADMINISTRATION_DEPARTMENT_ID },
+      agentUser(AGENT_ID),
+    );
+
+    expect(request.departmentId).toBe(ADMINISTRATION_DEPARTMENT_ID);
+    expect(
+      (await service.findPool(agentUser(AGENT_ID))).map(
+        (ticket) => ticket.ticketId,
+      ),
+    ).not.toContain(request.ticketId);
+    expect(
+      (await service.findPool(adminUser())).map((ticket) => ticket.ticketId),
+    ).toContain(request.ticketId);
+    expect(
+      (await service.findPool(adminUser())).find(
+        (ticket) => ticket.ticketId === request.ticketId,
+      )?.permissions.canClaim,
+    ).toBe(true);
+  });
+
+  it('prevents employees from submitting administrator requests', async () => {
+    await expect(
+      submitOpenTicket(service, {
+        departmentId: ADMINISTRATION_DEPARTMENT_ID,
+      }),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('limits the administrator department view to the administrator memberships', async () => {
+    const itTicket = await submitOpenTicket(service);
+    await submitOpenTicket(service, { departmentId: HR_DEPARTMENT_ID });
+
+    const departmentTickets = await service.findDepartmentTickets(adminUser());
+
+    expect(departmentTickets.map((ticket) => ticket.ticketId)).toEqual([
+      itTicket.ticketId,
+    ]);
+  });
+
   it('rejects resource operations by the wrong owner or department agent', async () => {
     const ticket = await submitOpenTicket(service);
 
@@ -241,9 +284,9 @@ describe('TicketsService integration', () => {
     expect(agentPoolTickets[0].ticketId).toBe(employeeTicket.ticketId);
 
     const adminPoolTickets = await service.findPool(adminUser());
-    expect(adminPoolTickets.map((ticket) => ticket.ticketId).sort()).toEqual(
-      [employeeTicket.ticketId, hrTicket.ticketId].sort(),
-    );
+    expect(adminPoolTickets.map((ticket) => ticket.ticketId)).toEqual([
+      employeeTicket.ticketId,
+    ]);
     const adminClaimPermissions = new Map(
       adminPoolTickets.map((ticket) => [
         ticket.ticketId,
@@ -251,7 +294,7 @@ describe('TicketsService integration', () => {
       ]),
     );
     expect(adminClaimPermissions.get(employeeTicket.ticketId)).toBe(true);
-    expect(adminClaimPermissions.get(hrTicket.ticketId)).toBe(false);
+    expect(adminClaimPermissions.has(hrTicket.ticketId)).toBe(false);
 
     await service.claim(employeeTicket.ticketId, agentUser(AGENT_ID));
     const claimedTickets = await service.findClaimed(agentUser(AGENT_ID));

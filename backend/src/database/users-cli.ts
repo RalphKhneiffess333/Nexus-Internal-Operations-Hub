@@ -4,6 +4,10 @@ import { randomUUID } from 'crypto';
 import { config } from 'dotenv';
 import { existsSync } from 'fs';
 import { resolve } from 'path';
+import {
+  ADMINISTRATION_DEPARTMENT_CODE,
+  ADMINISTRATION_DEPARTMENT_ID,
+} from '../departments/department.constants';
 
 type IdentityProvider = {
   identityProviderId: string;
@@ -212,6 +216,9 @@ async function addUser(prisma: PrismaClient): Promise<void> {
       user.userId,
       departments.map((department) => department.departmentId),
     );
+    if (role === UserRole.Admin) {
+      await ensureAdministrationMembership(tx, user.userId);
+    }
 
     return user;
   });
@@ -447,10 +454,13 @@ async function promptDepartments(
     return [];
   }
 
+  const selectableDepartments = departments.filter(
+    (department) => department.code !== ADMINISTRATION_DEPARTMENT_CODE,
+  );
   const selected = await checkbox<string>({
     message: 'Which departments should this user belong to?',
     required: false,
-    choices: departments.map((department) => ({
+    choices: selectableDepartments.map((department) => ({
       name: formatDepartment(department),
       value: department.departmentId,
       checked: selectedDepartmentIds.includes(department.departmentId),
@@ -458,7 +468,7 @@ async function promptDepartments(
   });
 
   const selectedIds = new Set(selected);
-  return departments.filter((department) =>
+  return selectableDepartments.filter((department) =>
     selectedIds.has(department.departmentId),
   );
 }
@@ -531,6 +541,13 @@ async function syncDepartmentMemberships(
     currentMemberships.map((membership) => membership.departmentId),
   );
   const desiredIds = new Set(desiredDepartmentIds);
+  const user = await tx.user.findUnique({
+    where: { userId },
+    select: { role: true },
+  });
+  if (user?.role === UserRole.Admin) {
+    desiredIds.add(ADMINISTRATION_DEPARTMENT_ID);
+  }
 
   const departmentIdsToRemove = [...currentIds].filter(
     (departmentId) => !desiredIds.has(departmentId),
@@ -549,6 +566,38 @@ async function syncDepartmentMemberships(
   }
 
   await createDepartmentMemberships(tx, userId, departmentIdsToAdd);
+}
+
+async function ensureAdministrationMembership(
+  tx: Prisma.TransactionClient,
+  userId: string,
+): Promise<void> {
+  const department = await tx.department.findUnique({
+    where: { departmentId: ADMINISTRATION_DEPARTMENT_ID },
+  });
+  if (
+    !department ||
+    department.code !== ADMINISTRATION_DEPARTMENT_CODE ||
+    !department.active
+  ) {
+    throw new CliMessage(
+      'The Administration department is not configured or active.',
+    );
+  }
+  await tx.departmentMember.upsert({
+    where: {
+      userId_departmentId: {
+        userId,
+        departmentId: ADMINISTRATION_DEPARTMENT_ID,
+      },
+    },
+    create: {
+      departmentMemberId: randomUUID(),
+      userId,
+      departmentId: ADMINISTRATION_DEPARTMENT_ID,
+    },
+    update: {},
+  });
 }
 
 function getDepartments(user: UserWithDepartments): Department[] {

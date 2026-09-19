@@ -88,6 +88,8 @@ model User {
   auditLogs              AuditLog[]
   handoffsRequested      HandoffRequest[]   @relation("HandoffRequester")
   handoffsReceived       HandoffRequest[]   @relation("HandoffRequestedAgent")
+  chatMessages           ChatMessage[]      @relation("ChatMessageSender")
+  chatReadReceipts       ChatReadReceipt[]
 
   @@unique([identityProviderId, identityProviderUserId])
   @@map("users")
@@ -140,6 +142,8 @@ model Ticket {
   agent           User?            @relation("TicketAgent", fields: [agentId], references: [userId])
   events          TicketEvent[]
   handoffs        HandoffRequest[]
+  chatMessages    ChatMessage[]
+  chatReadReceipts ChatReadReceipt[]
 
   @@index([submittedBy])
   @@index([departmentId])
@@ -164,6 +168,34 @@ model TicketEvent {
   @@index([ticketId, createdAt])
   @@index([createdAt])
   @@map("ticket_events")
+}
+
+model ChatMessage {
+  messageId   String       @id @map("message_id")
+  ticketId    String       @map("ticket_id")
+  senderId    String       @map("sender_id")
+  content     String?
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  ticket      Ticket       @relation(fields: [ticketId], references: [ticketId], onDelete: Restrict)
+  sender      User         @relation("ChatMessageSender", fields: [senderId], references: [userId], onDelete: Restrict)
+  attachments Attachment[]
+
+  @@index([ticketId, createdAt])
+  @@index([senderId])
+  @@map("chat_messages")
+}
+
+model ChatReadReceipt {
+  ticketId   String   @map("ticket_id")
+  userId     String   @map("user_id")
+  lastReadAt DateTime @map("last_read_at")
+  ticket     Ticket   @relation(fields: [ticketId], references: [ticketId], onDelete: Restrict)
+  user       User     @relation(fields: [userId], references: [userId], onDelete: Restrict)
+
+  @@id([ticketId, userId])
+  @@index([userId, lastReadAt])
+  @@map("chat_read_receipts")
 }
 
 model HandoffRequest {
@@ -212,6 +244,7 @@ model Attachment {
   updatedAt    DateTime     @updatedAt @map("updated_at")
   file         File         @relation(fields: [fileId], references: [fileId])
   event        TicketEvent? @relation(fields: [eventId], references: [ticketEventId], onDelete: SetNull)
+  message      ChatMessage? @relation(fields: [messageId], references: [messageId], onDelete: SetNull)
 
   @@index([eventId])
   @@index([messageId])

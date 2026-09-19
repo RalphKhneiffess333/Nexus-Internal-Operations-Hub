@@ -1,13 +1,19 @@
 import { Injectable } from '@nestjs/common';
-import { Department } from '@prisma/client';
+import { Department, UserRole } from '@prisma/client';
+import { ADMINISTRATION_DEPARTMENT_CODE } from './department.constants';
+import type { AuthenticatedRequestUser } from '../authentication/request-user';
 import { DepartmentsRepository } from './repositories/departments.repository';
 
 @Injectable()
 export class DepartmentsService {
   constructor(private readonly departmentsRepository: DepartmentsRepository) {}
 
-  findAll(): Promise<Department[]> {
-    return this.departmentsRepository.findAllActive();
+  findAll(actor?: AuthenticatedRequestUser): Promise<Department[]> {
+    return this.departmentsRepository.findAllActive(
+      !actor || actor.role === UserRole.Employee
+        ? ADMINISTRATION_DEPARTMENT_CODE
+        : undefined,
+    );
   }
 
   findMine(userId: string): Promise<Department[]> {

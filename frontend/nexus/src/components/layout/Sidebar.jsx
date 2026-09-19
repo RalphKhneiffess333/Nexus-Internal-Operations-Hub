@@ -1,9 +1,13 @@
 import { NavLink } from 'react-router-dom'
 import { useAuthentication } from '../../features/authentication/use-authentication'
+import { useOperationsSocket } from '../../features/realtime/use-operations-socket'
 import { canWorkTickets } from '../../features/tickets/ticket-types'
+import { useNotifications } from '../../features/notifications/use-notifications'
 
 export function Sidebar({ open, onNavigate }) {
   const { user, logoutCurrentSession } = useAuthentication()
+  const { connectionState } = useOperationsSocket()
+  const { unreadChats, unclaimedTickets } = useNotifications()
   const showWorkQueues = canWorkTickets(user)
   const showAdministration = user?.role === 'Admin'
 
@@ -37,6 +41,15 @@ export function Sidebar({ open, onNavigate }) {
         >
           My tickets
         </NavLink>
+        <NavLink
+          to="/chats"
+          className={({ isActive }) =>
+            `nav-item ${isActive ? 'is-active' : ''}`
+          }
+          onClick={onNavigate}
+        >
+          Chats {unreadChats > 0 ? <span className="nav-notification-badge">{unreadChats > 99 ? '99+' : unreadChats}</span> : null}
+        </NavLink>
 
         {showWorkQueues ? (
           <>
@@ -47,7 +60,7 @@ export function Sidebar({ open, onNavigate }) {
               }
               onClick={onNavigate}
             >
-              Ticket pools
+              Ticket pools {unclaimedTickets > 0 ? <span className="nav-notification-badge">{unclaimedTickets > 99 ? '99+' : unclaimedTickets}</span> : null}
             </NavLink>
             <NavLink
               to="/tickets/handoffs"
@@ -75,7 +88,14 @@ export function Sidebar({ open, onNavigate }) {
 
       <div className="sidebar-account">
         <div>
-          <p>{user?.fullName ?? 'Signed in'}</p>
+          <p className="sidebar-account-name">
+            <span
+              className={`sidebar-connection-dot is-${connectionState}`}
+              role="status"
+              aria-label={`Live updates ${connectionState}`}
+            />
+            {user?.fullName ?? 'Signed in'}
+          </p>
           <span>{user?.email}</span>
         </div>
         <button type="button" className="sidebar-logout" onClick={logoutCurrentSession}>

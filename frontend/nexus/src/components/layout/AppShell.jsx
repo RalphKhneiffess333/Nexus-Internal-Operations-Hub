@@ -1,9 +1,11 @@
 import { useState } from 'react'
-import { Outlet } from 'react-router-dom'
+import { Outlet, useLocation } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 
 export function AppShell() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const location = useLocation()
+  const isTicketChat = location.pathname.startsWith('/chats/')
 
   return (
     <div className="app-shell">
@@ -30,7 +32,7 @@ export function AppShell() {
           </button>
           <span className="mobile-title">Nexus</span>
         </header>
-        <main className="page-frame">
+        <main className={`page-frame${isTicketChat ? ' page-frame-chat' : ''}`}>
           <Outlet />
         </main>
       </div>

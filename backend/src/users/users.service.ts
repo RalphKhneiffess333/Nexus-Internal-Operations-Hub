@@ -6,6 +6,7 @@ import {
   forwardRef,
   Inject,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
   AuditAction,
   Prisma,
@@ -16,10 +17,16 @@ import {
 } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { AuditService } from '../audit/audit.service';
+import { RealtimeInternalEvent } from '../realtime/realtime-events';
 import { SessionService } from '../authentication/sessions/session.service';
 import type { AuthenticatedRequestUser } from '../authentication/request-user';
 import { PrismaService } from '../database/prisma.service';
 import { HandoffsService } from '../tickets/handoffs/handoffs.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import {
+  ADMINISTRATION_DEPARTMENT_CODE,
+  ADMINISTRATION_DEPARTMENT_ID,
+} from '../departments/department.constants';
 import {
   AdminUserQueryDto,
   CreateAdminUserDto,
@@ -49,6 +56,8 @@ export class UsersService {
     private readonly sessions: SessionService,
     @Inject(forwardRef(() => HandoffsService))
     private readonly handoffsService: HandoffsService,
+    private readonly eventEmitter: EventEmitter2,
+    private readonly notifications: NotificationsService,
   ) {}
 
   findById(userId: string): Promise<User | null> {
@@ -130,9 +139,7 @@ export class UsersService {
             ],
           }
         : {}),
-      ...(query.status
-        ? { isActive: query.status === 'active' }
-        : {}),
+      ...(query.status ? { isActive: query.status === 'active' } : {}),
       ...(query.departmentId
         ? { departmentMembers: { some: { departmentId: query.departmentId } } }
         : {}),
@@ -201,10 +208,17 @@ export class UsersService {
           AuditAction.USER_PREPROVISIONING,
           { userId: created.userId, email: created.email, role: created.role },
         );
+        if (created.role === UserRole.Admin) {
+          await this.ensureAdministrationMembership(
+            created.userId,
+            actor.userId,
+            tx,
+          );
+        }
         return created;
       })
       .catch((error) => this.mapConflict(error));
-    return this.toSafeResponse(user);
+    return this.findForAdministration(user.userId);
   }
 
   async mapRole(
@@ -212,7 +226,8 @@ export class UsersService {
     dto: UpdateRoleDto,
     actor: AuthenticatedRequestUser,
   ) {
-    return this.prisma.$transaction(async (tx) => {
+    let roleChanged = false;
+    const response = await this.prisma.$transaction(async (tx) => {
       const user = await this.usersRepository.findByIdForUpdate(userId, tx);
       if (!user) throw new NotFoundException('User was not found');
       if (user.role === dto.role) return this.toSafeResponse(user);
@@ -223,10 +238,21 @@ export class UsersService {
         { role: dto.role },
         tx,
       );
+      roleChanged = true;
+      if (user.role === UserRole.Admin && dto.role !== UserRole.Admin) {
+        await this.removeAdministrationMembership(userId, actor.userId, tx);
+      }
       if (dto.role === UserRole.Employee)
-        await this.handoffsService.cancelPendingForUser(userId, actor.userId, tx);
+        await this.handoffsService.cancelPendingForUser(
+          userId,
+          actor.userId,
+          tx,
+        );
       if (dto.role === UserRole.Employee)
         await this.reconcileMemberships(userId, actor.userId, tx);
+      if (dto.role === UserRole.Admin && user.role !== UserRole.Admin) {
+        await this.ensureAdministrationMembership(userId, actor.userId, tx);
+      }
       await this.auditService.append(
         tx,
         actor.userId,
@@ -235,6 +261,11 @@ export class UsersService {
       );
       return this.toSafeResponse(updated);
     });
+    if (roleChanged) {
+      this.notifyAccountChanged(userId);
+      return this.findForAdministration(userId);
+    }
+    return response;
   }
 
   async setActive(
@@ -245,7 +276,11 @@ export class UsersService {
     const result = await this.prisma.$transaction(async (tx) => {
       const user = await this.usersRepository.findByIdForUpdate(userId, tx);
       if (!user) throw new NotFoundException('User was not found');
-      if (user.isActive === dto.active) return user;
+      if (user.isActive === dto.active) {
+        if (user.role === UserRole.Admin)
+          await this.ensureAdministrationMembership(userId, actor.userId, tx);
+        return user;
+      }
       if (user.role === UserRole.Admin && !dto.active)
         await this.assertNotLastAdmin(userId, tx);
       const updated = await this.usersRepository.updateWithClient(
@@ -254,8 +289,15 @@ export class UsersService {
         tx,
       );
       if (!dto.active) {
-        await this.handoffsService.cancelPendingForUser(userId, actor.userId, tx);
+        await this.handoffsService.cancelPendingForUser(
+          userId,
+          actor.userId,
+          tx,
+        );
         await this.reconcileMemberships(userId, actor.userId, tx);
+      }
+      if (user.role === UserRole.Admin) {
+        await this.ensureAdministrationMembership(userId, actor.userId, tx);
       }
       await this.auditService.append(
         tx,
@@ -267,7 +309,15 @@ export class UsersService {
       );
       return updated;
     });
-    if (!dto.active) this.sessions.deleteSessionsForUser(userId);
+    if (!dto.active) {
+      const sessionIds = this.sessions.deleteSessionsForUser(userId);
+      this.eventEmitter.emit(RealtimeInternalEvent.SessionInvalidated, {
+        userId,
+        sessionIds,
+        reason: 'DEACTIVATED',
+      });
+    }
+    this.notifyAccountChanged(userId);
     return this.findForAdministration(result.userId);
   }
 
@@ -278,22 +328,42 @@ export class UsersService {
   ) {
     await this.prisma.$transaction(async (tx) => {
       const user = await this.usersRepository.findByIdForUpdate(userId, tx);
-      const department = await tx.department.findUnique({ where: { departmentId } });
+      const department = await tx.department.findUnique({
+        where: { departmentId },
+      });
       if (!user) throw new NotFoundException('User was not found');
       if (!department) throw new NotFoundException('Department was not found');
+      if (
+        department.code === ADMINISTRATION_DEPARTMENT_CODE &&
+        user.role !== UserRole.Admin
+      ) {
+        throw new BadRequestException(
+          'Only administrators can belong to the Administration department',
+        );
+      }
       if (user.role === UserRole.Employee) {
-        throw new BadRequestException('Only agents and administrators can belong to departments');
+        throw new BadRequestException(
+          'Only agents and administrators can belong to departments',
+        );
       }
       if (!department.active) {
-        throw new BadRequestException('Inactive departments cannot accept members');
+        throw new BadRequestException(
+          'Inactive departments cannot accept members',
+        );
       }
       await this.usersRepository.upsertMembership(userId, departmentId, tx);
-      await this.auditService.append(tx, actor.userId, AuditAction.DEPARTMENT_MAPPING, {
-        userId,
-        departmentId,
-        mapping: 'ADDED',
-      });
+      await this.auditService.append(
+        tx,
+        actor.userId,
+        AuditAction.DEPARTMENT_MAPPING,
+        {
+          userId,
+          departmentId,
+          mapping: 'ADDED',
+        },
+      );
     });
+    this.notifyAccountChanged(userId);
     return this.findForAdministration(userId);
   }
 
@@ -303,23 +373,136 @@ export class UsersService {
     actor: AuthenticatedRequestUser,
   ) {
     await this.prisma.$transaction(async (tx) => {
-      const membership = await this.usersRepository.findMembership(userId, departmentId, tx);
-      if (!membership) throw new NotFoundException('Department membership was not found');
+      const [user, department] = await Promise.all([
+        this.usersRepository.findByIdForUpdate(userId, tx),
+        tx.department.findUnique({ where: { departmentId } }),
+      ]);
+      if (!user) throw new NotFoundException('User was not found');
+      if (!department) throw new NotFoundException('Department was not found');
+      if (
+        department.code === ADMINISTRATION_DEPARTMENT_CODE &&
+        user.role === UserRole.Admin
+      ) {
+        throw new BadRequestException(
+          'Administrators must remain members of the Administration department',
+        );
+      }
+      const membership = await this.usersRepository.findMembership(
+        userId,
+        departmentId,
+        tx,
+      );
+      if (!membership)
+        throw new NotFoundException('Department membership was not found');
       await this.handoffsService.cancelPendingForUserInDepartment(
         userId,
         departmentId,
         actor.userId,
         tx,
       );
-      await this.reconcileDepartmentTickets(userId, departmentId, actor.userId, tx);
-      await this.usersRepository.deleteMembership(userId, departmentId, tx);
-      await this.auditService.append(tx, actor.userId, AuditAction.DEPARTMENT_MAPPING, {
+      await this.reconcileDepartmentTickets(
         userId,
         departmentId,
-        mapping: 'REMOVED',
-      });
+        actor.userId,
+        tx,
+      );
+      await this.usersRepository.deleteMembership(userId, departmentId, tx);
+      await this.auditService.append(
+        tx,
+        actor.userId,
+        AuditAction.DEPARTMENT_MAPPING,
+        {
+          userId,
+          departmentId,
+          mapping: 'REMOVED',
+        },
+      );
     });
+    this.notifyAccountChanged(userId);
     return this.findForAdministration(userId);
+  }
+
+  private async ensureAdministrationMembership(
+    userId: string,
+    actorId: string,
+    tx: Prisma.TransactionClient,
+  ) {
+    const department = await tx.department.findUnique({
+      where: { departmentId: ADMINISTRATION_DEPARTMENT_ID },
+    });
+    if (
+      !department ||
+      department.code !== ADMINISTRATION_DEPARTMENT_CODE ||
+      !department.active
+    ) {
+      throw new BadRequestException(
+        'The Administration department is not configured or active',
+      );
+    }
+    const existing = await this.usersRepository.findMembership(
+      userId,
+      ADMINISTRATION_DEPARTMENT_ID,
+      tx,
+    );
+    if (existing) return existing;
+    const membership = await this.usersRepository.upsertMembership(
+      userId,
+      ADMINISTRATION_DEPARTMENT_ID,
+      tx,
+    );
+    await this.auditService.append(
+      tx,
+      actorId,
+      AuditAction.DEPARTMENT_MAPPING,
+      {
+        userId,
+        departmentId: ADMINISTRATION_DEPARTMENT_ID,
+        mapping: 'ADDED',
+        reason: 'ADMIN_ROLE',
+      },
+    );
+    return membership;
+  }
+
+  private async removeAdministrationMembership(
+    userId: string,
+    actorId: string,
+    tx: Prisma.TransactionClient,
+  ) {
+    const membership = await this.usersRepository.findMembership(
+      userId,
+      ADMINISTRATION_DEPARTMENT_ID,
+      tx,
+    );
+    if (!membership) return;
+    await this.handoffsService.cancelPendingForUserInDepartment(
+      userId,
+      ADMINISTRATION_DEPARTMENT_ID,
+      actorId,
+      tx,
+    );
+    await this.reconcileDepartmentTickets(
+      userId,
+      ADMINISTRATION_DEPARTMENT_ID,
+      actorId,
+      tx,
+    );
+    await this.usersRepository.deleteMembership(
+      userId,
+      ADMINISTRATION_DEPARTMENT_ID,
+      tx,
+    );
+    await this.auditService.append(
+      tx,
+      actorId,
+      AuditAction.DEPARTMENT_MAPPING,
+      {
+        userId,
+        departmentId: ADMINISTRATION_DEPARTMENT_ID,
+        mapping: 'REMOVED',
+        reason: 'ADMIN_ROLE',
+      },
+    );
   }
 
   private async reconcileMemberships(
@@ -438,6 +621,16 @@ export class UsersService {
       updatedAt: user.updatedAt,
       departments: departmentMembers.map((membership) => membership.department),
     };
+  }
+
+  private notifyAccountChanged(userId: string): void {
+    this.notifications.notify({
+      type: 'ACCOUNT_UPDATED',
+      message:
+        'Your account configuration or role/department has been updated by an administrator. You must refresh the page to continue.',
+      recipientUserIds: [userId],
+      blocking: true,
+    });
   }
 
   private mapConflict(error: unknown): never {

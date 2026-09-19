@@ -36,6 +36,7 @@ export function TicketDetails({
   onToggleTimeline,
   attachments = [],
   downloadingAttachmentId,
+  onOpenAttachment,
   onDownloadAttachment,
 }) {
   const submitted = formatDate(ticket.createdAt)
@@ -90,6 +91,7 @@ export function TicketDetails({
                 attachments={attachments}
                 heading="Files attached to completion notes"
                 downloadingAttachmentId={downloadingAttachmentId}
+                onOpen={onOpenAttachment}
                 onDownload={onDownloadAttachment}
               />
             ) : null
@@ -106,6 +108,7 @@ export function TicketDetails({
             attachments={attachments}
             heading="Files attached to description"
             downloadingAttachmentId={downloadingAttachmentId}
+            onOpen={onOpenAttachment}
             onDownload={onDownloadAttachment}
           />
         ) : null}

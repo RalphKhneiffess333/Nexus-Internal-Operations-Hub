@@ -2,6 +2,7 @@ export function TicketAttachments({
   attachments = [],
   heading = 'Attachments',
   downloadingAttachmentId,
+  onOpen,
   onDownload,
 }) {
   if (attachments.length === 0) {
@@ -14,20 +15,27 @@ export function TicketAttachments({
       <ul>
         {attachments.map((attachment) => (
           <li key={attachment.attachmentId}>
-            <button
-              type="button"
-              className="ticket-attachment"
-              onClick={() => onDownload(attachment)}
-              disabled={downloadingAttachmentId === attachment.attachmentId}
-            >
-              <span aria-hidden="true">📎</span>
-              <span>{attachment.originalName}</span>
-              <span className="ticket-attachment-action">
+            <div className="ticket-attachment-actions">
+              <button
+                type="button"
+                className="ticket-attachment"
+                onClick={() => onOpen(attachment)}
+                disabled={downloadingAttachmentId === attachment.attachmentId}
+              >
+                <span aria-hidden="true">📎</span>
+                <span>{attachment.originalName}</span>
+              </button>
+              <button
+                type="button"
+                className="ticket-attachment-download"
+                onClick={() => onDownload(attachment)}
+                disabled={downloadingAttachmentId === attachment.attachmentId}
+              >
                 {downloadingAttachmentId === attachment.attachmentId
-                  ? 'Downloading…'
+                  ? 'Working…'
                   : 'Download'}
-              </span>
-            </button>
+              </button>
+            </div>
           </li>
         ))}
       </ul>

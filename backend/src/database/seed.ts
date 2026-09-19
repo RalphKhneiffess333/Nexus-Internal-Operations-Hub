@@ -1,4 +1,7 @@
 import { PrismaClient, UserRole } from '@prisma/client';
+import { ADMINISTRATION_DEPARTMENT_ID } from '../departments/department.constants';
+
+export { ADMINISTRATION_DEPARTMENT_ID };
 
 export const SEED_IDENTITY_PROVIDER_ID = 'idp-entra';
 export const EMPLOYEE_ID = 'user-employee-1';
@@ -56,6 +59,23 @@ export async function seedDatabase(prisma: PrismaClient): Promise<void> {
       code: 'HR',
       name: 'Human Resources',
       desc: 'Human Resources department',
+      active: true,
+    },
+  });
+
+  await prisma.department.upsert({
+    where: { departmentId: ADMINISTRATION_DEPARTMENT_ID },
+    update: {
+      code: 'ADMINISTRATION',
+      name: 'Administration',
+      desc: 'Requests submitted to Nexus administrators',
+      active: true,
+    },
+    create: {
+      departmentId: ADMINISTRATION_DEPARTMENT_ID,
+      code: 'ADMINISTRATION',
+      name: 'Administration',
+      desc: 'Requests submitted to Nexus administrators',
       active: true,
     },
   });
@@ -200,6 +220,11 @@ async function seedTestDepartmentMembers(prisma: PrismaClient): Promise<void> {
       userId: ADMIN_ID,
       departmentId: IT_DEPARTMENT_ID,
     },
+    {
+      departmentMemberId: 'dept-member-admin-administration',
+      userId: ADMIN_ID,
+      departmentId: ADMINISTRATION_DEPARTMENT_ID,
+    },
   ];
 
   await prisma.departmentMember.deleteMany({
@@ -212,6 +237,8 @@ export async function resetTicketData(prisma: PrismaClient): Promise<void> {
   await prisma.handoffRequest.deleteMany();
   await prisma.attachment.deleteMany();
   await prisma.file.deleteMany();
+  await prisma.chatReadReceipt.deleteMany();
+  await prisma.chatMessage.deleteMany();
   await prisma.ticketEvent.deleteMany();
   await prisma.ticket.deleteMany();
   await prisma.$executeRawUnsafe(

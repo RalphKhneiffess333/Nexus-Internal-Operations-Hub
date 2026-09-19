@@ -1,3 +1,7 @@
+---
+title: "File Attachments - Nexus"
+author: "Ralph Khneiffess"
+---
 # Task: Implement File Attachments for Nexus
 
 You are working in the existing **Nexus** codebase.
