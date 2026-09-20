@@ -12,6 +12,7 @@ import { validateTicketFields } from '../../components/tickets/ticket-validation
 import { useDepartments } from '../../features/departments/use-departments'
 import { usePriorities } from '../../features/priorities/use-priorities'
 import { useAuthentication } from '../../features/authentication/use-authentication'
+import { useNotifications } from '../../features/notifications/use-notifications'
 import { useOperationsSocket } from '../../features/realtime/use-operations-socket'
 import { canWorkTickets } from '../../features/tickets/ticket-types'
 import { HandoffPanel } from '../../components/tickets/HandoffPanel'
@@ -34,6 +35,7 @@ export function TicketDetailsPage() {
   const { ticketId } = useParams()
   const location = useLocation()
   const { user } = useAuthentication()
+  const { refreshNotificationCounts } = useNotifications()
   const { subscribeToTicket } = useOperationsSocket()
   const [ticket, setTicket] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -285,6 +287,7 @@ export function TicketDetailsPage() {
       setTicket(cancelled)
       setConfirmingCancel(false)
       setNotice('This ticket has been cancelled.')
+      void refreshNotificationCounts()
       void loadTicketEvents()
       void loadTicketAttachments()
     } catch (cancelError) {
@@ -305,6 +308,7 @@ export function TicketDetailsPage() {
       setTicket(claimed)
       setConfirmingClaim(false)
       setNotice('Ticket claimed.')
+      void refreshNotificationCounts()
       void loadTicketEvents()
       void loadTicketAttachments()
     } catch (claimError) {
@@ -325,6 +329,7 @@ export function TicketDetailsPage() {
       setTicket(closed)
       setShowingCloseDialog(false)
       setNotice('Ticket closed.')
+      void refreshNotificationCounts()
       void loadTicketEvents()
       void loadTicketAttachments()
     } catch (closeTicketError) {
@@ -345,6 +350,7 @@ export function TicketDetailsPage() {
       setTicket(reopened)
       setShowingReopenDialog(false)
       setNotice('Ticket reopened.')
+      void refreshNotificationCounts()
       void loadTicketEvents()
       void loadTicketAttachments()
     } catch (reopenTicketError) {

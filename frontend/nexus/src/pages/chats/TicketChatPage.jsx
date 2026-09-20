@@ -39,14 +39,10 @@ export function TicketChatPage() {
   const markRead = useCallback(async () => {
     try {
       await markChatConversationRead(ticketId)
+      markChatRead(ticketId)
     } catch {
       // A failed read receipt must never block access to the conversation.
     }
-  }, [ticketId])
-
-  useEffect(() => {
-    // Opening a specific conversation removes that ticket from the sidebar's unopened count.
-    markChatRead(ticketId)
   }, [markChatRead, ticketId])
 
   useEffect(() => {

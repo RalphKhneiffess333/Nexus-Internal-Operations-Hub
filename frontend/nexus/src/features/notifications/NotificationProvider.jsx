@@ -3,7 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import notificationSound from '../../assets/notification.mp3'
 import { useOperationsSocket } from '../realtime/use-operations-socket'
 import { useAuthentication } from '../authentication/use-authentication'
-import { getTicketPoolCount } from '../tickets/ticket-api'
+import { getChatConversations, getTicketPoolCount } from '../tickets/ticket-api'
+import { useLatestRequest } from '../../lib/api/use-latest-request'
 import { NotificationsContext } from './notifications-context'
 
 const TOAST_DURATION = 5000
@@ -34,7 +35,13 @@ export function NotificationProvider({ children }) {
   const titleCountRef = useRef(0)
   const focusedRef = useRef(!document.hidden)
   const timersRef = useRef(new Set())
+  const countRefreshTimerRef = useRef(null)
+  const {
+    beginRequest: beginCountRequest,
+    cancelRequest: cancelCountRequest,
+  } = useLatestRequest()
   const unreadChats = unreadChatIds.size
+  const canViewTicketPool = user?.role === 'Agent' || user?.role === 'Admin'
 
   const markChatRead = useCallback((ticketId) => {
     if (!ticketId) return
@@ -46,9 +53,58 @@ export function NotificationProvider({ children }) {
     })
   }, [])
 
-  const markAllChatsRead = useCallback(() => {
-    setUnreadChatIds((current) => current.size === 0 ? current : new Set())
+  const loadUnreadChatIds = useCallback(async (signal) => {
+    const unreadIds = new Set()
+    let page = 1
+    let hasMore = true
+
+    while (hasMore) {
+      const result = await getChatConversations(
+        { page, pageSize: 100 },
+        { signal },
+      )
+      const items = Array.isArray(result?.items) ? result.items : []
+      items.forEach((conversation) => {
+        if (conversation.unread && conversation.ticketId) unreadIds.add(conversation.ticketId)
+      })
+      hasMore = Boolean(result?.hasMore) && items.length > 0
+      page += 1
+    }
+
+    return unreadIds
   }, [])
+
+  const refreshNotificationCounts = useCallback(async () => {
+    if (!user?.userId) return
+
+    const request = beginCountRequest()
+    const poolCountPromise = canViewTicketPool
+      ? getTicketPoolCount({ signal: request.controller.signal })
+      : Promise.resolve(null)
+    const unreadChatIdsPromise = loadUnreadChatIds(request.controller.signal)
+    const [poolCountResult, unreadChatIdsResult] = await Promise.allSettled([
+      poolCountPromise,
+      unreadChatIdsPromise,
+    ])
+
+    if (!request.isCurrent()) return
+    if (unreadChatIdsResult.status === 'fulfilled') {
+      setUnreadChatIds(unreadChatIdsResult.value)
+    }
+    if (!canViewTicketPool) {
+      setUnclaimedTickets(0)
+    } else if (poolCountResult.status === 'fulfilled') {
+      setUnclaimedTickets(Number(poolCountResult.value?.count) || 0)
+    }
+  }, [beginCountRequest, canViewTicketPool, loadUnreadChatIds, user?.userId])
+
+  const scheduleNotificationCountRefresh = useCallback(() => {
+    if (countRefreshTimerRef.current) window.clearTimeout(countRefreshTimerRef.current)
+    countRefreshTimerRef.current = window.setTimeout(() => {
+      countRefreshTimerRef.current = null
+      void refreshNotificationCounts()
+    }, 250)
+  }, [refreshNotificationCounts])
 
   const applyTitle = useCallback(() => {
     const title = pageTitle(location.pathname)
@@ -104,15 +160,21 @@ export function NotificationProvider({ children }) {
   }, [applyTitle])
 
   useEffect(() => {
-    if (user?.role !== 'Agent' && user?.role !== 'Admin') return undefined
-    let active = true
-    void getTicketPoolCount().then((result) => {
-      if (active) setUnclaimedTickets(Number(result?.count) || 0)
-    }).catch(() => {
-      // Badge availability never blocks normal navigation.
-    })
-    return () => { active = false }
-  }, [user?.role])
+    if (!user?.userId) {
+      cancelCountRequest()
+      // Reset badge state when the authenticated session disappears.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setUnreadChatIds(new Set())
+      setUnclaimedTickets(0)
+      return
+    }
+    // Badges are initialized from server state instead of inferred from realtime deltas.
+    void refreshNotificationCounts()
+  }, [cancelCountRequest, refreshNotificationCounts, user?.userId])
+
+  useEffect(() => () => {
+    if (countRefreshTimerRef.current) window.clearTimeout(countRefreshTimerRef.current)
+  }, [])
 
   useEffect(() => {
     const unlock = () => void unlockAudio()
@@ -130,6 +192,7 @@ export function NotificationProvider({ children }) {
       focusedRef.current = true
       titleCountRef.current = 0
       applyTitle()
+      scheduleNotificationCountRefresh()
     }
     const handleVisibility = () => {
       focusedRef.current = !document.hidden
@@ -141,7 +204,7 @@ export function NotificationProvider({ children }) {
       window.removeEventListener('focus', reset)
       document.removeEventListener('visibilitychange', handleVisibility)
     }
-  }, [applyTitle])
+  }, [applyTitle, scheduleNotificationCountRefresh])
 
   useEffect(() => subscribeToNotifications((event) => {
     const notification = event.payload
@@ -155,17 +218,7 @@ export function NotificationProvider({ children }) {
       && location.pathname === `/chats/${notification.ticketId}`
       && focusedRef.current
     if (isCurrentChat) return
-    if (notification.type === 'CHAT_MESSAGE' && notification.ticketId) {
-      setUnreadChatIds((current) => {
-        if (current.has(notification.ticketId)) return current
-        const next = new Set(current)
-        next.add(notification.ticketId)
-        return next
-      })
-    }
-    if (notification.type === 'TICKET_OPENED' || notification.type === 'TICKET_REOPENED') {
-      setUnclaimedTickets((count) => count + 1)
-    }
+    scheduleNotificationCountRefresh()
     const toast = { id: event.eventId, ...notification }
     setToasts((current) => [...current.slice(-3), toast])
     const timer = window.setTimeout(() => {
@@ -178,15 +231,14 @@ export function NotificationProvider({ children }) {
       titleCountRef.current += 1
       applyTitle()
     }
-  }), [applyTitle, dismissToast, location.pathname, playSound, subscribeToNotifications])
+  }), [applyTitle, dismissToast, location.pathname, playSound, scheduleNotificationCountRefresh, subscribeToNotifications])
 
   const value = useMemo(() => ({
     unreadChats,
     unclaimedTickets,
-    setUnclaimedTickets,
     markChatRead,
-    markAllChatsRead,
-  }), [markAllChatsRead, markChatRead, unclaimedTickets, unreadChats])
+    refreshNotificationCounts,
+  }), [markChatRead, refreshNotificationCounts, unclaimedTickets, unreadChats])
 
   return (
     <NotificationsContext.Provider value={value}>

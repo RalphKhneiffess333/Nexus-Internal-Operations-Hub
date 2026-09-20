@@ -3,7 +3,6 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { LoadingState } from '../../components/ui/LoadingState'
 import { DebouncedSearchInput } from '../../components/ui/DebouncedSearchInput'
 import { TicketStatusBadge } from '../../components/tickets/TicketStatusBadge'
-import { useNotifications } from '../../features/notifications/use-notifications'
 import { getChatConversations } from '../../features/tickets/ticket-api'
 import { formatDateTime } from '../../features/tickets/ticket-types'
 import { useLatestRequest } from '../../lib/api/use-latest-request'
@@ -16,7 +15,6 @@ function messagePreview(conversation) {
 }
 
 export function ChatsPage() {
-  const { markAllChatsRead } = useNotifications()
   const [searchParams, setSearchParams] = useSearchParams()
   const search = searchParams.get('search') ?? ''
   const parsedPage = Number(searchParams.get('page') ?? '1')
@@ -29,7 +27,6 @@ export function ChatsPage() {
 
   const loadConversations = useCallback(async ({ silent = false } = {}) => {
     const request = beginRequest()
-    markAllChatsRead()
     if (!silent) {
       setLoading(true)
       setError('')
@@ -51,7 +48,7 @@ export function ChatsPage() {
     } finally {
       if (request.isCurrent()) setLoading(false)
     }
-  }, [beginRequest, markAllChatsRead, page, search])
+  }, [beginRequest, page, search])
 
   useEffect(() => {
     // The inbox is synchronized from the server when this route is mounted.

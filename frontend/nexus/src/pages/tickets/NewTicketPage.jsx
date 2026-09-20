@@ -5,10 +5,12 @@ import { LoadingState } from "../../components/ui/LoadingState";
 import { validateTicketFields } from "../../components/tickets/ticket-validation";
 import { useDepartments } from "../../features/departments/use-departments";
 import { usePriorities } from "../../features/priorities/use-priorities";
+import { useNotifications } from "../../features/notifications/use-notifications";
 import { createTicket } from "../../features/tickets/ticket-api";
 
 export function NewTicketPage() {
   const navigate = useNavigate();
+  const { refreshNotificationCounts } = useNotifications();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
@@ -44,6 +46,7 @@ export function NewTicketPage() {
         priority: values.priority,
         departmentId: values.departmentId,
       }, values.files);
+      void refreshNotificationCounts();
       setCreatedCode(ticket.ticketCode);
       navigate(`/tickets/${ticket.ticketId}`);
     } catch (submitError) {
