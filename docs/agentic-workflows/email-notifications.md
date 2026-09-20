@@ -17,6 +17,10 @@ The implementation must fit the existing Nexus architecture and source code. Do 
 
 The user-facing ticket operation must remain successful even if SendGrid is unavailable, misconfigured, slow, or temporarily failing. Email delivery is a side effect and must never make a successful ticket operation fail.
 
+## Current repository status
+
+This document is a future implementation prompt. SendGrid delivery, email delivery-status persistence, and a public email-notification HTTP API are not currently implemented. The current application may create in-app/realtime notifications, but those are not a substitute for the email provider described here. The implemented API surface is documented in [../api-contract.md](../api-contract.md).
+
 ## Repository and specification rules
 
 Before changing code, inspect the repository and read the relevant project documents in this order:

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { LoadingState } from '../../components/ui/LoadingState'
+import { DebouncedSearchInput } from '../../components/ui/DebouncedSearchInput'
 import { UserLink } from '../../components/users/UserLink'
 import { UserRole } from '../../features/tickets/ticket-types'
 import {
@@ -32,28 +34,30 @@ function messageFor(error, fallback) {
 }
 
 export function ManagementPage() {
-  const [section, setSection] = useState('users')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requestedSection = searchParams.get('section')
+  const section = sections.some((item) => item.id === requestedSection) ? requestedSection : 'users'
+  const userSearch = searchParams.get('userSearch') ?? ''
+  const userStatus = searchParams.get('userStatus') ?? ''
+  const userDepartmentId = searchParams.get('userDepartmentId') ?? ''
+  const userHasLogged = searchParams.get('userHasLogged') ?? ''
+  const parsedUserPage = Number(searchParams.get('userPage') ?? '1')
+  const userPage = Number.isInteger(parsedUserPage) && parsedUserPage > 0 ? parsedUserPage : 1
+  const departmentSearch = searchParams.get('departmentSearch') ?? ''
+  const parsedDepartmentPage = Number(searchParams.get('departmentPage') ?? '1')
+  const departmentPage = Number.isInteger(parsedDepartmentPage) && parsedDepartmentPage > 0 ? parsedDepartmentPage : 1
   const [users, setUsers] = useState([])
-  const [userPage, setUserPage] = useState(1)
   const [userTotal, setUserTotal] = useState(0)
   const [departments, setDepartments] = useState([])
   const departmentOptionsLoaded = useRef(false)
+  const [departmentTotal, setDepartmentTotal] = useState(0)
+  const [departmentOptions, setDepartmentOptions] = useState([])
   const [priorities, setPriorities] = useState([])
   const [selectedUserId, setSelectedUserId] = useState('')
-  const [searchInput, setSearchInput] = useState('')
-  const [search, setSearch] = useState('')
-  const [userStatus, setUserStatus] = useState('')
-  const [userDepartmentId, setUserDepartmentId] = useState('')
-  const [userHasLogged, setUserHasLogged] = useState('')
   const [showCreateUser, setShowCreateUser] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-
-  useEffect(() => {
-    const timeout = window.setTimeout(() => setSearch(searchInput.trim()), 250)
-    return () => window.clearTimeout(timeout)
-  }, [searchInput])
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -61,21 +65,21 @@ export function ManagementPage() {
     try {
       if (section === 'users') {
         const [userResult, departmentResult] = await Promise.all([
-          getAdminUsers({ page: userPage, pageSize: 25, search, status: userStatus, departmentId: userDepartmentId, hasLogged: userHasLogged }),
+          getAdminUsers({ page: userPage, pageSize: 25, search: userSearch, status: userStatus, departmentId: userDepartmentId, hasLogged: userHasLogged }),
           departmentOptionsLoaded.current
             ? Promise.resolve(null)
-            : getAdminDepartments({ page: 1, pageSize: 50 }),
+            : getAdminDepartments({ page: 1, pageSize: 100 }),
         ])
         setUsers(userResult?.items ?? [])
         setUserTotal(userResult?.total ?? 0)
         if (departmentResult) {
-          setDepartments(departmentResult.items ?? [])
+          setDepartmentOptions(departmentResult.items ?? [])
           departmentOptionsLoaded.current = true
         }
       } else if (section === 'departments') {
-        const departmentResult = await getAdminDepartments({ page: 1, pageSize: 50 })
+        const departmentResult = await getAdminDepartments({ page: departmentPage, pageSize: 25, search: departmentSearch })
         setDepartments(departmentResult?.items ?? [])
-        departmentOptionsLoaded.current = true
+        setDepartmentTotal(departmentResult?.total ?? 0)
       } else {
         const priorityResult = await getAdminPriorities()
         setPriorities(priorityResult ?? [])
@@ -85,7 +89,7 @@ export function ManagementPage() {
     } finally {
       setLoading(false)
     }
-  }, [section, userPage, search, userStatus, userDepartmentId, userHasLogged])
+  }, [departmentPage, departmentSearch, section, userDepartmentId, userHasLogged, userPage, userSearch, userStatus])
 
   useEffect(() => {
     // This effect owns the async data synchronization for the selected search.
@@ -99,6 +103,7 @@ export function ManagementPage() {
     try {
       await mutation()
       setNotice(successMessage)
+      departmentOptionsLoaded.current = false
       await loadData()
       return true
     } catch (mutationError) {
@@ -107,9 +112,43 @@ export function ManagementPage() {
     }
   }
 
-  function changeUserFilter(update) {
-    setUserPage(1)
-    update()
+  function updateSection(nextSection) {
+    const nextParams = new URLSearchParams(searchParams)
+    if (nextSection === 'users') nextParams.delete('section')
+    else nextParams.set('section', nextSection)
+    if (nextSection === 'users') nextParams.delete('userPage')
+    if (nextSection === 'departments') nextParams.delete('departmentPage')
+    setSearchParams(nextParams)
+  }
+
+  function updateUserFilter(name, value) {
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('userPage')
+    if (value) nextParams.set(name, value)
+    else nextParams.delete(name)
+    setSearchParams(nextParams, name === 'userSearch' ? { replace: true } : undefined)
+  }
+
+  function updateDepartmentFilter(name, value) {
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('departmentPage')
+    if (value) nextParams.set(name, value)
+    else nextParams.delete(name)
+    setSearchParams(nextParams, name === 'departmentSearch' ? { replace: true } : undefined)
+  }
+
+  function updateUserPage(nextPage) {
+    const nextParams = new URLSearchParams(searchParams)
+    if (nextPage > 1) nextParams.set('userPage', String(nextPage))
+    else nextParams.delete('userPage')
+    setSearchParams(nextParams)
+  }
+
+  function updateDepartmentPage(nextPage) {
+    const nextParams = new URLSearchParams(searchParams)
+    if (nextPage > 1) nextParams.set('departmentPage', String(nextPage))
+    else nextParams.delete('departmentPage')
+    setSearchParams(nextParams)
   }
 
   return (
@@ -129,21 +168,21 @@ export function ManagementPage() {
 
       <div className="pool-switcher" role="tablist" aria-label="Management sections">
         {sections.map((item) => (
-          <button key={item.id} type="button" role="tab" aria-selected={section === item.id} className={section === item.id ? 'is-active' : ''} onClick={() => setSection(item.id)}>
+          <button key={item.id} type="button" role="tab" aria-selected={section === item.id} className={section === item.id ? 'is-active' : ''} onClick={() => updateSection(item.id)}>
             {item.label}
           </button>
         ))}
       </div>
 
       {loading ? <LoadingState>Loading management data...</LoadingState> : null}
-      {!loading && section === 'users' ? <UsersSection users={users} userPage={userPage} userTotal={userTotal} onUserPage={setUserPage} departments={departments} selectedUserId={selectedUserId} search={searchInput} onSearch={(value) => changeUserFilter(() => setSearchInput(value))} userStatus={userStatus} onUserStatus={(value) => changeUserFilter(() => setUserStatus(value))} userDepartmentId={userDepartmentId} onUserDepartment={(value) => changeUserFilter(() => setUserDepartmentId(value))} userHasLogged={userHasLogged} onUserHasLogged={(value) => changeUserFilter(() => setUserHasLogged(value))} onSelect={setSelectedUserId} showCreate={showCreateUser} setShowCreate={setShowCreateUser} runMutation={runMutation} /> : null}
-      {!loading && section === 'departments' ? <DepartmentsSection departments={departments} runMutation={runMutation} /> : null}
-      {!loading && section === 'priorities' ? <PrioritiesSection priorities={priorities} runMutation={runMutation} /> : null}
+      {section === 'users' ? <UsersSection users={users} loading={loading} userPage={userPage} userTotal={userTotal} onUserPage={updateUserPage} departments={departmentOptions} selectedUserId={selectedUserId} search={userSearch} onSearch={(value) => updateUserFilter('userSearch', value.trim())} userStatus={userStatus} onUserStatus={(value) => updateUserFilter('userStatus', value)} userDepartmentId={userDepartmentId} onUserDepartment={(value) => updateUserFilter('userDepartmentId', value)} userHasLogged={userHasLogged} onUserHasLogged={(value) => updateUserFilter('userHasLogged', value)} onSelect={setSelectedUserId} showCreate={showCreateUser} setShowCreate={setShowCreateUser} runMutation={runMutation} /> : null}
+      {section === 'departments' ? <DepartmentsSection departments={departments} loading={loading} search={departmentSearch} onSearch={(value) => updateDepartmentFilter('departmentSearch', value.trim())} departmentPage={departmentPage} departmentTotal={departmentTotal} onDepartmentPage={updateDepartmentPage} runMutation={runMutation} /> : null}
+      {section === 'priorities' ? <PrioritiesSection priorities={priorities} runMutation={runMutation} /> : null}
     </section>
   )
 }
 
-function UsersSection({ users, userPage, userTotal, onUserPage, departments, selectedUserId, search, onSearch, userStatus, onUserStatus, userDepartmentId, onUserDepartment, userHasLogged, onUserHasLogged, onSelect, showCreate, setShowCreate, runMutation }) {
+function UsersSection({ users, loading, userPage, userTotal, onUserPage, departments, selectedUserId, search, onSearch, userStatus, onUserStatus, userDepartmentId, onUserDepartment, userHasLogged, onUserHasLogged, onSelect, showCreate, setShowCreate, runMutation }) {
   const [pendingAction, setPendingAction] = useState(null)
   const [departmentUserId, setDepartmentUserId] = useState('')
   const departmentUser = users.find((user) => user.userId === departmentUserId) ?? null
@@ -170,7 +209,7 @@ function UsersSection({ users, userPage, userTotal, onUserPage, departments, sel
       <div className="admin-toolbar">
         <label className="field admin-search">
           <span>Search users</span>
-          <input value={search} onChange={(event) => onSearch(event.target.value)} placeholder="Name or email" />
+          <DebouncedSearchInput value={search} onDebouncedChange={onSearch} placeholder="Name or email" aria-label="Search users" type="search" />
         </label>
         <div className="admin-filter-group"><label className="field admin-filter"><span>Status</span><select value={userStatus} onChange={(event) => onUserStatus(event.target.value)}><option value="">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option></select></label><label className="field admin-filter"><span>Department</span><select value={userDepartmentId} onChange={(event) => onUserDepartment(event.target.value)}><option value="">All departments</option>{departments.map((department) => <option key={department.departmentId} value={department.departmentId}>{department.name}</option>)}</select></label><label className="field admin-filter"><span>Login</span><select value={userHasLogged} onChange={(event) => onUserHasLogged(event.target.value)}><option value="">Any login status</option><option value="true">Has logged in</option><option value="false">Has not logged in</option></select></label></div>
         <button type="button" className="btn primary" onClick={() => setShowCreate(true)}>Pre-provision user</button>
@@ -189,7 +228,7 @@ function UsersSection({ users, userPage, userTotal, onUserPage, departments, sel
             {users.map((user) => <UserRow key={user.userId} user={user} selected={selectedUserId === user.userId} onSelect={() => { onSelect(user.userId); setDepartmentUserId(user.userId) }} onRequestAction={setPendingAction} />)}
           </tbody>
         </table>
-        {users.length === 0 ? <div className="empty-state"><h2>No users found</h2><p>Try a different search or pre-provision a user.</p></div> : null}
+        {!loading && users.length === 0 ? <div className="empty-state"><h2>No users found</h2><p>Try a different search or pre-provision a user.</p></div> : null}
       </div>
       {userTotal > 25 ? <div className="admin-pagination" aria-label="User pages"><button type="button" className="btn ghost" disabled={userPage === 1} onClick={() => onUserPage(userPage - 1)}>Previous</button><span>Page {userPage} of {Math.ceil(userTotal / 25)}</span><button type="button" className="btn ghost" disabled={userPage >= Math.ceil(userTotal / 25)} onClick={() => onUserPage(userPage + 1)}>Next</button></div> : null}
       {departmentUser ? <AdminDialog title="Department mapping" description={`${departmentUser.fullName} · ${departmentUser.role}`} wide onClose={() => setDepartmentUserId('')}><UserDepartmentEditor user={departmentUser} departments={departments} runMutation={runMutation} /></AdminDialog> : null}
@@ -246,7 +285,7 @@ function UserDepartmentEditor({ user, departments, runMutation }) {
   return <div className="admin-detail"><div><p className="eyebrow">Department membership</p>{cannotMap ? <div className="mapping-notice"><strong>Department mapping unavailable</strong><p>Employees cannot be assigned to departments. Change this user to an agent or administrator first.</p></div> : <p className="muted">Select the departments this {user.role.toLowerCase()} can work in.</p>}</div>{!cannotMap && departments.length ? <div className="membership-grid">{departments.map((department) => { const member = user.departments?.some((item) => item.departmentId === department.departmentId); const disabled = !department.active && !member; return <label key={department.departmentId} className={`membership-option ${member ? 'is-member' : ''} ${disabled ? 'is-disabled' : ''}`}><input type="checkbox" checked={member} disabled={disabled} onChange={() => runMutation(member ? () => removeUserDepartment(user.userId, department.departmentId) : () => addUserDepartment(user.userId, department.departmentId), `${department.name} membership updated.`)} /><span>{department.name}<small>{department.active ? department.code : member ? 'Inactive · assigned' : 'Inactive · unavailable'}</small></span></label> })}</div> : null}{!cannotMap && !departments.length ? <p className="mapping-notice">No departments are available for mapping.</p> : null}</div>
 }
 
-function DepartmentsSection({ departments, runMutation }) {
+function DepartmentsSection({ departments, loading, search, onSearch, departmentPage, departmentTotal, onDepartmentPage, runMutation }) {
   const [departmentDialog, setDepartmentDialog] = useState(null)
   const [deactivation, setDeactivation] = useState(null)
 
@@ -256,8 +295,10 @@ function DepartmentsSection({ departments, runMutation }) {
   }
 
   return <div className="admin-section">
-    <div className="admin-toolbar"><div><p className="muted">Inactive departments remain visible for historical records.</p></div><button type="button" className="btn primary" onClick={() => setDepartmentDialog({ department: null })}>Add department</button></div>
+    <div className="admin-toolbar"><label className="field admin-search"><span>Search departments</span><DebouncedSearchInput value={search} onDebouncedChange={onSearch} placeholder="Code or name" aria-label="Search departments" type="search" /></label><div><p className="muted">Inactive departments remain visible for historical records.</p></div><button type="button" className="btn primary" onClick={() => setDepartmentDialog({ department: null })}>Add department</button></div>
     <div className="admin-card-grid">{departments.map((department) => <DepartmentCard key={department.departmentId} department={department} onEdit={() => setDepartmentDialog({ department })} onDeactivate={() => setDeactivation(department)} runMutation={runMutation} />)}</div>
+    {!loading && departments.length === 0 ? <div className="empty-state"><h2>No departments found</h2><p>Try a different search or add a department.</p></div> : null}
+    {!loading && departmentTotal > 25 ? <div className="admin-pagination" aria-label="Department pages"><button type="button" className="btn ghost" disabled={departmentPage === 1} onClick={() => onDepartmentPage(departmentPage - 1)}>Previous</button><span>Page {departmentPage} of {Math.ceil(departmentTotal / 25)}</span><button type="button" className="btn ghost" disabled={departmentPage >= Math.ceil(departmentTotal / 25)} onClick={() => onDepartmentPage(departmentPage + 1)}>Next</button></div> : null}
 
     {departmentDialog ? <AdminDialog title={departmentDialog.department ? 'Edit department' : 'Add department'} description={departmentDialog.department ? 'Update the department details used throughout Nexus.' : 'Create a department for routing and ticket ownership.'} wide onClose={() => setDepartmentDialog(null)}><DepartmentForm key={departmentDialog.department?.departmentId ?? 'new'} department={departmentDialog.department} runMutation={runMutation} onDone={() => setDepartmentDialog(null)} /></AdminDialog> : null}
     {deactivation ? <ConfirmDialog title="Deactivate department?" description={`${deactivation.name} will remain visible for historical records but will no longer accept new assignments.`} confirmLabel="Deactivate department" danger onConfirm={deactivate} onClose={() => setDeactivation(null)} /> : null}

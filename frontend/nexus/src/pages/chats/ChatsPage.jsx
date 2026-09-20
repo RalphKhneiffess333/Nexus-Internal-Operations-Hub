@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { LoadingState } from '../../components/ui/LoadingState'
+import { DebouncedSearchInput } from '../../components/ui/DebouncedSearchInput'
 import { TicketStatusBadge } from '../../components/tickets/TicketStatusBadge'
 import { useNotifications } from '../../features/notifications/use-notifications'
 import { getChatConversations } from '../../features/tickets/ticket-api'
@@ -15,8 +16,11 @@ function messagePreview(conversation) {
 
 export function ChatsPage() {
   const { markAllChatsRead } = useNotifications()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const search = searchParams.get('search') ?? ''
+  const parsedPage = Number(searchParams.get('page') ?? '1')
+  const page = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1
   const [conversations, setConversations] = useState([])
-  const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -28,7 +32,7 @@ export function ChatsPage() {
       setError('')
     }
     try {
-      const result = await getChatConversations({ page, pageSize: 50 })
+      const result = await getChatConversations({ page, pageSize: 50, search })
       setConversations(result?.items ?? [])
       setHasMore(Boolean(result?.hasMore))
     } catch (loadError) {
@@ -39,13 +43,28 @@ export function ChatsPage() {
     } finally {
       if (!silent) setLoading(false)
     }
-  }, [markAllChatsRead, page])
+  }, [markAllChatsRead, page, search])
 
   useEffect(() => {
     // The inbox is synchronized from the server when this route is mounted.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadConversations()
   }, [loadConversations])
+
+  function updateSearch(value) {
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('page')
+    if (value.trim()) nextParams.set('search', value.trim())
+    else nextParams.delete('search')
+    setSearchParams(nextParams, { replace: true })
+  }
+
+  function updatePage(nextPage) {
+    const nextParams = new URLSearchParams(searchParams)
+    if (nextPage > 1) nextParams.set('page', String(nextPage))
+    else nextParams.delete('page')
+    setSearchParams(nextParams)
+  }
 
   useEffect(() => {
     const refreshWhenFocused = () => void loadConversations({ silent: true })
@@ -67,6 +86,19 @@ export function ChatsPage() {
           {conversations.length}
         </span>
       </header>
+
+      <div className="ticket-filters chat-inbox-filters" aria-label="Chat filters">
+        <label className="field ticket-filter ticket-search-filter">
+          <span>Search chats</span>
+          <DebouncedSearchInput
+            value={search}
+            onDebouncedChange={updateSearch}
+            placeholder="Ticket, title, message, or sender"
+            aria-label="Search chats"
+            type="search"
+          />
+        </label>
+      </div>
 
       {loading ? <LoadingState>Loading conversations…</LoadingState> : null}
       {!loading && error ? (
@@ -114,7 +146,7 @@ export function ChatsPage() {
           ))}
         </ol>
       ) : null}
-      {!loading && !error && (page > 1 || hasMore) ? <div className="admin-pagination" aria-label="Chat pages"><button type="button" className="btn ghost" disabled={page === 1} onClick={() => setPage(page - 1)}>Previous</button><span>Page {page}</span><button type="button" className="btn ghost" disabled={!hasMore} onClick={() => setPage(page + 1)}>Next</button></div> : null}
+      {!loading && !error && (page > 1 || hasMore) ? <div className="admin-pagination" aria-label="Chat pages"><button type="button" className="btn ghost" disabled={page === 1} onClick={() => updatePage(page - 1)}>Previous</button><span>Page {page}</span><button type="button" className="btn ghost" disabled={!hasMore} onClick={() => updatePage(page + 1)}>Next</button></div> : null}
     </section>
   )
 }

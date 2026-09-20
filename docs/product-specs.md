@@ -5,6 +5,10 @@ author: "Ralph Khneiffess"
 
 # Nexus (Internal Operations Service Hub) - Product Specs
 
+The current implemented API surface and the features intentionally not exposed as standalone endpoints are recorded in [api-contract.md](api-contract.md). This document defines product behavior and acceptance criteria; it does not define exact route names or JSON envelopes.
+
+Current implementation notes: ticket, Chat, handoff, administration, file attachment, authentication, authorization, and realtime APIs are implemented. SendGrid email delivery, reminder processing, audit-log purge processing, and other background workers described as future behavior are not currently included.
+
 ## Overview
 ### Context 
 Organizations require internal communications between their multiple departments. Although a company itself may be well established, its employees regularly need assistance from different internal departments. These requests vary from technical problems, such as laptop issues, to access and administrative requests and more.

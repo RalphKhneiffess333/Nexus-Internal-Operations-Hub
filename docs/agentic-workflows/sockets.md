@@ -4,6 +4,8 @@ author: "Ralph Khneiffess"
 ---
 # Task: Implement Nexus Socket.io Real-Time Infrastructure
 
+The realtime infrastructure described here is implemented. Chat room membership and Chat message broadcasts were added by the later Chat workflow. The current event names, acknowledgements, and payload envelopes are summarized in [../api-contract.md](../api-contract.md).
+
 You are working in the existing **Nexus** codebase, a NestJS/Prisma/PostgreSQL backend with a React/TypeScript frontend.
 
 Implement the reusable Socket.io real-time infrastructure that future Tickets, Chat functionality and others will use.
@@ -187,15 +189,15 @@ TICKET_EVENT_CREATED
 SESSION_INVALIDATED
 ```
 
-Use typed payloads. A safe envelope may conceptually contain:
+Use typed payloads. Ticket and Chat event envelopes currently contain:
 
 ```ts
 type RealtimeEnvelope<T> = {
   eventId: string;
   occurredAt: string;
   version: number;
-  ticketId?: string;
-  actorId?: string;
+  ticketId: string;
+  actorId: string;
   payload: T;
 };
 ```
@@ -220,19 +222,19 @@ Create the gateway in the repository-appropriate location, conceptually:
 src/realtime/operations.gateway.ts
 ```
 
-Use a Socket.io namespace named `operations` and configured CORS:
+Use a Socket.io namespace named `operations`. The current implementation is:
 
 ```ts
 @WebSocketGateway({
   namespace: 'operations',
   cors: {
-    origin: configuredFrontendOrigins,
+    origin: true,
     credentials: true,
   },
 })
 ```
 
-Never use wildcard CORS with credentials. Reuse current configuration and local origins.
+`origin: true` documents the current repository behavior, but it reflects the requesting origin while credentials are enabled. It must be restricted to configured frontend origins before production deployment; do not treat the current value as the desired security configuration.
 
 Implement `OnGatewayConnection` and `OnGatewayDisconnect`.
 
@@ -334,7 +336,7 @@ user:{userId}
 ticket:{ticketId}
 ```
 
-Chat rooms are intentionally deferred to the Chat prompt.
+Chat rooms are implemented by the Chat workflow and use `chat:{ticketId}` room names.
 
 Implement authenticated acknowledgement-based handlers for:
 
@@ -594,5 +596,5 @@ Document implementation defaults that were not specified by the docs, and explic
 - ticket updates broadcast safely;
 - existing Ticket Events, authentication, authorization, and concurrency behavior remains intact;
 - builds/tests/migrations relevant to this scope pass;
-- Chat was not implemented in this task;
+- Chat was intentionally outside the original realtime-infrastructure task; it is implemented by the later Chat workflow;
 - final report documents all changes, defaults, limitations, and verification results.

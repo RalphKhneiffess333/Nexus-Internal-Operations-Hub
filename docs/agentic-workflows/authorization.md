@@ -6,6 +6,8 @@ author: "Ralph Khneiffess"
 # Nexus - Authorization
 This document defines how authorization is implemented in Nexus.
 
+The current route-level role assignments and API response conventions are summarized in [../api-contract.md](../api-contract.md). The role names used by the implementation are the Prisma values `Employee`, `Agent`, and `Admin`; resource-specific ticket, Chat, and handoff checks remain inside their feature modules.
+
 Authorization determines whether an authenticated Nexus user is allowed to perform a specific action.
 
 Authorization is intentionally separated from authentication and from the individual business modules.
@@ -41,8 +43,12 @@ Controller
      v
 Feature Module
      |
-     | Resource Policy
-     v
+    | Resource Policy
+    v
+
+## Current API contract
+
+The implemented endpoint matrix and route-specific role assignments are maintained in [../api-contract.md](../api-contract.md). The global guard returns `401 Unauthorized` when no authenticated user is present and `403 Forbidden` when the authenticated user's explicit role is not allowed. Resource policies may return additional `400`, `404`, or `409` outcomes for invalid resource state.
 Application Service
 The Authorization module must not access tickets, chats, files, departments, or other feature-specific resources.
 

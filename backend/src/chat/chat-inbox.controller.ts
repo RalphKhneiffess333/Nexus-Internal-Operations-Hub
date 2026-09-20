@@ -4,7 +4,7 @@ import type { AuthenticatedRequest } from '../authentication/request-user';
 import { IdentifierValidationPipe } from '../common/pipes/identifier-validation.pipe';
 import { Roles } from '../authorization/decorators/roles.decorator';
 import { ChatService } from './chat.service';
-import { ChatMessagesQueryDto } from './dto/chat-query.dto';
+import { ChatInboxQueryDto } from './dto/chat-query.dto';
 
 @Controller('chats')
 export class ChatInboxController {
@@ -13,7 +13,7 @@ export class ChatInboxController {
   @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
   @Get()
   listConversations(
-    @Query() query: ChatMessagesQueryDto,
+    @Query() query: ChatInboxQueryDto,
     @Req() request: AuthenticatedRequest,
   ) {
     return this.chatService.listConversationsPage(request.user!, query);

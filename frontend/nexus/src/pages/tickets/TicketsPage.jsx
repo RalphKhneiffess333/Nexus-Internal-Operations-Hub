@@ -91,6 +91,8 @@ export function TicketsPage({ view = 'submitted' }) {
   const statusFilter = searchParams.get('status') ?? ''
   const departmentFilter = searchParams.get('departmentId') ?? ''
   const priorityFilter = searchParams.get('priority') ?? ''
+  const parsedPage = Number(searchParams.get('page') ?? '1')
+  const page = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1
   const isAdmin = user?.role === 'Admin'
   const poolMode = requestedPoolMode === 'system' && isAdmin
     ? 'system'
@@ -122,7 +124,6 @@ export function TicketsPage({ view = 'submitted' }) {
   const requestKey = view === 'pool' ? `pool:${poolMode}` : view === 'admin' ? 'admin' : myTicketMode
   const filterKey = `${searchFilter}:${appliedStatusFilter}:${departmentFilter}:${priorityFilter}`
   const [tickets, setTickets] = useState([])
-  const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(false)
   const loadKey = `${requestKey}:${filterKey}:${page}`
   const [loading, setLoading] = useState(true)
@@ -134,8 +135,8 @@ export function TicketsPage({ view = 'submitted' }) {
   const filterDepartments = departments
 
   function updateView(nextView, options = {}) {
-    setPage(1)
     const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('page')
     if (nextView) nextParams.set('view', nextView)
     else nextParams.delete('view')
     if (options.clearStatus) nextParams.delete('status')
@@ -143,10 +144,17 @@ export function TicketsPage({ view = 'submitted' }) {
   }
 
   function updateFilter(name, value) {
-    setPage(1)
     const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('page')
     if (value) nextParams.set(name, value)
     else nextParams.delete(name)
+    setSearchParams(nextParams)
+  }
+
+  function updatePage(nextPage) {
+    const nextParams = new URLSearchParams(searchParams)
+    if (nextPage > 1) nextParams.set('page', String(nextPage))
+    else nextParams.delete('page')
     setSearchParams(nextParams)
   }
 
@@ -299,7 +307,7 @@ export function TicketsPage({ view = 'submitted' }) {
       {!isLoading && !error && tickets.length > 0 ? (
           <TicketList tickets={tickets} departments={departments} priorities={priorities} />
       ) : null}
-      {!isLoading && !error && (page > 1 || hasMore) ? <div className="admin-pagination" aria-label="Ticket pages"><button type="button" className="btn ghost" disabled={page === 1} onClick={() => setPage(page - 1)}>Previous</button><span>Page {page}</span><button type="button" className="btn ghost" disabled={!hasMore} onClick={() => setPage(page + 1)}>Next</button></div> : null}
+      {!isLoading && !error && (page > 1 || hasMore) ? <div className="admin-pagination" aria-label="Ticket pages"><button type="button" className="btn ghost" disabled={page === 1} onClick={() => updatePage(page - 1)}>Previous</button><span>Page {page}</span><button type="button" className="btn ghost" disabled={!hasMore} onClick={() => updatePage(page + 1)}>Next</button></div> : null}
     </section>
   )
 }

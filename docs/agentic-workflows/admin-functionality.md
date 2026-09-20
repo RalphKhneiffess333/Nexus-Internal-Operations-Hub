@@ -5,9 +5,11 @@ author: "Ralph Khneiffess"
 
 # Task: Implement All Nexus Administration Functionality
 
+The current administration implementation is complete for the routes listed in this document. The final HTTP contract, including query parameters, response envelopes, priorities, and activity logs, is maintained in [../api-contract.md](../api-contract.md).
+
 You are working in the existing **Nexus** codebase, a NestJS/Prisma/PostgreSQL backend with a React frontend.
 
-Employee and agent functionality already exists. Administrators currently inherit some agent-facing capabilities, but the dedicated administration capabilities are not implemented. Implement the complete administration feature set described below end-to-end, while preserving all existing employee, agent, authentication, authorization, ticket lifecycle, Ticket Events, attachment, and concurrency behavior.
+Employee, agent, and dedicated administration functionality are implemented. This document records the administration requirements and the final route conventions; use [../api-contract.md](../api-contract.md) when an exact current payload or response envelope is needed.
 
 Do not redesign Nexus. Inspect the current repository first and adapt this specification to its real architecture, naming, routes, DTO patterns, repositories, error conventions, frontend structure, and tests.
 
@@ -380,36 +382,39 @@ Do not merge the tables or pretend their payloads have the same schema. If provi
 
 ## 11. API design
 
-Inspect existing route naming before choosing exact paths. Prefer extending existing Users/Departments/Tickets modules and a cohesive Administration/Audit boundary.
-
-A conceptual contract is:
+The implemented contract is:
 
 ```http
 GET    /admin/users
 POST   /admin/users
-GET    /admin/users/:userId
 PATCH  /admin/users/:userId/role
 PATCH  /admin/users/:userId/status
-GET    /admin/users/:userId/departments
 POST   /admin/users/:userId/departments/:departmentId
 DELETE /admin/users/:userId/departments/:departmentId
 
 GET    /admin/departments
 POST   /admin/departments
-GET    /admin/departments/:departmentId
 PATCH  /admin/departments/:departmentId
 DELETE /admin/departments/:departmentId
 POST   /admin/departments/:departmentId/reactivate
 GET    /admin/departments/:departmentId/members
 
+GET    /admin/priorities
+POST   /admin/priorities
+PATCH  /admin/priorities/:priorityId
+DELETE /admin/priorities/:priorityId
+POST   /admin/priorities/:priorityId/reactivate
+
 GET    /admin/configurations
 PATCH  /admin/configurations/:key
 
-GET    /admin/audit-logs
-GET    /admin/audit-logs/:logId
+GET    /admin/audit-logs/activity
+GET    /admin/audit-logs/:auditLogId
 ```
 
-These paths are examples, not commands to duplicate existing routes. Use current conventions and document the final contract.
+There is no dedicated admin user-detail or admin user-memberships GET route. The general `GET /users/:userId` profile route is available to authenticated users. There is no collection route at `/admin/audit-logs`; administration history is read through `/admin/audit-logs/activity`.
+
+The user list accepts `page`, `pageSize`, `search`, `status`, `departmentId`, and `hasLogged`. Department and member lists accept `page`, `pageSize`, and `search`. The activity list accepts `page`, `pageSize`, `source`, `auditAction`, and `ticketAction`.
 
 All administration routes must:
 
@@ -421,6 +426,8 @@ All administration routes must:
 - apply pagination limits
 - return consistent 400/401/403/404/409/5xx errors
 - never leak Prisma errors, SQL, internal stack traces, session identifiers, provider tokens, or secrets
+
+List responses are mapped DTOs. Counted administration lists return `{ items, page, pageSize, total }`; the activity list returns `{ items, page, pageSize, hasMore }`. Department responses currently expose the persisted description under the response key `desc`.
 
 Do not add generic CRUD endpoints that permit arbitrary writes to historical or security data.
 

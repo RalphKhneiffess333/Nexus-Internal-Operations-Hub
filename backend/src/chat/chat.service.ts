@@ -19,7 +19,10 @@ import {
 } from '../realtime/realtime-events';
 import { TicketsRepository } from '../tickets/repositories/tickets.repository';
 import { CreateChatMessageDto } from './dto/create-chat-message.dto';
-import { ChatMessagesQueryDto } from './dto/chat-query.dto';
+import {
+  ChatInboxQueryDto,
+  ChatMessagesQueryDto,
+} from './dto/chat-query.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ChatPolicy } from './policies/chat.policy';
 import { sanitizePlainText } from '../common/sanitization/content-sanitizer';
@@ -149,7 +152,7 @@ export class ChatService {
 
   async listConversations(
     actor: AuthenticatedRequestUser,
-    query: ChatMessagesQueryDto = {},
+    query: ChatInboxQueryDto = {},
   ): Promise<ChatConversationResponse[]> {
     const result = await this.listConversationsPage(actor, query);
     return result.items;
@@ -157,7 +160,7 @@ export class ChatService {
 
   async listConversationsPage(
     actor: AuthenticatedRequestUser,
-    query: ChatMessagesQueryDto = {},
+    query: ChatInboxQueryDto = {},
   ): Promise<ChatConversationPageResponse> {
     const actorDepartmentIds = await this.getActorDepartmentIds(actor.userId);
     const result: ChatInboxPage = await this.chatRepository.findInboxTickets(
@@ -166,6 +169,7 @@ export class ChatService {
       actorDepartmentIds,
       query.page,
       query.pageSize,
+      query.search,
     );
     return {
       ...result,

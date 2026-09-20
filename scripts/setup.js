@@ -783,6 +783,94 @@ async function runTestsStage() {
   success("Tests passed");
 }
 
+async function runBulkSeedStage() {
+  const choice = await promptChoice(
+    "Would you like to populate a database with synthetic bulk load-test data before the app starts?",
+    [
+      {
+        label: "Skip bulk seeding",
+        value: DECISIONS.skip,
+      },
+      {
+        label: "Normal database (npm run seed:bulk)",
+        value: "normal",
+      },
+      {
+        label: "Test database (npm run seed:bulk:test)",
+        value: "test",
+      },
+      {
+        label: "Both databases",
+        value: "both",
+      },
+      {
+        label: "Cancel setup",
+        value: DECISIONS.cancel,
+      },
+    ],
+  );
+
+  if (choice === DECISIONS.cancel) {
+    throw new SetupCancelled();
+  }
+  if (choice === DECISIONS.skip) {
+    info("Bulk seeding skipped");
+    return;
+  }
+
+  const jobs =
+    choice === "both"
+      ? [
+          { label: "npm run seed:bulk", script: "seed:bulk" },
+          { label: "npm run seed:bulk:test", script: "seed:bulk:test" },
+        ]
+      : [
+          {
+            label: choice === "test" ? "npm run seed:bulk:test" : "npm run seed:bulk",
+            script: choice === "test" ? "seed:bulk:test" : "seed:bulk",
+          },
+        ];
+  const failures = [];
+
+  for (const job of jobs) {
+    info("");
+    info(`Running ${job.label}...`);
+    try {
+      await runCommand(["run", job.script], { label: job.label });
+      success(`${job.label} completed`);
+    } catch (error) {
+      if (error instanceof SetupCancelled) {
+        throw error;
+      }
+      failures.push({ ...job, error });
+      failure(formatCommandFailure(error));
+      warning("The remaining selected bulk seed targets will still be attempted.");
+    }
+  }
+
+  if (failures.length === 0) {
+    return;
+  }
+
+  const nextStep = await promptChoice(
+    "One or more bulk seed commands failed. What would you like to do next?",
+    [
+      {
+        label: "Continue to app startup",
+        value: "continue",
+      },
+      {
+        label: "Cancel setup",
+        value: DECISIONS.cancel,
+      },
+    ],
+  );
+  if (nextStep === DECISIONS.cancel) {
+    throw new SetupCancelled();
+  }
+  warning("Continuing without a complete bulk seed.");
+}
+
 async function runStartStage() {
   section(7, "Start Application");
   info(
@@ -847,6 +935,8 @@ async function runStartStage() {
     return;
   }
 
+  await runBulkSeedStage();
+
   const scriptName = startMode === "test" ? "start:test" : "start";
   const modeDescription = startMode === "test" ? " in test mode" : "";
   info(
@@ -862,7 +952,7 @@ async function runSetup() {
   info("Welcome to the Nexus setup wizard.");
   info("");
   info(
-    "This wizard will help you install dependencies, configure your local environment, prepare PostgreSQL, optionally seed users, run tests, and start the application.",
+    "This wizard will help you install dependencies, configure your local environment, prepare PostgreSQL, optionally seed users and bulk load-test data, run tests, and start the application.",
   );
   info("");
   info(

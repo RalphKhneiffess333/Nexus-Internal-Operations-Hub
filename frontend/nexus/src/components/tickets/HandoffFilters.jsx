@@ -1,4 +1,5 @@
 import { HandoffStatus } from '../../features/tickets/ticket-types'
+import { DebouncedSearchInput } from '../ui/DebouncedSearchInput'
 
 const STATUS_LABELS = {
   [HandoffStatus.PENDING]: 'Pending',
@@ -29,11 +30,12 @@ export function HandoffFilters({
     <div className="ticket-filters handoff-filters" aria-label="Handoff filters">
       <label className="field ticket-filter ticket-search-filter">
         <span>Ticket</span>
-        <input
+        <DebouncedSearchInput
           value={searchInput}
-          onChange={(event) => onSearch(event.target.value)}
+          onDebouncedChange={onSearch}
           placeholder="Number or title"
           aria-label="Filter by ticket number or title"
+          type="search"
         />
       </label>
 

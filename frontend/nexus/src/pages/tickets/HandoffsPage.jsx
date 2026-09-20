@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { HandoffFilters } from '../../components/tickets/HandoffFilters'
 import { HandoffRequestCard } from '../../components/tickets/HandoffRequestCard'
 import { LoadingState } from '../../components/ui/LoadingState'
@@ -14,44 +15,38 @@ import {
 
 export function HandoffsPage() {
   const { user } = useAuthentication()
-  const [view, setView] = useState('incoming')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const view = searchParams.get('view') === 'outgoing' ? 'outgoing' : 'incoming'
+  const search = searchParams.get('search') ?? ''
+  const requestedAgentId = searchParams.get('requestedAgentId') ?? ''
+  const requesterId = searchParams.get('requesterId') ?? ''
+  const departmentId = searchParams.get('departmentId') ?? ''
+  const status = searchParams.get('status') ?? ''
+  const parsedPage = Number(searchParams.get('page') ?? '1')
+  const page = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1
   const [incoming, setIncoming] = useState([])
   const [outgoing, setOutgoing] = useState([])
   const [participantOptions, setParticipantOptions] = useState([])
-  const [searchInput, setSearchInput] = useState('')
-  const [search, setSearch] = useState('')
-  const [filters, setFilters] = useState({
-    requestedAgentId: '',
-    requesterId: '',
-    departmentId: '',
-    status: '',
-  })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [actionError, setActionError] = useState('')
   const [busy, setBusy] = useState(false)
   const { departments } = useDepartments()
-  const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(false)
   const [pendingCount, setPendingCount] = useState(0)
 
-  useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      setSearch(searchInput.trim())
-      setPage(1)
-    }, 250)
-    return () => window.clearTimeout(timeout)
-  }, [searchInput])
+  const filters = { requestedAgentId, requesterId, departmentId, status }
 
   const loadHandoffs = useCallback(async () => {
     setLoading(true)
     setError('')
     try {
       const result = await getHandoffs({
-        ...filters,
+        departmentId,
+        status,
         direction: view,
-        requestedAgentId: view === 'incoming' ? '' : filters.requestedAgentId,
-        requesterId: view === 'outgoing' ? '' : filters.requesterId,
+        requestedAgentId: view === 'incoming' ? '' : requestedAgentId,
+        requesterId: view === 'outgoing' ? '' : requesterId,
         search,
         page,
         pageSize: 25,
@@ -66,7 +61,7 @@ export function HandoffsPage() {
     } finally {
       setLoading(false)
     }
-  }, [filters, page, search, view])
+  }, [departmentId, page, requestedAgentId, requesterId, search, status, view])
 
   const loadParticipantOptions = useCallback(async () => {
     try {
@@ -90,20 +85,35 @@ export function HandoffsPage() {
   }, [loadParticipantOptions])
 
   function updateFilter(name, value) {
-    setPage(1)
-    setFilters((current) => ({ ...current, [name]: value }))
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('page')
+    if (value) nextParams.set(name, value)
+    else nextParams.delete(name)
+    setSearchParams(nextParams, name === 'search' ? { replace: true } : undefined)
+  }
+
+  function updateView(nextView) {
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('page')
+    if (nextView === 'outgoing') nextParams.set('view', nextView)
+    else nextParams.delete('view')
+    if (nextView === 'outgoing') nextParams.delete('requesterId')
+    else nextParams.delete('requestedAgentId')
+    setSearchParams(nextParams)
+  }
+
+  function updatePage(nextPage) {
+    const nextParams = new URLSearchParams(searchParams)
+    if (nextPage > 1) nextParams.set('page', String(nextPage))
+    else nextParams.delete('page')
+    setSearchParams(nextParams)
   }
 
   function clearFilters() {
-    setPage(1)
-    setSearchInput('')
-    setSearch('')
-    setFilters({
-      requestedAgentId: '',
-      requesterId: '',
-      departmentId: '',
-      status: '',
-    })
+    const nextParams = new URLSearchParams(searchParams)
+    const filterNames = ['search', 'requestedAgentId', 'requesterId', 'departmentId', 'status', 'page']
+    filterNames.forEach((name) => nextParams.delete(name))
+    setSearchParams(nextParams)
   }
 
   async function resolveHandoff(action, handoff) {
@@ -137,7 +147,7 @@ export function HandoffsPage() {
           role="tab"
           aria-selected={view === 'incoming'}
           className={view === 'incoming' ? 'is-active' : ''}
-          onClick={() => { setPage(1); setView('incoming') }}
+          onClick={() => updateView('incoming')}
         >
           Incoming
         </button>
@@ -146,7 +156,7 @@ export function HandoffsPage() {
           role="tab"
           aria-selected={view === 'outgoing'}
           className={view === 'outgoing' ? 'is-active' : ''}
-          onClick={() => { setPage(1); setView('outgoing') }}
+          onClick={() => updateView('outgoing')}
         >
           Outgoing
         </button>
@@ -157,8 +167,8 @@ export function HandoffsPage() {
         users={participantOptions}
         view={view}
         filters={filters}
-        searchInput={searchInput}
-        onSearch={setSearchInput}
+        searchInput={search}
+        onSearch={(value) => updateFilter('search', value.trim())}
         onChange={updateFilter}
         onClear={clearFilters}
       />
@@ -194,7 +204,7 @@ export function HandoffsPage() {
         </div>
       ) : null}
       {!loading && !error && pendingCount > 0 ? <p className="handoff-footnote">Pending matching filters: {pendingCount}</p> : null}
-      {!loading && !error && (page > 1 || hasMore) ? <div className="admin-pagination" aria-label="Handoff pages"><button type="button" className="btn ghost" disabled={page === 1} onClick={() => setPage(page - 1)}>Previous</button><span>Page {page}</span><button type="button" className="btn ghost" disabled={!hasMore} onClick={() => setPage(page + 1)}>Next</button></div> : null}
+      {!loading && !error && (page > 1 || hasMore) ? <div className="admin-pagination" aria-label="Handoff pages"><button type="button" className="btn ghost" disabled={page === 1} onClick={() => updatePage(page - 1)}>Previous</button><span>Page {page}</span><button type="button" className="btn ghost" disabled={!hasMore} onClick={() => updatePage(page + 1)}>Next</button></div> : null}
     </section>
   )
 }

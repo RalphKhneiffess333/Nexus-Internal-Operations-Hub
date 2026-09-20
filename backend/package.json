@@ -22,6 +22,8 @@
     "test:api:e2e": "npm run build && playwright test --config ./test/playwright.api.config.ts",
     "test:browser:e2e": "playwright test --config ./test/playwright.config.ts",
     "test:e2e": "npm run test:api:e2e && npm run test:browser:e2e",
+    "seed:bulk": "ts-node --project tsconfig.scripts.json src/database/bulk-seed.ts normal",
+    "seed:bulk:test": "ts-node --project tsconfig.scripts.json src/database/bulk-seed.ts test",
     "seed:users": "ts-node --project tsconfig.scripts.json src/database/users-cli.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { LoadingState } from '../../components/ui/LoadingState'
 import { UserDetailsDialog } from '../../components/users/UserDetailsDialog'
 import {
@@ -39,11 +39,14 @@ const ticketActions = [
 ]
 
 export function LogsPage() {
-  const [section, setSection] = useState('all')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requestedSection = searchParams.get('section')
+  const section = requestedSection === 'tickets' || requestedSection === 'audit' ? requestedSection : 'all'
+  const action = searchParams.get('action') ?? ''
+  const ticketAction = searchParams.get('ticketAction') ?? ''
+  const parsedPage = Number(searchParams.get('page') ?? '1')
+  const page = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1
   const [entries, setEntries] = useState([])
-  const [action, setAction] = useState('')
-  const [ticketAction, setTicketAction] = useState('')
-  const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -74,7 +77,30 @@ export function LogsPage() {
     void loadLogs()
   }, [loadLogs])
 
-  return <section className="page administration-page"><header className="page-header"><div><p className="eyebrow">History</p><h1>Logs</h1><p className="page-description">Read-only administrative and ticket-domain history.</p></div></header>{error ? <div className="banner error"><p>{error}</p><button type="button" className="btn ghost" onClick={loadLogs}>Try again</button></div> : null}<div className="pool-switcher" role="tablist" aria-label="Log sections">{logSections.map((item) => <button key={item.id} type="button" role="tab" aria-selected={section === item.id} className={section === item.id ? 'is-active' : ''} onClick={() => { setPage(1); setSection(item.id) }}>{item.label}</button>)}</div><div className="log-filters">{section !== 'tickets' ? <label className="field admin-log-filter"><span>Audit action</span><select value={action} onChange={(event) => { setPage(1); setAction(event.target.value) }}><option value="">All audit actions</option>{auditActions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label> : null}{section !== 'audit' ? <label className="field admin-log-filter"><span>Ticket event</span><select value={ticketAction} onChange={(event) => { setPage(1); setTicketAction(event.target.value) }}><option value="">All ticket events</option>{ticketActions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label> : null}</div>{loading ? <LoadingState>Loading history...</LoadingState> : null}{!loading && !error ? <div className="log-list">{entries.map((entry) => <LogEntry key={`${entry.source}-${entry.id}`} entry={entry} />)}{entries.length === 0 ? <div className="empty-state clay-card"><h2>No history found</h2><p>There are no events matching these filters.</p></div> : null}</div> : null}{!loading && !error && (page > 1 || hasMore) ? <div className="admin-pagination" aria-label="History pages"><button type="button" className="btn ghost" disabled={page === 1} onClick={() => setPage(page - 1)}>Previous</button><span>Page {page}</span><button type="button" className="btn ghost" disabled={!hasMore} onClick={() => setPage(page + 1)}>Next</button></div> : null}</section>
+  function updateQuery(name, value) {
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('page')
+    if (value) nextParams.set(name, value)
+    else nextParams.delete(name)
+    setSearchParams(nextParams)
+  }
+
+  function updateSection(nextSection) {
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('page')
+    if (nextSection === 'all') nextParams.delete('section')
+    else nextParams.set('section', nextSection)
+    setSearchParams(nextParams)
+  }
+
+  function updatePage(nextPage) {
+    const nextParams = new URLSearchParams(searchParams)
+    if (nextPage > 1) nextParams.set('page', String(nextPage))
+    else nextParams.delete('page')
+    setSearchParams(nextParams)
+  }
+
+  return <section className="page administration-page"><header className="page-header"><div><p className="eyebrow">History</p><h1>Logs</h1><p className="page-description">Read-only administrative and ticket-domain history.</p></div></header>{error ? <div className="banner error"><p>{error}</p><button type="button" className="btn ghost" onClick={loadLogs}>Try again</button></div> : null}<div className="pool-switcher" role="tablist" aria-label="Log sections">{logSections.map((item) => <button key={item.id} type="button" role="tab" aria-selected={section === item.id} className={section === item.id ? 'is-active' : ''} onClick={() => updateSection(item.id)}>{item.label}</button>)}</div><div className="log-filters">{section !== 'tickets' ? <label className="field admin-log-filter"><span>Audit action</span><select value={action} onChange={(event) => updateQuery('action', event.target.value)}><option value="">All audit actions</option>{auditActions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label> : null}{section !== 'audit' ? <label className="field admin-log-filter"><span>Ticket event</span><select value={ticketAction} onChange={(event) => updateQuery('ticketAction', event.target.value)}><option value="">All ticket events</option>{ticketActions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label> : null}</div>{loading ? <LoadingState>Loading history...</LoadingState> : null}{!loading && !error ? <div className="log-list">{entries.map((entry) => <LogEntry key={`${entry.source}-${entry.id}`} entry={entry} />)}{entries.length === 0 ? <div className="empty-state clay-card"><h2>No history found</h2><p>There are no events matching these filters.</p></div> : null}</div> : null}{!loading && !error && (page > 1 || hasMore) ? <div className="admin-pagination" aria-label="History pages"><button type="button" className="btn ghost" disabled={page === 1} onClick={() => updatePage(page - 1)}>Previous</button><span>Page {page}</span><button type="button" className="btn ghost" disabled={!hasMore} onClick={() => updatePage(page + 1)}>Next</button></div> : null}</section>
 }
 
 function LogEntry({ entry }) {

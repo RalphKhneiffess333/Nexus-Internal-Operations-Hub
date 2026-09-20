@@ -6,6 +6,10 @@ author: "Ralph Khneiffess"
 # Nexus - Architecture
 This document describes the major system architecture of Nexus including its major components, modules and their interactions, external dependencies, data flows, error handling and key architectural decisions.
 
+## Current API reference
+
+The implemented HTTP and Socket.io contracts are maintained in [api-contract.md](api-contract.md). This architecture document describes boundaries and responsibilities; it is not a route or payload specification. The backend exposes direct routes without a global `/api` prefix, while the frontend development proxy may add and remove `/api` during local development.
+
 ## System Overview
 
 Nexus is an internal operations service hub designed for mid sized companies of 50-100 employees, the main features Nexus handles are User authentication, ticket management, role and resource based access control, chat, notifications and file attachment.
@@ -122,6 +126,8 @@ Nexus should correctly handle errors related to the Email Provider API:
 - Email provider unavailable: Nexus will temporarily be unable to send email notifications. The failure should not affect the main server functions (Ticket management, chats, etc...). Failed notifications are dropped and are not persisted or resent.
 - Email rejected by provider: The provider may reject an email because of an invalid recipient address, invalid request, exceeded limits, or other ... Nexus should record the failure and should not retry requests that are known to be invalid.
 
+The Email Provider remains a planned external dependency. SendGrid delivery and an email delivery API are not currently implemented; see [email-notifications.md](agentic-workflows/email-notifications.md).
+
 ### Security Architecture and Trust Boundaries
 ![Trust Boundaries Diagram](./assets/Trust%20Boundaries.png)
 #### Client to Nexus Backend Boundary
@@ -163,11 +169,15 @@ When dealing with WebSockets, Nexus should:
 Email notifications should be sent asynchronously as they don't represent a major system function worth making client requests wait for.
 Enterprise grade message queues (Kafka, RabbitMQ) are not required for this company scale, these will add significant complexity and are not suited for this type of application.
 
+This is a target architecture, not current behavior. The current application has no SendGrid delivery worker or email HTTP endpoint.
+
 #### Background Processes
 Some reliability practices require background processes for managing:
 - Audit logs that have exceeded their 2 year lifetime
 - Reminder notifications for tickets that have been unclaimed for period
 - Orphaned file cleanups
+
+The two-year audit purge, priority reminder worker, email delivery worker, and orphaned-file cleanup worker are not currently exposed as application APIs or confirmed running processes.
 
 ### Data Flows
 #### Authentication Flow

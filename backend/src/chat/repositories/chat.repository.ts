@@ -189,6 +189,7 @@ export class ChatRepository {
     actorDepartmentIds: string[],
     page = 1,
     pageSize = 50,
+    search?: string,
   ): Promise<ChatInboxPage> {
     const safePageSize = Math.min(Math.max(pageSize, 1), 100);
     const safePage = Math.max(page, 1);
@@ -204,6 +205,17 @@ export class ChatRepository {
                 )
               `
             : Prisma.sql`AND t."submitted_by" = ${userId}`;
+      const trimmedSearch = search?.trim();
+      const searchFilter = trimmedSearch
+        ? Prisma.sql`
+            AND (
+              POSITION(LOWER(${trimmedSearch}) IN LOWER(t.ticket_code)) > 0
+              OR POSITION(LOWER(${trimmedSearch}) IN LOWER(t.title)) > 0
+              OR POSITION(LOWER(${trimmedSearch}) IN LOWER(latest.content)) > 0
+              OR POSITION(LOWER(${trimmedSearch}) IN LOWER(sender.full_name)) > 0
+            )
+          `
+        : Prisma.empty;
       const rows = await this.prisma.$queryRaw<
         Array<{
           ticketId: string;
@@ -252,7 +264,7 @@ export class ChatRepository {
         LEFT JOIN "chat_read_receipts" receipt
           ON receipt.ticket_id = t.ticket_id
           AND receipt.user_id = ${userId}
-        WHERE t.active = TRUE ${visibility}
+        WHERE t.active = TRUE ${visibility} ${searchFilter}
         ORDER BY
           latest.created_at DESC NULLS LAST,
           latest.message_id DESC NULLS LAST,

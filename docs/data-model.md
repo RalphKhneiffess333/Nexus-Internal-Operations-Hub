@@ -6,6 +6,10 @@ author: "Ralph Khneiffess"
 # Nexus - Data Model & Database Schema
 This document defines the complete data model, database schema, entity relationships, constraints, indexes, and data lifecycles.
 
+## API relationship
+
+The tables and relationships described here are persistence structures, not direct API response schemas. The current mapping from these records to HTTP and realtime contracts is documented in [api-contract.md](api-contract.md). In particular, ticket events and audit logs remain separate concepts even when a single business operation writes both transactionally.
+
 ## Major Entity Objects
 Regarding Nexus operations, some major data objects were involved:
 - Users: The main process drivers

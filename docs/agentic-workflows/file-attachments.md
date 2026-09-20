@@ -4,6 +4,8 @@ author: "Ralph Khneiffess"
 ---
 # Task: Implement File Attachments for Nexus
 
+The ticket and Chat attachment implementation is complete. The exact multipart fields, attachment metadata, and download routes are summarized in [../api-contract.md](../api-contract.md). This document remains the storage, validation, authorization, and integrity reference.
+
 You are working in the existing **Nexus** codebase.
 
 Your task is to implement the **File Attachments** feature end-to-end and integrate it into the already-implemented ticket lifecycle and Ticket Events system.
@@ -15,9 +17,7 @@ The feature must allow:
 3. An agent to optionally attach one or more files when **closing a ticket**, alongside the completion notes.
 4. Authorized users viewing a ticket to see and download the files associated with those ticket lifecycle events.
 
-Chat is **not implemented yet**.
-
-Do NOT implement chat or chat attachments in this task.
+Chat attachments are now implemented through the Chat message API. The original scope below refers only to the historical ticket-attachment workflow and must not be read as saying that Chat attachments are absent from the current repository.
 
 However, the database/schema design for `File` and `Attachment` must preserve the intended future ability to attach files to chat messages without requiring a destructive redesign later.
 
@@ -178,9 +178,11 @@ Files belonging to opening/reopening/completion notes therefore belong to the co
 
 ---
 
-# 4. Explicitly out of scope
+# 4. Explicitly out of scope for the original workflow
 
-Do NOT implement:
+The following items were excluded from this attachment workflow. They are not a claim that every item is absent from the current repository; later workflows added Chat attachments and realtime integration.
+
+Do NOT implement as part of this ticket-attachment workflow:
 
 - ticket chat
 - chat messages
@@ -975,16 +977,16 @@ Clients must retrieve files through the Nexus backend.
 
 Implement an authenticated/authorized retrieval endpoint consistent with the existing API.
 
-Conceptually something like:
+The current implementation uses resource-scoped download routes rather than a standalone file controller:
 
 ```http
-GET /files/:fileId
+GET /tickets/:ticketId/events/:eventId/attachments/:attachmentId
 ```
 
-or:
+Chat message attachments use the corresponding route:
 
 ```http
-GET /attachments/:attachmentId/file
+GET /tickets/:ticketId/chat/messages/:messageId/attachments/:attachmentId
 ```
 
 Choose whichever best matches the existing module architecture.
@@ -1839,7 +1841,7 @@ After inspecting the current API, define and implement the exact multipart contr
 
 Keep them simple.
 
-For example, conceptually:
+The implemented multipart contracts are:
 
 ```http
 POST /tickets
@@ -1868,7 +1870,7 @@ completionNotes
 files[]
 ```
 
-These are conceptual examples.
+The same lifecycle routes also accept JSON when no files are attached. `PATCH /tickets/:id` additionally supports `removedAttachmentIds`. File downloads are authorized through the owning ticket event or Chat message; there is no `GET /files/:fileId` endpoint.
 
 Do NOT blindly change route names if the existing application already uses different routes.
 
@@ -1876,7 +1878,7 @@ Preserve current endpoint names and lifecycle semantics.
 
 Only extend their input capability.
 
-Document the final actual API contract in the completion report.
+The final actual API contract is maintained in [../api-contract.md](../api-contract.md).
 
 ---
 
@@ -2341,13 +2343,7 @@ Do not present these as documented product requirements.
 
 ### Deferred functionality
 
-Explicitly state that:
-
-```text
-Chat attachments are intentionally not implemented.
-```
-
-Explain how the implementation remains compatible with adding them later.
+The original ticket-attachment workflow did not implement Chat attachments. Chat attachments were added later through the Chat message API and use the same `File`/`Attachment` persistence model. See [../api-contract.md](../api-contract.md) for the current Chat attachment route.
 
 ---
 
