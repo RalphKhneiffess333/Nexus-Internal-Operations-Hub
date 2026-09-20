@@ -4,6 +4,7 @@ import notificationSound from '../../assets/notification.mp3'
 import { useOperationsSocket } from '../realtime/use-operations-socket'
 import { useAuthentication } from '../authentication/use-authentication'
 import { getChatConversations, getTicketPoolCount } from '../tickets/ticket-api'
+import { UserRole } from '../tickets/ticket-types'
 import { useLatestRequest } from '../../lib/api/use-latest-request'
 import { NotificationsContext } from './notifications-context'
 
@@ -41,7 +42,7 @@ export function NotificationProvider({ children }) {
     cancelRequest: cancelCountRequest,
   } = useLatestRequest()
   const unreadChats = unreadChatIds.size
-  const canViewTicketPool = user?.role === 'Agent' || user?.role === 'Admin'
+  const canViewTicketPool = user?.role === UserRole.AGENT || user?.role === UserRole.ADMIN
 
   const markChatRead = useCallback((ticketId) => {
     if (!ticketId) return

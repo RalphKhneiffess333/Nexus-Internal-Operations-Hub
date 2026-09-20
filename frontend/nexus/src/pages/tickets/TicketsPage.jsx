@@ -9,7 +9,7 @@ import { usePriorities } from '../../features/priorities/use-priorities'
 import {
   getTickets,
 } from '../../features/tickets/ticket-api'
-import { canWorkTickets } from '../../features/tickets/ticket-types'
+import { canWorkTickets, UserRole } from '../../features/tickets/ticket-types'
 import { useNotifications } from '../../features/notifications/use-notifications'
 import { useLatestRequest } from '../../lib/api/use-latest-request'
 
@@ -94,7 +94,7 @@ export function TicketsPage({ view = 'submitted' }) {
   const priorityFilter = searchParams.get('priority') ?? ''
   const parsedPage = Number(searchParams.get('page') ?? '1')
   const page = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1
-  const isAdmin = user?.role === 'Admin'
+  const isAdmin = user?.role === UserRole.ADMIN
   const poolMode = requestedPoolMode === 'system' && isAdmin
     ? 'system'
     : requestedPoolMode === 'all'
@@ -104,7 +104,7 @@ export function TicketsPage({ view = 'submitted' }) {
   const isAgentDepartmentView =
     view === 'pool' &&
     (poolMode === 'all' || poolMode === 'unclaimed') &&
-    (user?.role === 'Agent' || user?.role === 'Admin')
+    (user?.role === UserRole.AGENT || user?.role === UserRole.ADMIN)
   const requestedMyTicketMode = searchParams.get('view')
   const myTicketMode =
     canWorkTickets(user) &&

@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import { useAuthentication } from '../../features/authentication/use-authentication'
 import { useOperationsSocket } from '../../features/realtime/use-operations-socket'
-import { canWorkTickets } from '../../features/tickets/ticket-types'
+import { canWorkTickets, UserRole } from '../../features/tickets/ticket-types'
 import { useNotifications } from '../../features/notifications/use-notifications'
 
 export function Sidebar({ open, onNavigate }) {
@@ -9,7 +9,7 @@ export function Sidebar({ open, onNavigate }) {
   const { connectionState } = useOperationsSocket()
   const { unreadChats, unclaimedTickets } = useNotifications()
   const showWorkQueues = canWorkTickets(user)
-  const showAdministration = user?.role === 'Admin'
+  const showAdministration = user?.role === UserRole.ADMIN
 
   return (
     <aside className={`sidebar ${open ? 'is-open' : ''}`}>

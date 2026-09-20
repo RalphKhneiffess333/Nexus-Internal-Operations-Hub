@@ -7,7 +7,7 @@ import { useAuthentication } from '../../features/authentication/use-authenticat
 import { useDepartments } from '../../features/departments/use-departments'
 import { useNotifications } from '../../features/notifications/use-notifications'
 import { usePriorities } from '../../features/priorities/use-priorities'
-import { canWorkTickets } from '../../features/tickets/ticket-types'
+import { canWorkTickets, UserRole } from '../../features/tickets/ticket-types'
 import { useTicketActions } from '../../features/tickets/use-ticket-actions'
 import { useTicketAttachments } from '../../features/tickets/use-ticket-attachments'
 import { useTicketDetails } from '../../features/tickets/use-ticket-details'
@@ -63,7 +63,7 @@ export function TicketDetailsPage() {
   })
   const permissions = details.ticket?.permissions ?? {}
   const adminClosingAnotherAgentTicket = Boolean(
-    user?.role === 'Admin' &&
+    user?.role === UserRole.ADMIN &&
       details.ticket?.agent &&
       details.ticket.agent.userId !== user.userId,
   )
