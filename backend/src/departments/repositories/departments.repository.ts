@@ -1,7 +1,14 @@
 import { Injectable } from '@nestjs/common';
-import { Department } from '@prisma/client';
+import { Department, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { mapPrismaError } from '../../database/prisma-error';
+
+const departmentReferenceSelect = {
+  departmentId: true,
+  code: true,
+  name: true,
+  active: true,
+} satisfies Prisma.DepartmentSelect;
 
 @Injectable()
 export class DepartmentsRepository {
@@ -17,7 +24,7 @@ export class DepartmentsRepository {
     }
   }
 
-  async findAllActive(excludeCode?: string): Promise<Department[]> {
+  async findAllActive(excludeCode?: string): Promise<DepartmentReference[]> {
     try {
       return await this.prisma.department.findMany({
         where: {
@@ -25,13 +32,14 @@ export class DepartmentsRepository {
           ...(excludeCode ? { code: { not: excludeCode } } : {}),
         },
         orderBy: { name: 'asc' },
+        select: departmentReferenceSelect,
       });
     } catch (error) {
       mapPrismaError(error);
     }
   }
 
-  async findAllActiveByUserId(userId: string): Promise<Department[]> {
+  async findAllActiveByUserId(userId: string): Promise<DepartmentReference[]> {
     try {
       return await this.prisma.department.findMany({
         where: {
@@ -39,6 +47,7 @@ export class DepartmentsRepository {
           members: { some: { userId } },
         },
         orderBy: { name: 'asc' },
+        select: departmentReferenceSelect,
       });
     } catch (error) {
       mapPrismaError(error);
@@ -65,3 +74,7 @@ export class DepartmentsRepository {
     }
   }
 }
+
+export type DepartmentReference = Prisma.DepartmentGetPayload<{
+  select: typeof departmentReferenceSelect;
+}>;

@@ -4,6 +4,7 @@ import { TicketForm } from "../../components/tickets/TicketForm";
 import { LoadingState } from "../../components/ui/LoadingState";
 import { validateTicketFields } from "../../components/tickets/ticket-validation";
 import { useDepartments } from "../../features/departments/use-departments";
+import { usePriorities } from "../../features/priorities/use-priorities";
 import { createTicket } from "../../features/tickets/ticket-api";
 
 export function NewTicketPage() {
@@ -18,6 +19,14 @@ export function NewTicketPage() {
     error: departmentsError,
     reload: reloadDepartments,
   } = useDepartments();
+  const {
+    priorities,
+    loading: loadingPriorities,
+    error: prioritiesError,
+    reload: reloadPriorities,
+  } = usePriorities();
+  const referenceError = departmentsError || prioritiesError;
+  const loadingReferences = loadingDepartments || loadingPriorities;
 
   async function handleSubmit(values) {
     const nextFieldErrors = validateTicketFields(values);
@@ -62,26 +71,24 @@ export function NewTicketPage() {
         <p className="banner success">Ticket {createdCode} was created.</p>
       ) : null}
 
-      {loadingDepartments ? (
-        <LoadingState>Loading departments...</LoadingState>
+      {loadingReferences ? (
+        <LoadingState>Loading ticket options...</LoadingState>
       ) : null}
 
-      {!loadingDepartments && departmentsError ? (
+      {!loadingReferences && referenceError ? (
         <div className="banner error">
-          <p>{departmentsError}</p>
-          <button
-            type="button"
-            className="btn ghost"
-            onClick={reloadDepartments}
-          >
-            Try again
-          </button>
+          <p>{referenceError}</p>
+          <div className="form-actions">
+            {departmentsError ? <button type="button" className="btn ghost" onClick={reloadDepartments}>Retry departments</button> : null}
+            {prioritiesError ? <button type="button" className="btn ghost" onClick={reloadPriorities}>Retry priorities</button> : null}
+          </div>
         </div>
       ) : null}
 
-      {!loadingDepartments && !departmentsError ? (
+      {!loadingReferences && !referenceError ? (
         <TicketForm
           departments={departments}
+          priorities={priorities}
           submitLabel="Submit ticket"
           submittingLabel="Submitting..."
           submitting={submitting}

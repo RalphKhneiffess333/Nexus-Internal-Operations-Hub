@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { TicketPriority, TicketStatus } from '@prisma/client';
+import { TicketStatus } from '@prisma/client';
 import { signIn } from '../support/browser-auth';
 import {
   AGENT_ID,
@@ -23,7 +23,7 @@ test('agents claim an open ticket from the pool and the database reflects owners
   const ticket = await createTicketViaApi(request, EMPLOYEE_ID, {
     title: 'VPN access needed',
     description: 'Cannot connect from home.',
-    priority: TicketPriority.HIGH,
+    priority: 'HIGH',
     departmentId: IT_DEPARTMENT_ID,
   });
 
@@ -53,7 +53,7 @@ test('agents close claimed tickets with completion notes', async ({
   const ticket = await createTicketViaApi(request, EMPLOYEE_ID, {
     title: 'Printer jam',
     description: 'Printer keeps jamming on floor two.',
-    priority: TicketPriority.LOW,
+    priority: 'LOW',
     departmentId: IT_DEPARTMENT_ID,
   });
   await claimTicketViaApi(request, AGENT_ID, ticket.ticketId);

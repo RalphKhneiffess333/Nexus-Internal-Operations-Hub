@@ -1,4 +1,3 @@
-import { TicketPriority } from '@prisma/client';
 import { AGENT_ID, EMPLOYEE_2_ID, EMPLOYEE_ID, expect, test } from '../support/api-app';
 
 test('persists chat messages only for claimed-ticket participants over HTTP', async ({ e2e }) => {
@@ -7,7 +6,7 @@ test('persists chat messages only for claimed-ticket participants over HTTP', as
     data: {
       title: 'Chat API ticket',
       description: 'Need a message thread.',
-      priority: TicketPriority.MODERATE,
+      priority: 'MODERATE',
       departmentId: 'dept-it',
     },
   });
@@ -47,7 +46,15 @@ test('persists chat messages only for claimed-ticket participants over HTTP', as
     headers: { Cookie: e2e.sessionCookie(AGENT_ID) },
   });
   expect(history.status()).toBe(200);
-  expect(await history.json()).toEqual([expect.objectContaining({ messageId: message.messageId })]);
+  const historyPayload = await history.json();
+  expect(historyPayload).toMatchObject({
+    page: 1,
+    pageSize: 50,
+    hasMore: false,
+  });
+  expect(historyPayload.items).toEqual([
+    expect.objectContaining({ messageId: message.messageId }),
+  ]);
 
   const unrelated = await e2e.api.get(`/tickets/${ticket.ticketId}/chat/messages`, {
     headers: { Cookie: e2e.sessionCookie(EMPLOYEE_2_ID) },

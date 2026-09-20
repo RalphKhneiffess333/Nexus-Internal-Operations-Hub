@@ -6,6 +6,10 @@ author: "Ralph Khneiffess"
 # Nexus - Architecture
 This document describes the major system architecture of Nexus including its major components, modules and their interactions, external dependencies, data flows, error handling and key architectural decisions.
 
+## Current API reference
+
+The implemented HTTP and Socket.io contracts are maintained in [api-contract.md](api-contract.md). This architecture document describes boundaries and responsibilities; it is not a route or payload specification. The backend exposes direct routes without a global `/api` prefix, while the frontend development proxy may add and remove `/api` during local development.
+
 ## System Overview
 
 Nexus is an internal operations service hub designed for mid sized companies of 50-100 employees, the main features Nexus handles are User authentication, ticket management, role and resource based access control, chat, notifications and file attachment.
@@ -37,7 +41,7 @@ Nexus backend is divided into multiple modules, each module having its own funct
 
 ![Module Architecture](assets/Module%20Architecture.png)
 
-- User Module: Manages employee accounts info (name, email, phone number, etc...) and provides the necessary functions to view and edit them.
+- User Module: Manages employee accounts info (name, email, phone number, etc...) and provides the necessary functions to view them.
 
 - Authentication Strategy: Provides a baseline interface for authentication functions using identity providers such as logging in and session management, a strategy is used here for future proofing in case more identity providers were implemented in the app.
 
@@ -47,14 +51,14 @@ Nexus backend is divided into multiple modules, each module having its own funct
 Authorization is handled by: Role + Department + Resource Ownership + Resource State
 Example: An IT (Department) agent (Role) can close a ticket if he claimed it (Resource Ownership) and if the ticket has a "Claimed" status (Resource State).
 
-- Administration Module: Manages system configurations like configuring reminder periods, and managing departments and account linking to roles.
+- Administration Module: Manages departments, configurable priorities and their reminder periods, and account linking to roles.
 
 - Ticket Management Module: Core module responsible for request submission, automatic routing to department ticket pool, ticket claiming, status tracking (open, claimed, closed, reopened), modifications, deletions, closings with completion notes, reopenings, and ticket handoffs. This module enforces lifecycle validation rules for tickets, modifications and deletions for tickets are rejected if the ticket is anything other "Open".
 The authorization module provides the check for roles but not resources as resources are specific to their specialized modules.
 
-- Chat Module: Main module for ticket specific chats between employees and agents, including managing file and message chats and locking on ticket closure.
+- Chat Module: Main module for ticket-specific chats between employees and agents, including managing file and message chats and locking on ticket closure. Chat viewing is authorized for the ticket submitter, all agents belonging to the ticket's department, and administrators; sending is limited to the ticket submitter and current assigned agent.
 
-- Notification Module: Responsible for sending email notifications on ticket submissions, status updates, chat messages, and reminder alerts for tickets unclaimed for durations past their configured time. 
+- Notification Module: Responsible for sending email notifications on ticket submissions, status updates, and reminder alerts for tickets unclaimed for durations past their configured time. 
 
 - Audit Module: Responsible for logging of all system actions. Audit logs must be stored for a minimum of two years. Immutability is enforced at the database level by prohibiting UPDATE and DELETE operations on the audit log table, additionally, a background worker periodically checks and deletes logs that have exceeded their 2 year timeline.
 
@@ -95,7 +99,7 @@ Clients do not access files using URLs directly, Nexus backend performs authoriz
 
 Nexus should properly handle file storage errors such as :
 - File upload errors: Due to network errors, insufficient storage, file size limits, or invalid file type, uploads may fail, affecting reliability and user experience, the user should be notified in these cases of that failure
-- Malicious Files: Harmful files and executables may be uploaded, a major security risk, Nexus should perform a quick check of the MIME type, file size, extension, and more.
+- File validation: Uploaded files should be checked for MIME type, file size, and extension, with executable uploads rejected.
 - Orphaned Files: If a file successfully uploads on the system storage but its corresponding database record linking it failed or vice versa, then there will be orphaned files or records, a simple periodical background worker that checks inconsistencies and cleans up the database and files solves this issue
 - Unauthorized File Access: Users should only be able to see the files they have access to linked to their tickets and accounts, authorization should be robust, failure to ensure this introduces major privacy risks.
 - Server failure: As with the database, a complete failure will make both Nexus and its currently stored files unavailable, backups should be stored outside the current backend server so that they are easily recoverable.
@@ -118,9 +122,11 @@ While deciding how emails will be sent from the Nexus backend, two options were 
 - Use a third party email provider using an API (Sendgrid, Amazon SES, etc...), Nexus isn't expected to send more than 1000 emails/month which makes costs negligible, making this the better choice.
 
 Nexus should correctly handle errors related to the Email Provider API:
-- Network timeout or connection reset: Nexus should retry the request up to 3 times. If the retry fails, store the email as pending, the failure should be logged.
-- Email provider unavailable: Nexus will temporarily be unable to send email notifications. The failure should not affect the main server functions (Ticket management, chats, etc...), if a notification wasn't sent due to some error, resending attempts are not required due to the scope of the app.
+- Network timeout or connection reset: Nexus should retry the request up to 3 times. If all attempts fail, the failure should be logged and the email should be dropped.
+- Email provider unavailable: Nexus will temporarily be unable to send email notifications. The failure should not affect the main server functions (Ticket management, chats, etc...). Failed notifications are dropped and are not persisted or resent.
 - Email rejected by provider: The provider may reject an email because of an invalid recipient address, invalid request, exceeded limits, or other ... Nexus should record the failure and should not retry requests that are known to be invalid.
+
+The Email Provider remains a planned external dependency. SendGrid delivery and an email delivery API are not currently implemented; see [email-notifications.md](agentic-workflows/email-notifications.md).
 
 ### Security Architecture and Trust Boundaries
 ![Trust Boundaries Diagram](./assets/Trust%20Boundaries.png)
@@ -129,7 +135,7 @@ This boundary seperates the web application from the backend, users are untruste
 - Authenticating users with a third party identity provider and initiating a server session with the user receiving a cookie (Due to the app scope, sessions will be managed in memory and won't require database involvement)
 - Role and resource based access control on the server to determine the user's role (Employee, Agent, Admin) and what he can access
 - Sanitizing user input in ticket submission forms and chats to prevent injection attacks
-- File validation (Size limit, MIME type, extension, Scanning)
+- File validation (Size limit, MIME type, and extension)
 
 #### Backend to external services
 Seperates the backend from third party services, in this case, the identity provider and email provider.
@@ -163,11 +169,15 @@ When dealing with WebSockets, Nexus should:
 Email notifications should be sent asynchronously as they don't represent a major system function worth making client requests wait for.
 Enterprise grade message queues (Kafka, RabbitMQ) are not required for this company scale, these will add significant complexity and are not suited for this type of application.
 
+This is a target architecture, not current behavior. The current application has no SendGrid delivery worker or email HTTP endpoint.
+
 #### Background Processes
 Some reliability practices require background processes for managing:
 - Audit logs that have exceeded their 2 year lifetime
 - Reminder notifications for tickets that have been unclaimed for period
 - Orphaned file cleanups
+
+The two-year audit purge, priority reminder worker, email delivery worker, and orphaned-file cleanup worker are not currently exposed as application APIs or confirmed running processes.
 
 ### Data Flows
 #### Authentication Flow
@@ -184,7 +194,6 @@ Some reliability practices require background processes for managing:
 
 #### Ticket Handoff Flow
 ![Ticket handoff Flow Diagram](./assets/Ticket%20Handoff%20Flow%20Diagram.png)
-Nexus should keep 
 
 ### Reliability Practices
 - Errors should be controlled and not crash the entire system
@@ -206,6 +215,5 @@ Some additional features are proposed if resources are not too limiting:
 - Analytics system to monitor employee productivity
 - Automatic tickets assignment using advanced algorithms or AI
 - Employee schedule tracking and features for better ticket assignment decision making
-- Increased Security like malware scanning for files, ...
 - Ticket Searching for employees to find solutions for past requests if they already occured or implement an AI that can troubleshoot their requests
 - Add more identity providers or in-app authentication

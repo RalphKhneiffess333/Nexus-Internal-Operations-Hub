@@ -1,9 +1,17 @@
 import { apiRequest } from '../../lib/api/client'
 
-export function getDepartments() {
-  return apiRequest('/departments')
+function withQuery(path, params = {}) {
+  const query = new URLSearchParams()
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== '') query.set(key, value)
+  })
+  return `${path}${query.toString() ? `?${query}` : ''}`
+}
+
+export function getDepartments(params = {}) {
+  return apiRequest(withQuery('/departments', params))
 }
 
 export function getMyDepartments() {
-  return apiRequest('/departments/mine')
+  return getDepartments({ scope: 'mine' })
 }

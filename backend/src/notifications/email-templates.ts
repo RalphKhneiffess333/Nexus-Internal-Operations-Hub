@@ -1,4 +1,4 @@
-import type { TicketPriority, TicketStatus } from '@prisma/client';
+import type { TicketStatus } from '@prisma/client';
 
 export interface EmailTemplate {
   subject: string;
@@ -11,7 +11,7 @@ export interface TicketEmailContext {
   ticketCode: string;
   title: string;
   status: TicketStatus;
-  priority: TicketPriority;
+  priority: string;
   departmentName: string;
   submitterName: string;
   completionNotes?: string | null;

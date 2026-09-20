@@ -9,6 +9,7 @@ import {
   openChatAttachment,
 } from '../../features/tickets/ticket-api'
 import { useOperationsSocket } from '../../features/realtime/use-operations-socket'
+import { sanitizePlainText } from '../../lib/content/sanitize'
 
 function sortMessages(messages) {
   return [...messages].sort((left, right) => {
@@ -31,6 +32,9 @@ export function TicketChatPanel({
 }) {
   const { connectionState, subscribeToChat } = useOperationsSocket()
   const [messages, setMessages] = useState([])
+  const [messagePage, setMessagePage] = useState(1)
+  const [hasMoreMessages, setHasMoreMessages] = useState(false)
+  const [loadingMoreMessages, setLoadingMoreMessages] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [content, setContent] = useState('')
@@ -40,25 +44,44 @@ export function TicketChatPanel({
   const [sendError, setSendError] = useState('')
   const [downloadingAttachmentId, setDownloadingAttachmentId] = useState('')
   const messageListRef = useRef(null)
+  const messagePageRef = useRef(1)
   const shouldFollowLatestRef = useRef(true)
   const ticketId = ticket?.ticketId
 
   const writable = ticket?.active !== false && ticket?.status === 'CLAIMED' &&
     (ticket?.submittedBy?.userId === currentUser?.userId || ticket?.agent?.userId === currentUser?.userId)
 
-  const loadMessages = useCallback(async ({ silent = false } = {}) => {
+  const loadMessages = useCallback(async ({ silent = false, append = false, nextPage = 1 } = {}) => {
     if (!silent) {
-      setLoading(true)
+      if (append) setLoadingMoreMessages(true)
+      else setLoading(true)
       setError('')
     }
     try {
-      const result = await getChatMessages(ticketId)
-      setMessages((current) => mergeMessages(current, Array.isArray(result) ? result : []))
+      const result = await getChatMessages(ticketId, { page: nextPage, pageSize: 50 })
+      const incoming = result?.items ?? (Array.isArray(result) ? result : [])
+      setMessages((current) => (append || silent ? mergeMessages(current, incoming) : incoming))
+      const highestPage = Math.max(messagePageRef.current, nextPage)
+      messagePageRef.current = highestPage
+      setMessagePage(highestPage)
+      if (nextPage === highestPage) setHasMoreMessages(Boolean(result?.hasMore))
     } catch (loadError) {
       if (!silent) setError(loadError.message || 'Unable to load the conversation.')
     } finally {
-      if (!silent) setLoading(false)
+      if (!silent) {
+        if (append) setLoadingMoreMessages(false)
+        else setLoading(false)
+      }
     }
+  }, [ticketId])
+
+  useEffect(() => {
+    // Reset paginated history when the selected ticket changes.
+    messagePageRef.current = 1
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMessagePage(1)
+    setHasMoreMessages(false)
+    setMessages([])
   }, [ticketId])
 
   useEffect(() => {
@@ -81,12 +104,6 @@ export function TicketChatPanel({
     }
   }), [currentUser?.userId, loadMessages, onConversationRead, subscribeToChat, ticket?.status, ticketId])
 
-  useEffect(() => {
-    // Ticket lifecycle changes can change room access and writability.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadMessages({ silent: true })
-  }, [loadMessages, ticket?.status])
-
   useLayoutEffect(() => {
     if (!shouldFollowLatestRef.current) return
     const messageList = messageListRef.current
@@ -100,12 +117,13 @@ export function TicketChatPanel({
 
   async function handleSend(event) {
     event.preventDefault()
-    if (sending || (!content.trim() && files.length === 0)) return
+    const sanitizedContent = sanitizePlainText(content)
+    if (sending || (!sanitizedContent && files.length === 0)) return
 
     setSending(true)
     setSendError('')
     try {
-      const created = await createChatMessage(ticket.ticketId, content.trim(), files)
+      const created = await createChatMessage(ticket.ticketId, sanitizedContent, files)
       shouldFollowLatestRef.current = true
       setMessages((current) => mergeMessages(current, [created]))
       setContent('')
@@ -182,6 +200,17 @@ export function TicketChatPanel({
             </li>
           ))}
         </ol>
+      ) : null}
+
+      {!loading && !error && hasMoreMessages ? (
+        <button
+          type="button"
+          className="btn ghost"
+          onClick={() => void loadMessages({ append: true, nextPage: messagePage + 1 })}
+          disabled={loadingMoreMessages}
+        >
+          {loadingMoreMessages ? 'Loading older messages…' : 'Load older messages'}
+        </button>
       ) : null}
 
       {writable ? (

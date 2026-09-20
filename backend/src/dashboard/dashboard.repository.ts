@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, TicketStatus } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
+import { AuditRepository } from '../audit/audit.repository';
+import type { ActivityListRecord } from '../audit/audit.repository';
 
 const dashboardTicketSelect = {
   ticketId: true,
@@ -21,14 +23,12 @@ const dashboardTicketSelect = {
     select: {
       userId: true,
       fullName: true,
-      email: true,
     },
   },
   agent: {
     select: {
       userId: true,
       fullName: true,
-      email: true,
     },
   },
 } satisfies Prisma.TicketSelect;
@@ -48,7 +48,7 @@ export interface DashboardActivityRecord {
   source: 'audit' | 'ticket';
   action: string;
   createdAt: Date;
-  actor: { userId: string; fullName: string; email: string } | null;
+  actor: { userId: string; fullName: string } | null;
   ticket: { ticketId: string; ticketCode: string; title: string } | null;
 }
 
@@ -56,7 +56,10 @@ export type TicketStatusCounts = Record<TicketStatus, number>;
 
 @Injectable()
 export class DashboardRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditRepository: AuditRepository,
+  ) {}
 
   async findDepartmentsForUser(
     userId: string,
@@ -154,48 +157,26 @@ export class DashboardRepository {
   }
 
   async findRecentActivity(take = 6): Promise<DashboardActivityRecord[]> {
-    const [auditLogs, ticketEvents] = await Promise.all([
-      this.prisma.auditLog.findMany({
-        select: {
-          action: true,
-          createdAt: true,
-          actor: { select: { userId: true, fullName: true, email: true } },
-        },
-        orderBy: [{ createdAt: 'desc' }, { auditLogId: 'desc' }],
-        take,
-      }),
-      this.prisma.ticketEvent.findMany({
-        select: {
-          action: true,
-          createdAt: true,
-          user: { select: { userId: true, fullName: true, email: true } },
-          ticket: { select: { ticketId: true, ticketCode: true, title: true } },
-        },
-        orderBy: [{ createdAt: 'desc' }, { ticketEventId: 'desc' }],
-        take,
-      }),
-    ]);
+    const activity = await this.auditRepository.listActivity(
+      'all',
+      undefined,
+      undefined,
+      0,
+      take,
+    );
+    return activity.map((entry) => this.toDashboardActivity(entry));
+  }
 
-    return [
-      ...auditLogs.map((log) => ({
-        source: 'audit' as const,
-        action: log.action,
-        createdAt: log.createdAt,
-        actor: log.actor,
-        ticket: null,
-      })),
-      ...ticketEvents.map((event) => ({
-        source: 'ticket' as const,
-        action: event.action,
-        createdAt: event.createdAt,
-        actor: event.user,
-        ticket: event.ticket,
-      })),
-    ]
-      .sort(
-        (left, right) => right.createdAt.getTime() - left.createdAt.getTime(),
-      )
-      .slice(0, take);
+  private toDashboardActivity(
+    entry: ActivityListRecord,
+  ): DashboardActivityRecord {
+    return {
+      source: entry.source,
+      action: entry.action,
+      createdAt: entry.createdAt,
+      actor: entry.actor,
+      ticket: entry.ticket,
+    };
   }
 
   private async withUnclaimedCounts(

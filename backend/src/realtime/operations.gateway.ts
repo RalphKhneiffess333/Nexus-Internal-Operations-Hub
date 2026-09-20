@@ -9,6 +9,7 @@ import {
 } from '@nestjs/websockets';
 import { OnEvent } from '@nestjs/event-emitter';
 import { Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Server, Socket } from 'socket.io';
 import { AuthenticationService } from '../authentication/authentication.service';
 import { SESSION_COOKIE_NAME } from '../authentication/authentication.constants';
@@ -44,18 +45,17 @@ interface RoomAcknowledgement {
   code?: 'UNAUTHORIZED' | 'INVALID_TICKET' | 'TICKET_UNAVAILABLE';
 }
 
-function allowedOrigins(): string | string[] {
-  const origins = (process.env.FRONTEND_URL ?? 'http://localhost:5173')
+function allowedOrigins(config: ConfigService): string[] {
+  return (config.get<string>('FRONTEND_URL') ?? 'http://localhost:5173')
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean);
-  return origins.length === 1 ? origins[0] : origins;
 }
 
 @WebSocketGateway({
   namespace: 'operations',
   cors: {
-    origin: allowedOrigins(),
+    origin: true,
     credentials: true,
   },
 })
@@ -73,12 +73,18 @@ export class OperationsGateway
   private readonly socketIdsByUserId = new Map<string, Set<string>>();
 
   constructor(
+    private readonly config: ConfigService,
     private readonly authenticationService: AuthenticationService,
     private readonly ticketsService: TicketsService,
     private readonly chatService: ChatService,
   ) {}
 
   async handleConnection(client: Socket): Promise<void> {
+    const origin = client.handshake.headers.origin;
+    if (origin && !allowedOrigins(this.config).includes(origin)) {
+      client.disconnect(true);
+      return;
+    }
     const sessionId = parseCookieHeader(client.handshake.headers.cookie)[
       SESSION_COOKIE_NAME
     ];

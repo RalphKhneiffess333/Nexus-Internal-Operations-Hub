@@ -8,15 +8,18 @@ import {
   StreamableFile,
   UploadedFiles,
   UseInterceptors,
+  Query,
 } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import type { AuthenticatedRequest } from '../authentication/request-user';
+import { IdentifierValidationPipe } from '../common/pipes/identifier-validation.pipe';
 import { Roles } from '../authorization/decorators/roles.decorator';
 import { MAX_FILES_PER_EVENT, MAX_FILE_SIZE } from '../files/file-validation';
 import type { UploadedFileInput } from '../files/file-validation';
 import { ChatService } from './chat.service';
 import { CreateChatMessageDto } from './dto/create-chat-message.dto';
+import { ChatMessagesQueryDto } from './dto/chat-query.dto';
 
 @Controller('tickets/:ticketId/chat/messages')
 export class ChatController {
@@ -25,10 +28,11 @@ export class ChatController {
   @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
   @Get()
   listMessages(
-    @Param('ticketId') ticketId: string,
+    @Param('ticketId', IdentifierValidationPipe) ticketId: string,
+    @Query() query: ChatMessagesQueryDto,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.chatService.listMessages(ticketId, request.user!);
+    return this.chatService.listMessagesPage(ticketId, request.user!, query);
   }
 
   @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
@@ -39,7 +43,7 @@ export class ChatController {
     }),
   )
   createMessage(
-    @Param('ticketId') ticketId: string,
+    @Param('ticketId', IdentifierValidationPipe) ticketId: string,
     @Body() dto: CreateChatMessageDto,
     @UploadedFiles() files: UploadedFileInput[] | undefined,
     @Req() request: AuthenticatedRequest,
@@ -50,9 +54,9 @@ export class ChatController {
   @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
   @Get(':messageId/attachments/:attachmentId')
   downloadAttachment(
-    @Param('ticketId') ticketId: string,
-    @Param('messageId') messageId: string,
-    @Param('attachmentId') attachmentId: string,
+    @Param('ticketId', IdentifierValidationPipe) ticketId: string,
+    @Param('messageId', IdentifierValidationPipe) messageId: string,
+    @Param('attachmentId', IdentifierValidationPipe) attachmentId: string,
     @Req() request: AuthenticatedRequest,
   ): Promise<StreamableFile> {
     return this.chatService.downloadAttachment(

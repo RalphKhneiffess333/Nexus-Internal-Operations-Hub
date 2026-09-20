@@ -7,6 +7,7 @@ import { AuthenticatedIdentity } from './strategies/authenticated-identity';
 import { MicrosoftAuthStrategy } from './strategies/microsoft-auth.strategy';
 import { SessionService } from './sessions/session.service';
 import { UsersService } from '../users/users.service';
+import type { EventEmitter2 } from '@nestjs/event-emitter';
 
 type MicrosoftAuthStrategyMock = jest.Mocked<
   Pick<MicrosoftAuthStrategy, 'getAuthorizationUrl' | 'authenticate'>
@@ -84,6 +85,7 @@ describe('AuthenticationService', () => {
       microsoftAuthStrategy as unknown as MicrosoftAuthStrategy,
       usersService as unknown as UsersService,
       sessionService as unknown as SessionService,
+      { emit: jest.fn() } as unknown as EventEmitter2,
     );
   });
 

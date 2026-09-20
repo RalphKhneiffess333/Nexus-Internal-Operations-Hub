@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { TicketPriority, TicketStatus } from '@prisma/client';
+import { TicketStatus } from '@prisma/client';
 import { signIn } from '../support/browser-auth';
 import {
   EMPLOYEE_ID,
@@ -25,7 +25,7 @@ test('employees submit a ticket through the browser and it is persisted', async 
   await fillTicketForm(page, {
     title: 'Badge access from browser',
     description: 'Need building access from the west entrance.',
-    priority: TicketPriority.HIGH,
+    priority: 'HIGH',
     department: 'Information Technology',
   });
   await page.getByRole('button', { name: 'Submit ticket' }).click();
@@ -66,7 +66,7 @@ test('submitted ticket lists render persisted ticket data', async ({
   const ticket = await createTicketViaApi(request, EMPLOYEE_ID, {
     title: 'Laptop battery replacement',
     description: 'Battery no longer lasts through meetings.',
-    priority: TicketPriority.MODERATE,
+    priority: 'MODERATE',
     departmentId: IT_DEPARTMENT_ID,
   });
 

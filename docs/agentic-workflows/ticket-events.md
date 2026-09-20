@@ -5,6 +5,8 @@ author: "Ralph Khneiffess"
 
 # Task: Implement Ticket Events for Nexus
 
+The current implementation of this workflow is complete. The exact history, attachment, and lifecycle API contract is also summarized in [../api-contract.md](../api-contract.md). This document remains the design and integrity reference for Ticket Events.
+
 You are working in the existing Nexus codebase.
 
 Your task is to implement the **Ticket Events** feature and integrate it into the already-implemented ticket lifecycle.
@@ -385,7 +387,7 @@ Every successful handoff state change should produce the appropriate HANDOFF eve
 
 A rejected/invalid handoff operation must not create an event.
 
-If handoffs are NOT implemented yet, do not implement the entire handoff feature merely to support this event type.
+Handoffs are implemented in the current repository, so HANDOFF event integration is active. The conditional guidance below applies only to an earlier repository state in which HandoffRequest did not yet exist.
 
 In that case:
 
@@ -772,10 +774,10 @@ Inspect the existing Tickets controller conventions.
 
 Add a ticket-owned history endpoint consistent with the API structure.
 
-Preferred conceptual route:
+Implemented route:
 
 ```http
-GET /tickets/:id/events
+GET /tickets/:id/events?page=1&pageSize=50
 ```
 
 Do not create a generic administrative Ticket Events CRUD controller.
@@ -791,7 +793,7 @@ At the resource level, viewing a ticket's history should follow the same visibil
 Conceptually:
 
 ```text
-GET /tickets/:id/events
+GET /tickets/:id/events?page=1&pageSize=50
         ↓
 Authentication
         ↓
@@ -892,34 +894,27 @@ Do not accept:
 
 from clients.
 
-The request should be of the form:
-`GET /tickets/:id/events` with no body, response:
+The summary request has no body and returns a pagination envelope:
+`GET /tickets/:id/events?page=1&pageSize=50`
 ```json
-[
-  {
-  "ticketEventId": "event-uuid",
-  "ticketId": "ticket-uuid",
-  "action": "CLAIM",
-  "user": {
-    "userId": "user-uuid",
-    "fullName": "IT Agent 1",
-    "email": "jordan@company.com",
-    "role": "Agent"
-  },
-  "details": {
-    "agent": {
-      "userId": "user-uuid",
-      "fullName": "IT Agent 1",
-      "email": "jordan@company.com",
-      "role": "Agent"
-    },
-    "timestamp": "2026-09-18T10:00:00.000Z"
-  },
-  "createdAt": "2026-09-18T10:00:00.000Z",
-  "updatedAt": "2026-09-18T10:00:00.000Z"
+{
+  "items": [
+    {
+      "ticketEventId": "event-uuid",
+      "ticketId": "ticket-uuid",
+      "action": "CLAIM",
+      "createdAt": "2026-09-18T10:00:00.000Z",
+      "updatedAt": "2026-09-18T10:00:00.000Z",
+      "hasAttachments": false
+    }
+  ],
+  "page": 1,
+  "pageSize": 50,
+  "hasMore": false
 }
-]
 ```
+
+The summary endpoint intentionally does not return full `user` or `details` objects. Use the event-specific endpoint for the complete event.
 
 `GET /tickets/:id/events/:eventId` with no body, response:
 ```json
@@ -942,6 +937,7 @@ The request should be of the form:
     },
     "timestamp": "2026-09-18T10:00:00.000Z"
   },
+  "attachments": [],
   "createdAt": "2026-09-18T10:00:00.000Z",
   "updatedAt": "2026-09-18T10:00:00.000Z"
 }
@@ -1084,7 +1080,7 @@ history retrieval must return all persisted events in deterministic chronologica
 Test that users who cannot view a ticket cannot bypass that restriction using:
 
 ```http
-GET /tickets/:id/events
+GET /tickets/:id/events?page=1&pageSize=50
 ```
 
 Test the roles/resources according to the actual existing authorization implementation.
@@ -1214,13 +1210,13 @@ Ticket Events should remain a small, understandable feature.
 
 ---
 
-# 33. File attachments are NOT part of this implementation
+# 33. File attachments were outside the original event workflow
 
 The complete data model allows Attachments to reference Ticket Events, particularly for ticket opening and completion notes.
 
-However, unless file attachments are already implemented and their integration is explicitly necessary for the current codebase, do NOT implement the File/Attachment system as part of this task.
+This exclusion applied when the Ticket Events workflow was originally written. File attachments are now implemented in the current repository and are integrated with ticket lifecycle events. Their current routes and metadata are documented in [../api-contract.md](../api-contract.md).
 
-The TicketEvent schema should be compatible with future attachment relations if required by Prisma/schema design, but do not build the file feature prematurely.
+Ticket Events still must not place file bytes or storage paths in event JSON; attachment metadata is exposed through the mapped event response and files are downloaded through authorized nested routes.
 
 ---
 
@@ -1305,7 +1301,7 @@ PostgreSQL
 For history reads:
 
 ```text
-GET /tickets/:id/events
+GET /tickets/:id/events?page=1&pageSize=50
       ↓
 Authentication
       ↓

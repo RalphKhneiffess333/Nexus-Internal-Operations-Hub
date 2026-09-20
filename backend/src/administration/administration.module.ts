@@ -3,10 +3,12 @@ import { AuthenticationModule } from '../authentication/authentication.module';
 import { AuditModule } from '../audit/audit.module';
 import { AdministrationController } from './administration.controller';
 import { AdministrationService } from './administration.service';
+import { AdministrationRepository } from './administration.repository';
+import { PrioritiesModule } from '../priorities/priorities.module';
 
 @Module({
-  imports: [AuthenticationModule, AuditModule],
+  imports: [AuthenticationModule, AuditModule, PrioritiesModule],
   controllers: [AdministrationController],
-  providers: [AdministrationService],
+  providers: [AdministrationService, AdministrationRepository],
 })
 export class AdministrationModule {}

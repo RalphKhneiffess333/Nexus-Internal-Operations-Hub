@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import notificationSound from '../../assets/notification.mp3'
 import { useOperationsSocket } from '../realtime/use-operations-socket'
 import { useAuthentication } from '../authentication/use-authentication'
-import { getTicketPool } from '../tickets/ticket-api'
+import { getTicketPoolCount } from '../tickets/ticket-api'
 import { NotificationsContext } from './notifications-context'
 
 const TOAST_DURATION = 5000
@@ -106,8 +106,8 @@ export function NotificationProvider({ children }) {
   useEffect(() => {
     if (user?.role !== 'Agent' && user?.role !== 'Admin') return undefined
     let active = true
-    void getTicketPool().then((tickets) => {
-      if (active) setUnclaimedTickets(Array.isArray(tickets) ? tickets.length : 0)
+    void getTicketPoolCount().then((result) => {
+      if (active) setUnclaimedTickets(Number(result?.count) || 0)
     }).catch(() => {
       // Badge availability never blocks normal navigation.
     })

@@ -1,18 +1,18 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import { ConfigService } from '@nestjs/config';
-import nodemailer, { type SendMailOptions } from 'nodemailer';
+import nodemailer from 'nodemailer';
 import { NodemailerEmailProvider } from './nodemailer-email.provider';
 
 describe('NodemailerEmailProvider', () => {
   it('maps the provider-independent message to an SMTP transport', async () => {
     const sendMail = jest
-      .fn<(options: SendMailOptions) => Promise<unknown>>()
+      .fn<(options: unknown) => Promise<unknown>>()
       .mockResolvedValue({ messageId: 'smtp-id' });
     const createTransport = jest
       .spyOn(nodemailer, 'createTransport')
       .mockReturnValue({
         sendMail,
-      } as unknown as ReturnType<typeof nodemailer.createTransport>);
+      } as never);
     const config = configFor({
       SMTP_USER: 'smtp-user',
       SMTP_PASSWORD: 'smtp-password',

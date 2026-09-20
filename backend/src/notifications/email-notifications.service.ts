@@ -1,7 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { HandoffStatus, UserRole } from '@prisma/client';
-import { PrismaService } from '../database/prisma.service';
 import {
   EMAIL_PROVIDER,
   type EmailProvider,
@@ -19,38 +18,13 @@ import {
   type HandoffEmailContext,
   type TicketEmailContext,
 } from './email-templates';
+import {
+  EmailHandoffRecord,
+  EmailTicketRecord,
+  NotificationsRepository,
+} from './notifications.repository';
 
-interface EmailUser {
-  userId: string;
-  email: string;
-  fullName: string;
-  isActive: boolean;
-  role: UserRole;
-}
-
-interface TicketWithEmailContext {
-  ticketId: string;
-  ticketCode: string;
-  title: string;
-  status: TicketEmailContext['status'];
-  priority: TicketEmailContext['priority'];
-  completionNotes: string | null;
-  department: {
-    name: string;
-    members: Array<{ user: EmailUser }>;
-  };
-  submitter: EmailUser;
-  agent: EmailUser | null;
-}
-
-interface HandoffWithEmailContext {
-  handoffId: string;
-  status: HandoffStatus;
-  message: string | null;
-  requester: EmailUser;
-  requestedAgent: EmailUser;
-  ticket: TicketWithEmailContext;
-}
+type EmailUser = EmailTicketRecord['submitter'];
 
 @Injectable()
 export class EmailNotificationsService {
@@ -60,7 +34,7 @@ export class EmailNotificationsService {
   private readonly baseUrl: string;
 
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly notificationsRepository: NotificationsRepository,
     private readonly config: ConfigService,
     @Inject(EMAIL_PROVIDER) private readonly provider: EmailProvider,
   ) {
@@ -176,49 +150,17 @@ export class EmailNotificationsService {
 
   private async findTicket(
     ticketId: string,
-  ): Promise<TicketWithEmailContext | null> {
-    return this.prisma.ticket.findUnique({
-      where: { ticketId },
-      include: {
-        department: {
-          include: {
-            members: {
-              include: { user: true },
-            },
-          },
-        },
-        submitter: true,
-        agent: true,
-      },
-    });
+  ): Promise<EmailTicketRecord | null> {
+    return this.notificationsRepository.findTicket(ticketId);
   }
 
   private async findHandoff(
     handoffId: string,
-  ): Promise<HandoffWithEmailContext | null> {
-    return this.prisma.handoffRequest.findUnique({
-      where: { handoffId },
-      include: {
-        requester: true,
-        requestedAgent: true,
-        ticket: {
-          include: {
-            department: {
-              include: {
-                members: {
-                  include: { user: true },
-                },
-              },
-            },
-            submitter: true,
-            agent: true,
-          },
-        },
-      },
-    });
+  ): Promise<EmailHandoffRecord | null> {
+    return this.notificationsRepository.findHandoff(handoffId);
   }
 
-  private ticketContext(ticket: TicketWithEmailContext): TicketEmailContext {
+  private ticketContext(ticket: EmailTicketRecord): TicketEmailContext {
     return {
       ticketId: ticket.ticketId,
       ticketCode: ticket.ticketCode,
@@ -233,7 +175,7 @@ export class EmailNotificationsService {
   }
 
   private handoffContext(
-    handoff: HandoffWithEmailContext,
+    handoff: EmailHandoffRecord,
   ): HandoffEmailContext {
     return {
       handoffId: handoff.handoffId,
@@ -248,7 +190,7 @@ export class EmailNotificationsService {
   }
 
   private departmentRecipients(
-    ticket: TicketWithEmailContext,
+    ticket: EmailTicketRecord,
     excludeUserId?: string,
   ): EmailRecipient[] {
     return ticket.department.members

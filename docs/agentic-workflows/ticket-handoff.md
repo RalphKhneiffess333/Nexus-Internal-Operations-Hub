@@ -4,6 +4,8 @@ author: "Ralph Khneiffess"
 ---
 # Task: Implement Complete Ticket Handoff Functionality in Nexus
 
+The handoff feature is implemented. The exact current routes, query parameters, and response envelopes are maintained in [../api-contract.md](../api-contract.md). This document remains the design and integrity reference for handoffs.
+
 You are working in the existing **Nexus** codebase, a NestJS/Prisma/PostgreSQL backend with a React frontend.
 
 Employee and agent ticket lifecycle functionality already exists. Implement the complete ticket handoff/delegation feature described by the Nexus documentation and integrate it into the existing ticket, authorization, Ticket Events, department-membership, notification, and frontend architectures.
@@ -191,12 +193,10 @@ Do not add meaningless indexes.
 
 ## 5. API operations
 
-Inspect current route conventions first. Extend the existing Tickets module that respects existing boundaries. Do not blindly use these example paths if the repository already has an established route style.
-
-Conceptually support:
+The implementation uses the existing Tickets and Handoffs module boundaries. The following are the actual routes:
 
 ```http
-POST /tickets/:ticketId/handoffs
+POST /tickets/:id/handoffs
 ```
 
 Create a pending handoff.
@@ -213,23 +213,23 @@ Request body conceptually:
 The requester is derived from `request.user`, never accepted as a body field.
 
 ```http
-GET /tickets/handoffs
+GET /handoffs?direction=all&page=1&pageSize=25
 ```
 
-List all handoff requests
+List handoff requests. `direction` may be `all`, `incoming`, or `outgoing`.
 
 ```http
-GET /tickets/:ticketId/handoffs
+GET /tickets/:id/handoffs
 ```
 
 List handoffs for a ticket only if the caller can view the ticket and is authorized to see its handoff information according to the resource policy.
 
 ```http
-GET /handoffs/incoming
-GET /handoffs/outgoing
+GET /handoffs?direction=incoming
+GET /handoffs?direction=outgoing
 ```
 
-Use only if current API conventions support inbox/outbox views. Incoming requests are scoped to the authenticated requested agent; outgoing requests are scoped to the authenticated requester.
+Incoming requests are scoped to the authenticated requested agent; outgoing requests are scoped to the authenticated requester. The path-based `/handoffs/incoming` and `/handoffs/outgoing` aliases are not implemented.
 
 ```http
 POST /handoffs/:handoffId/accept
@@ -237,8 +237,9 @@ POST /handoffs/:handoffId/reject
 POST /handoffs/:handoffId/cancel
 ```
 
-Add additional params or routes to support filtering based on ticket, requested agent, and status.
-Use `PATCH` routes instead if the current API uses command-specific `PATCH` semantics. The operation must be explicit and must not let clients submit arbitrary status values.
+The list query also supports `page`, `pageSize`, `search`, `departmentId`, `requesterId`, and `requestedAgentId`, in addition to ticket and status filters. The operation must be explicit and must not let clients submit arbitrary status values.
+
+The implementation additionally exposes `GET /handoffs/participants` and `GET /tickets/:id/handoffs/eligible-agents` for participant and target-agent selectors.
 
 ### API rules
 
@@ -252,6 +253,8 @@ Use `PATCH` routes instead if the current API uses command-specific `PATCH` sema
 - Include ticket/requester/requested-agent display data only if current ticket APIs safely expose it.
 - Never expose internal database errors or stack traces.
 - Do not permit clients to choose `status`, `createdAt`, `resolvedAt`, actor, requester, or event action.
+
+List responses use `{ items, page, pageSize, hasMore, pendingCount }`. List user references contain `userId` and `fullName`; mutation responses include fuller user summaries and ticket/department data. There are no generic handoff status-update routes.
 
 ---
 
@@ -521,7 +524,7 @@ Inspect whether Nexus already has an email, in-app, event bus, or notification m
 - Do not send notifications to unrelated users.
 - Do not leak ticket details beyond the recipient's ticket permissions.
 - Ensure notification dispatch is idempotent or tied to the committed domain event so retries cannot duplicate user-visible messages.
-- If notifications are not implemented in the repository, do not build an unrelated full notification platform merely for handoffs. Create the smallest documented integration seam/event payload and report notifications as deferred or limited according to the actual codebase.
+- The current repository has in-app/realtime notification integration for handoffs. External email delivery is not implemented; do not describe it as complete or add it as an undocumented handoff API.
 
 ---
 
@@ -1014,7 +1017,7 @@ Do not present these choices as documented product requirements.
 
 ### Deferred functionality
 
-Explicitly list any handoff-adjacent functionality not implemented because it is absent from the current architecture, such as external email delivery or real-time WebSocket updates. Do not claim them as complete.
+Explicitly list handoff-adjacent functionality not implemented in the current architecture. External email delivery remains deferred; real-time WebSocket updates are implemented through the Operations gateway and must not be listed as missing.
 
 ---
 

@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react'
-import { TicketPriority, TicketStatus } from '../../features/tickets/ticket-types'
+import { TicketStatus } from '../../features/tickets/ticket-types'
+import { DebouncedSearchInput } from '../ui/DebouncedSearchInput'
 
 const statusLabels = {
   [TicketStatus.OPEN]: 'Open',
@@ -8,52 +8,14 @@ const statusLabels = {
   [TicketStatus.REOPENED]: 'Reopened',
 }
 
-const priorityLabels = {
-  [TicketPriority.LOW]: 'Low',
-  [TicketPriority.MODERATE]: 'Moderate',
-  [TicketPriority.HIGH]: 'High',
-}
-
-export function TicketFilters({ departments, filters, onChange, showStatus = true }) {
-  const searchInputRef = useRef(null)
-  const searchDebounceRef = useRef(null)
-  const onChangeRef = useRef(onChange)
-
-  useEffect(() => {
-    onChangeRef.current = onChange
-  }, [onChange])
-
-  useEffect(() => {
-    if (searchInputRef.current && searchInputRef.current.value !== filters.search) {
-      searchInputRef.current.value = filters.search
-    }
-  }, [filters.search])
-
-  useEffect(() => () => {
-    if (searchDebounceRef.current !== null) {
-      window.clearTimeout(searchDebounceRef.current)
-    }
-  }, [])
-
-  function handleSearchChange(event) {
-    const value = event.target.value
-    if (searchDebounceRef.current !== null) {
-      window.clearTimeout(searchDebounceRef.current)
-    }
-    searchDebounceRef.current = window.setTimeout(() => {
-      onChangeRef.current('search', value)
-      searchDebounceRef.current = null
-    }, 350)
-  }
-
+export function TicketFilters({ departments, priorities = [], filters, onChange, showStatus = true }) {
   return (
     <div className="ticket-filters" aria-label="Ticket filters">
       <label className="field ticket-filter ticket-search-filter">
         <span>Search tickets</span>
-        <input
-          ref={searchInputRef}
-          defaultValue={filters.search}
-          onChange={handleSearchChange}
+        <DebouncedSearchInput
+          value={filters.search}
+          onDebouncedChange={(value) => onChange('search', value)}
           placeholder="Number, title, or submitter"
           type="search"
         />
@@ -95,9 +57,9 @@ export function TicketFilters({ departments, filters, onChange, showStatus = tru
           onChange={(event) => onChange('priority', event.target.value)}
         >
           <option value="">All priorities</option>
-          {Object.entries(priorityLabels).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
+          {priorities.map((priority) => (
+            <option key={priority.code} value={priority.code}>
+              {priority.name}
             </option>
           ))}
         </select>

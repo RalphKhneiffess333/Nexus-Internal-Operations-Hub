@@ -1,6 +1,15 @@
 import { TicketEventAction } from '@prisma/client';
-import { IsEnum, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
-import { Type } from 'class-transformer';
+import {
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Length,
+  Max,
+  Min,
+} from 'class-validator';
+import { Transform, Type } from 'class-transformer';
 
 export const auditActions = [
   'USER_PREPROVISIONING',
@@ -12,6 +21,10 @@ export const auditActions = [
   'DEPARTMENT_DELETION',
   'DEPARTMENT_REACTIVATION',
   'DEPARTMENT_MAPPING',
+  'PRIORITY_ADDITION',
+  'PRIORITY_MODIFICATION',
+  'PRIORITY_DELETION',
+  'PRIORITY_REACTIVATION',
   'SYSTEM_VARIABLE_MODIFICATION',
 ] as const;
 
@@ -34,7 +47,12 @@ export class AuditQueryDto {
   action?: (typeof auditActions)[number];
 
   @IsOptional()
-  @IsUUID()
+  @IsString()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsNotEmpty()
+  @Length(1, 100)
   actorId?: string;
 }
 
@@ -55,4 +73,31 @@ export class TicketEventsQueryDto {
   @IsOptional()
   @IsEnum(TicketEventAction)
   action?: TicketEventAction;
+}
+
+export class ActivityQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page = 1;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  pageSize = 25;
+
+  @IsOptional()
+  @IsEnum(['all', 'audit', 'ticket'] as const)
+  source: 'all' | 'audit' | 'ticket' = 'all';
+
+  @IsOptional()
+  @IsEnum(auditActions)
+  auditAction?: (typeof auditActions)[number];
+
+  @IsOptional()
+  @IsEnum(TicketEventAction)
+  ticketAction?: TicketEventAction;
 }

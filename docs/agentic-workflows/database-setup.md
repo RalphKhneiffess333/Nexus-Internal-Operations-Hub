@@ -13,6 +13,8 @@ The existing ticket API behavior, ticket lifecycle rules, policies, DTOs, contro
 
 The implementation must remain intentionally small and modular.
 
+Database persistence does not define the public API envelope. The current persisted-resource-to-API mapping is documented in [../api-contract.md](../api-contract.md).
+
 Do not implement future architecture or features unless explicitly requested.
 
 ## Context

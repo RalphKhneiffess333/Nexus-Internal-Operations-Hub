@@ -1,5 +1,5 @@
 import { ConflictException, HttpException, Injectable } from '@nestjs/common';
-import { Prisma, Ticket, TicketEventAction } from '@prisma/client';
+import { Prisma, TicketEventAction } from '@prisma/client';
 import { mapPrismaError } from '../../database/prisma-error';
 import { PrismaService } from '../../database/prisma.service';
 import { FileAttachmentsRepository } from '../../files/file-attachments.repository';
@@ -12,10 +12,11 @@ import {
 import { TicketEventsRepository } from '../events/ticket-events.repository';
 import {
   CreateTicketInput,
+  TicketMutation,
   TicketRecord,
   TicketsRepository,
 } from './tickets.repository';
-import { HandoffsService } from '../handoffs/handoffs.service';
+import { HandoffsRepository } from '../handoffs/handoffs.repository';
 
 export interface TicketLifecycleResult {
   ticket: TicketRecord;
@@ -29,7 +30,7 @@ export class TicketLifecycleRepository {
     private readonly ticketsRepository: TicketsRepository,
     private readonly ticketEventsRepository: TicketEventsRepository,
     private readonly fileAttachmentsRepository: FileAttachmentsRepository,
-    private readonly handoffsService: HandoffsService,
+    private readonly handoffsRepository: HandoffsRepository,
   ) {}
 
   async createWithEvent(
@@ -70,7 +71,7 @@ export class TicketLifecycleRepository {
   }
 
   async saveWithEvent(
-    ticket: Ticket,
+    ticket: TicketMutation,
     event: NewTicketMutationEvent,
     files: StoredFileMetadata[] = [],
     attachmentIdsToRemove: string[] = [],
@@ -87,10 +88,33 @@ export class TicketLifecycleRepository {
       if (
         event.action === TicketEventAction.CLOSE &&
         (current.status !== 'CLAIMED' ||
+          !current.active ||
           (current.agentId !== event.userId && !allowAdminCloseOverride))
       ) {
         throw new ConflictException(
           'The ticket changed before it could be closed',
+        );
+      }
+      if (
+        event.action === TicketEventAction.REOPEN &&
+        (!current.active ||
+          current.status !== 'CLOSED' ||
+          current.agentId !== null)
+      ) {
+        throw new ConflictException(
+          'The ticket changed before it could be reopened',
+        );
+      }
+      if (
+        (event.action === TicketEventAction.MODIFICATION ||
+          event.action === TicketEventAction.DELETE) &&
+        (!current.active ||
+          current.status !== 'OPEN' ||
+          current.agentId !== null ||
+          current.submittedBy !== event.userId)
+      ) {
+        throw new ConflictException(
+          'The ticket changed before it could be updated',
         );
       }
       const saved = await this.ticketsRepository.save(ticket, tx);
@@ -101,7 +125,7 @@ export class TicketLifecycleRepository {
       );
       const eventId = await this.ticketEventsRepository.append(event, tx);
       if (event.action === TicketEventAction.CLOSE || !ticket.active) {
-        await this.handoffsService.cancelPendingForTicket(
+        await this.handoffsRepository.cancelPendingForTicket(
           ticket.ticketId,
           event.userId,
           event.action === TicketEventAction.CLOSE

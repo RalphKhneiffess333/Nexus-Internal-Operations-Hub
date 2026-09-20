@@ -4,6 +4,10 @@ author: "Ralph Khneiffess"
 ---
 
 # Agentic Workflow - Nexus
+NOTICE: This file is best treated as a historical archive for Eurisko Academy instructors as it may contain stale file references since major application updates have been implemented since the creation of this file. To properly follow its implementation, it is recommended to revert to commit 9e46642f1a39b8984802a7d3597b73e2b4431ad2 on Sep 8, 2026.
+
+The current implementation has since added PostgreSQL persistence, authentication, authorization, files, Ticket Events, handoffs, Chat, administration, and realtime delivery. The current API is documented in [api-contract.md](api-contract.md). The API table later in this archived workflow describes the original development slice and must not be used as the current contract.
+
 ## Objective
 - The implementation must remain intentionally small and modular. Do not implement future architecture or features unless explicitly requested.
 - Implement a set of features of Nexus in an API that revolves around ticket lifecycle operations.
@@ -51,7 +55,7 @@ The architecture should be easy to extend later, but future functionality should
 - Logs or ticket events
 
 ## No Authorization
-Authorization is intentionally not implemented yet.
+Authorization was intentionally excluded from this archived workflow. It is implemented in the current repository as a separate module; see [api-contract.md](api-contract.md) for the current protected routes.
 There may be authorization requirements described in the product specifications, such as:
 
 Employees can perform certain actions
@@ -247,7 +251,7 @@ Reopening a non closed ticket
 Invalid assignment state
 Other invariants defined in the product specifications
 
-## API
+## Original API (historical)
 | Action | Endpoint | Payload |
 | -------- | :--------: | :--------: |
 | Submit ticket   | POST /tickets   | Title, description, priority, department, submittedBy (only for testing purposes as authorization functionality will automatically fill this field in the future)|
@@ -264,7 +268,7 @@ Every endpoint response has the same structure:
   "ticketCode": "TKT-0001",
   "title": "string",
   "description": "string",
-  "priority": "LOW | MODERATE | HIGH",
+  "priority": "priority code managed by the administrator",
   "status": "OPEN | CLAIMED | CLOSED | REOPENED",
   "departmentId": "string",
   "submittedBy": "string",
@@ -275,6 +279,8 @@ Every endpoint response has the same structure:
   "updatedAt": "ISO-8601",
   "closedAt": "ISO-8601 | null"
 }
+
+The current API no longer accepts client-supplied `submittedBy`, does not use one response shape for every list/detail route, and returns pagination envelopes for list endpoints. See [api-contract.md](api-contract.md).
 
 ## Implementation Process
 The coding agent must follow this process.

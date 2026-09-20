@@ -1,8 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { UserRole } from '@prisma/client';
 import { randomUUID } from 'crypto';
-import { PrismaService } from '../database/prisma.service';
+import { NotificationsRepository } from './notifications.repository';
 import {
   RealtimeInternalEvent,
   type AppNotificationRealtimeEvent,
@@ -22,7 +21,7 @@ export interface NotificationInput {
 export class NotificationsService {
   constructor(
     private readonly events: EventEmitter2,
-    private readonly prisma: PrismaService,
+    private readonly notificationsRepository: NotificationsRepository,
   ) {}
 
   notify(input: NotificationInput): void {
@@ -49,19 +48,13 @@ export class NotificationsService {
     input: Omit<NotificationInput, 'recipientUserIds'>,
     excludeUserId?: string,
   ): Promise<void> {
-    const members = await this.prisma.departmentMember.findMany({
-      where: {
-        departmentId,
-        department: { active: true },
-        user: { isActive: true, role: { in: [UserRole.Agent, UserRole.Admin] } },
-      },
-      select: { userId: true },
-    });
     this.notify({
       ...input,
-      recipientUserIds: members
-        .map((member) => member.userId)
-        .filter((userId) => userId !== excludeUserId),
+      recipientUserIds:
+        await this.notificationsRepository.findActiveDepartmentRecipientIds(
+          departmentId,
+          excludeUserId,
+        ),
     });
   }
 }

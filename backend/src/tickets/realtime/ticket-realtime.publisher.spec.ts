@@ -1,7 +1,6 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import {
   TicketEventAction,
-  TicketPriority,
   TicketStatus,
 } from '@prisma/client';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -21,7 +20,7 @@ describe('TicketRealtimePublisher', () => {
         ticketCode: 'TKT-0001',
         title: 'VPN access',
         description: 'Need VPN access',
-        priority: TicketPriority.HIGH,
+        priority: 'HIGH',
         status: TicketStatus.CLAIMED,
         departmentId: 'department-1',
         submittedBy: 'user-1',

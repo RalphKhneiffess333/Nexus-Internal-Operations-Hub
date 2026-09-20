@@ -1,5 +1,7 @@
 # Task: Implement Nexus Ticket Chat on the Existing Realtime Infrastructure
 
+The current Chat implementation is complete. The final HTTP and Socket.io contract is summarized in [../api-contract.md](../api-contract.md). This document remains the Chat behavior, authorization, persistence, and realtime design reference.
+
 You are working in the existing **Nexus** codebase, a NestJS/Prisma/PostgreSQL backend with a React/TypeScript frontend.
 
 Implement ticket-specific Chat using the Socket.io infrastructure that has already been implemented by the separate realtime-infrastructure task.
@@ -279,15 +281,29 @@ Do not create a 700-line Chat god service.
 
 ## 10. HTTP API
 
-Inspect existing route conventions first. Preserve existing routes if present. If no Chat routes exist, use the project’s established naming, conceptually:
+The following Chat routes are implemented. Preserve these routes for clients.
+
+### Conversation inbox
+
+```http
+GET /chats?search=&page=1&pageSize=50
+```
+
+The optional search is case-insensitive and matches the ticket code, ticket title, latest message content, and latest message sender name. The response is `{ items, page, pageSize, hasMore }`; each item contains ticket identity, title, status, latest-message metadata, and unread state.
+
+```http
+POST /chats/:ticketId/read
+```
+
+Marks the authenticated user's conversation read.
 
 ### History
 
 ```http
-GET /tickets/:ticketId/chat/messages
+GET /tickets/:ticketId/chat/messages?page=1&pageSize=50
 ```
 
-Return authorized messages chronologically, with existing pagination/cursor conventions where available.
+Return authorized messages chronologically in the pagination envelope `{ items, page, pageSize, hasMore }`.
 
 Safe response fields may include:
 
@@ -304,8 +320,6 @@ Do not return Prisma internals, session data, storage paths, or raw exceptions.
 
 ### Create message
 
-Conceptually:
-
 ```http
 POST /tickets/:ticketId/chat/messages
 ```
@@ -321,7 +335,13 @@ The client must not provide:
 
 Preserve JSON support if it already exists. Do not unnecessarily force all existing clients to multipart.
 
-If both content and attachments are optional, reject a message with neither unless the current contract explicitly allows empty messages. Centralize and document any chosen message length, file count, or size defaults.
+If both content and attachments are optional, the current contract rejects a message with neither. Text content is limited to 4,000 characters and uploaded files use the shared file-validation limits.
+
+Authorized message attachment downloads use:
+
+```http
+GET /tickets/:ticketId/chat/messages/:messageId/attachments/:attachmentId
+```
 
 ---
 
@@ -646,7 +666,7 @@ List tests and commands run. Distinguish passing, failing, skipped, and blocked 
 
 ### Defaults/deferred work
 
-Document defaults not defined by the authoritative docs, such as message length, pagination, attachment limits, or empty-message handling. Explicitly state that distributed presence, Redis fan-out, typing indicators, read receipts, and unrelated notification work remain deferred if not implemented.
+Document defaults not defined by the authoritative docs, such as message length, pagination, attachment limits, or empty-message handling. In the current implementation, distributed presence, Redis fan-out, and typing indicators remain deferred; read receipts are implemented through `POST /chats/:ticketId/read`. External email delivery and unrelated notification work remain deferred.
 
 ---
 

@@ -1,4 +1,3 @@
-import { TicketPriority } from '@prisma/client';
 import { EMPLOYEE_2_ID, EMPLOYEE_ID, expect, test } from '../support/api-app';
 
 test('rejects protected ticket endpoints without a session', async ({
@@ -17,7 +16,7 @@ test('rejects disallowed endpoint roles before reaching ticket policies', async 
     data: {
       title: 'Cannot claim this',
       description: 'Employees cannot claim tickets',
-      priority: TicketPriority.LOW,
+      priority: 'LOW',
       departmentId: 'dept-it',
     },
   });
@@ -40,7 +39,7 @@ test('rejects frontend supplied ticket ownership fields', async ({ e2e }) => {
     data: {
       title: 'Tampered owner',
       description: 'Ownership and assignment fields should be rejected',
-      priority: TicketPriority.LOW,
+      priority: 'LOW',
       departmentId: 'dept-it',
       submittedBy: EMPLOYEE_2_ID,
       agentId: EMPLOYEE_2_ID,

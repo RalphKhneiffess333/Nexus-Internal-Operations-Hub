@@ -23,40 +23,32 @@ export function getTickets(params = {}) {
   return apiRequest(withQuery('/tickets', params))
 }
 
-export function getSubmittedTickets(params = {}) {
-  return apiRequest(withQuery('/tickets/submitted', params))
-}
-
-export function getClaimedTickets(params = {}) {
-  return apiRequest(withQuery('/tickets/claimed', params))
-}
-
-export function getResolvedTickets(params = {}) {
-  return apiRequest(withQuery('/tickets/resolved', params))
-}
-
-export function getDepartmentTickets(params = {}) {
-  return apiRequest(withQuery('/tickets/department', params))
-}
-
-export function getTicketPool(params = {}) {
-  return apiRequest(withQuery('/tickets/pool', params))
+export function getTicketPoolCount() {
+  return apiRequest('/tickets/pool/count')
 }
 
 export function getTicket(ticketId) {
   return apiRequest(`/tickets/${ticketId}`)
 }
 
-export function getTicketEvents(ticketId) {
-  return apiRequest(`/tickets/${ticketId}/events`)
+export function getTicketChatContext(ticketId) {
+  return apiRequest(withQuery(`/tickets/${ticketId}`, { view: 'chat' }))
 }
 
-export function getChatMessages(ticketId) {
-  return apiRequest(`/tickets/${ticketId}/chat/messages`)
+export function getTicketEvents(ticketId, params = {}) {
+  return apiRequest(withQuery(`/tickets/${ticketId}/events`, params))
 }
 
-export function getChatConversations() {
-  return apiRequest('/chats')
+export function getTicketAttachments(ticketId) {
+  return apiRequest(`/tickets/${ticketId}/attachments`)
+}
+
+export function getChatMessages(ticketId, params = {}) {
+  return apiRequest(withQuery(`/tickets/${ticketId}/chat/messages`, params))
+}
+
+export function getChatConversations(params = {}) {
+  return apiRequest(withQuery('/chats', params))
 }
 
 export function markChatConversationRead(ticketId) {
@@ -81,8 +73,8 @@ export function getTicketEvent(ticketId, eventId) {
   return apiRequest(`/tickets/${ticketId}/events/${eventId}`)
 }
 
-export function getTicketHandoffs(ticketId, status) {
-  return apiRequest(withQuery(`/tickets/${ticketId}/handoffs`, { status }))
+export function getTicketHandoffs(ticketId, params = {}) {
+  return apiRequest(withQuery(`/tickets/${ticketId}/handoffs`, params))
 }
 
 export function getEligibleHandoffAgents(ticketId) {
@@ -108,16 +100,12 @@ export function cancelHandoff(handoffId) {
   return apiRequest(`/handoffs/${handoffId}/cancel`, { method: 'POST' })
 }
 
-export function getIncomingHandoffs(params = {}) {
-  return apiRequest(withQuery('/handoffs/incoming', params))
-}
-
-export function getOutgoingHandoffs(params = {}) {
-  return apiRequest(withQuery('/handoffs/outgoing', params))
-}
-
 export function getHandoffs(params = {}) {
   return apiRequest(withQuery('/handoffs', params))
+}
+
+export function getHandoffParticipants() {
+  return apiRequest('/handoffs/participants')
 }
 
 export function createTicket(data, files = []) {

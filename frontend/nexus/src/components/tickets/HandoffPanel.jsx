@@ -8,7 +8,6 @@ import {
   getTicketHandoffs,
   rejectHandoff,
 } from '../../features/tickets/ticket-api'
-import { HandoffStatus } from '../../features/tickets/ticket-types'
 import { HandoffDialog } from './HandoffDialog'
 import { HandoffRequestCard } from './HandoffRequestCard'
 import { LoadingState } from '../ui/LoadingState'
@@ -16,6 +15,9 @@ import { LoadingState } from '../ui/LoadingState'
 export function HandoffPanel({ ticket, onTicketChanged }) {
   const { user } = useAuthentication()
   const [handoffs, setHandoffs] = useState([])
+  const [page, setPage] = useState(1)
+  const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [agents, setAgents] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadingAgents, setLoadingAgents] = useState(false)
@@ -23,17 +25,27 @@ export function HandoffPanel({ ticket, onTicketChanged }) {
   const [actionError, setActionError] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [pendingCount, setPendingCount] = useState(0)
 
-  const loadHandoffs = useCallback(async () => {
-    setLoading(true)
+  const loadHandoffs = useCallback(async ({ append = false, nextPage = 1 } = {}) => {
+    if (append) setLoadingMore(true)
+    else setLoading(true)
     setError('')
     try {
-      const result = await getTicketHandoffs(ticket.ticketId)
-      setHandoffs(Array.isArray(result) ? result : [])
+      const result = await getTicketHandoffs(ticket.ticketId, {
+        page: nextPage,
+        pageSize: 25,
+      })
+      const requests = result?.items ?? []
+      setHandoffs((current) => (append ? [...current, ...requests] : requests))
+      setPage(nextPage)
+      setHasMore(Boolean(result?.hasMore))
+      setPendingCount(result?.pendingCount ?? 0)
     } catch (loadError) {
       setError(loadError.message || 'Unable to load handoff requests.')
     } finally {
-      setLoading(false)
+      if (append) setLoadingMore(false)
+      else setLoading(false)
     }
   }, [ticket.ticketId])
 
@@ -87,7 +99,6 @@ export function HandoffPanel({ ticket, onTicketChanged }) {
     }
   }
 
-  const pending = handoffs.filter((handoff) => handoff.status === HandoffStatus.PENDING)
   const canRequest = Boolean(ticket.permissions?.canRequestHandoff)
 
   return (
@@ -131,8 +142,13 @@ export function HandoffPanel({ ticket, onTicketChanged }) {
           ))}
         </div>
       ) : null}
-      {pending.length > 0 ? (
-        <p className="handoff-footnote">Pending requests: {pending.length}</p>
+      {!loading && !error && hasMore ? (
+        <button type="button" className="btn ghost" onClick={() => void loadHandoffs({ append: true, nextPage: page + 1 })} disabled={loadingMore}>
+          {loadingMore ? 'Loading older requests…' : 'Load older requests'}
+        </button>
+      ) : null}
+      {pendingCount > 0 ? (
+        <p className="handoff-footnote">Pending requests: {pendingCount}</p>
       ) : null}
 
       {dialogOpen ? (

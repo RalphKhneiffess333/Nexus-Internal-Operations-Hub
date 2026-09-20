@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { EventEmitterModule } from '@nestjs/event-emitter';
-import { TicketPriority, UserRole } from '@prisma/client';
+import { UserRole } from '@prisma/client';
 import type { AuthenticatedRequestUser } from '../authentication/request-user';
 import { DatabaseModule } from '../database/database.module';
 import { PrismaService } from '../database/prisma.service';
@@ -52,7 +52,7 @@ export function submitDto(
   return {
     title: 'Laptop will not start',
     description: 'The laptop stays on a black screen',
-    priority: TicketPriority.HIGH,
+    priority: 'HIGH',
     departmentId: IT_DEPARTMENT_ID,
     ...overrides,
   };

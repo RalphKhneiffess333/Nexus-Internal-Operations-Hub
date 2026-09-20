@@ -18,13 +18,17 @@ import {
   SESSION_LIFETIME_MS,
 } from './authentication.constants';
 import { AuthenticationService } from './authentication.service';
+import { ConfigService } from '@nestjs/config';
 import { buildCookie, parseCookieHeader } from './cookies';
 import type { AuthenticatedRequest } from './request-user';
 import type { SessionDevice } from './sessions/session.entity';
 
 @Controller('authentication')
 export class AuthenticationController {
-  constructor(private readonly authenticationService: AuthenticationService) {}
+  constructor(
+    private readonly authenticationService: AuthenticationService,
+    private readonly config: ConfigService,
+  ) {}
 
   @Public()
   @Get('microsoft/login')
@@ -143,6 +147,6 @@ export class AuthenticationController {
   }
 
   private getFrontendUrl(): string {
-    return process.env.FRONTEND_URL ?? 'http://localhost:5173';
+    return this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:5173';
   }
 }

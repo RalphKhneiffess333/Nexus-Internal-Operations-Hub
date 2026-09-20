@@ -4,15 +4,10 @@ import { TicketList } from '../../components/tickets/TicketList'
 import { TicketFilters } from '../../components/tickets/TicketFilters'
 import { LoadingState } from '../../components/ui/LoadingState'
 import { useAuthentication } from '../../features/authentication/use-authentication'
-import { getMyDepartments } from '../../features/departments/department-api'
 import { useDepartments } from '../../features/departments/use-departments'
+import { usePriorities } from '../../features/priorities/use-priorities'
 import {
-  getClaimedTickets,
-  getDepartmentTickets,
-  getResolvedTickets,
-  getSubmittedTickets,
   getTickets,
-  getTicketPool,
 } from '../../features/tickets/ticket-api'
 import { canWorkTickets } from '../../features/tickets/ticket-types'
 import { useNotifications } from '../../features/notifications/use-notifications'
@@ -27,7 +22,7 @@ const TICKET_VIEWS = {
     emptyText: 'There are no tickets to display.',
     showEmptyAction: false,
     description: 'Browse active tickets across every department and submitter.',
-    loader: getTickets,
+    scope: undefined,
   },
   submitted: {
     eyebrow: 'Submitted requests',
@@ -38,7 +33,7 @@ const TICKET_VIEWS = {
     emptyText: 'Submit a request and it will show up here.',
     showEmptyAction: true,
     description: 'Track your requests and stay up to date on every resolution.',
-    loader: getSubmittedTickets,
+    scope: 'submitted',
   },
   claimed: {
     eyebrow: 'Assigned requests',
@@ -49,7 +44,7 @@ const TICKET_VIEWS = {
     emptyText: 'Tickets you claim from a department pool will show up here.',
     showEmptyAction: false,
     description: 'Work through the requests currently assigned to you.',
-    loader: getClaimedTickets,
+    scope: 'claimed',
   },
   resolved: {
     eyebrow: 'Resolved requests',
@@ -60,7 +55,7 @@ const TICKET_VIEWS = {
     emptyText: 'Tickets you resolve will show up here.',
     showEmptyAction: false,
     description: 'Review requests you have completed for your departments.',
-    loader: getResolvedTickets,
+    scope: 'resolved',
   },
 }
 
@@ -73,7 +68,7 @@ const POOL_VIEWS = {
     error: 'Unable to load unclaimed tickets. Please try again.',
     emptyTitle: 'The pool is clear',
     emptyText: 'Open department tickets waiting to be claimed will show up here.',
-    loader: getTicketPool,
+    scope: 'pool',
   },
   all: {
     eyebrow: 'Ticket pools',
@@ -83,19 +78,21 @@ const POOL_VIEWS = {
     error: 'Unable to load department tickets. Please try again.',
     emptyTitle: 'No department tickets',
     emptyText: 'Tickets for your departments will show up here.',
-    loader: getDepartmentTickets,
+    scope: 'department',
   },
 }
 
 export function TicketsPage({ view = 'submitted' }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const { user } = useAuthentication()
-  const { unclaimedTickets, setUnclaimedTickets } = useNotifications()
+  const { unclaimedTickets } = useNotifications()
   const requestedPoolMode = searchParams.get('view')
   const searchFilter = searchParams.get('search') ?? ''
   const statusFilter = searchParams.get('status') ?? ''
   const departmentFilter = searchParams.get('departmentId') ?? ''
   const priorityFilter = searchParams.get('priority') ?? ''
+  const parsedPage = Number(searchParams.get('page') ?? '1')
+  const page = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1
   const isAdmin = user?.role === 'Admin'
   const poolMode = requestedPoolMode === 'system' && isAdmin
     ? 'system'
@@ -126,47 +123,20 @@ export function TicketsPage({ view = 'submitted' }) {
     : TICKET_VIEWS[myTicketMode]
   const requestKey = view === 'pool' ? `pool:${poolMode}` : view === 'admin' ? 'admin' : myTicketMode
   const filterKey = `${searchFilter}:${appliedStatusFilter}:${departmentFilter}:${priorityFilter}`
-  const loadKey = `${requestKey}:${filterKey}`
   const [tickets, setTickets] = useState([])
+  const [hasMore, setHasMore] = useState(false)
+  const loadKey = `${requestKey}:${filterKey}:${page}`
   const [loading, setLoading] = useState(true)
   const [loadedRequestKey, setLoadedRequestKey] = useState(null)
   const [error, setError] = useState('')
-  const { departments } = useDepartments()
-  const [agentDepartments, setAgentDepartments] = useState([])
+  const { departments } = useDepartments(isAgentDepartmentView ? 'mine' : 'all')
+  const { priorities } = usePriorities()
   const isLoading = loading || loadedRequestKey !== loadKey
-  const filterDepartments = isAgentDepartmentView
-    ? agentDepartments
-    : departments
-
-  useEffect(() => {
-    if (!isAgentDepartmentView) {
-      return undefined
-    }
-
-    let active = true
-
-    async function loadAgentDepartments() {
-      try {
-        const result = await getMyDepartments()
-        if (active) {
-          setAgentDepartments(Array.isArray(result) ? result : [])
-        }
-      } catch {
-        if (active) {
-          setAgentDepartments([])
-        }
-      }
-    }
-
-    void loadAgentDepartments()
-
-    return () => {
-      active = false
-    }
-  }, [isAgentDepartmentView])
+  const filterDepartments = departments
 
   function updateView(nextView, options = {}) {
     const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('page')
     if (nextView) nextParams.set('view', nextView)
     else nextParams.delete('view')
     if (options.clearStatus) nextParams.delete('status')
@@ -175,8 +145,16 @@ export function TicketsPage({ view = 'submitted' }) {
 
   function updateFilter(name, value) {
     const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('page')
     if (value) nextParams.set(name, value)
     else nextParams.delete(name)
+    setSearchParams(nextParams)
+  }
+
+  function updatePage(nextPage) {
+    const nextParams = new URLSearchParams(searchParams)
+    if (nextPage > 1) nextParams.set('page', String(nextPage))
+    else nextParams.delete('page')
     setSearchParams(nextParams)
   }
 
@@ -184,63 +162,32 @@ export function TicketsPage({ view = 'submitted' }) {
     setLoading(true)
     setError('')
     try {
-      const result = await config.loader({
+      const result = await getTickets({
+        scope: config.scope,
         search: searchFilter,
         status: appliedStatusFilter,
         departmentId: departmentFilter,
         priority: priorityFilter,
+        page,
+        pageSize: 50,
       })
-      setTickets(Array.isArray(result) ? result : [])
-      if (isUnclaimedPool) setUnclaimedTickets(Array.isArray(result) ? result.length : 0)
+      setTickets(result?.items ?? [])
+      setHasMore(Boolean(result?.hasMore))
     } catch (loadError) {
       setError(loadError.message || config.error)
       setTickets([])
+      setHasMore(false)
     } finally {
       setLoadedRequestKey(loadKey)
       setLoading(false)
     }
-  }, [config, loadKey, searchFilter, appliedStatusFilter, departmentFilter, isUnclaimedPool, priorityFilter, setUnclaimedTickets])
+  }, [config, loadKey, searchFilter, appliedStatusFilter, departmentFilter, priorityFilter, page])
 
   useEffect(() => {
-    let active = true
-
-    async function loadInitialTickets() {
-      try {
-        const result = await config.loader({
-          search: searchFilter,
-          status: appliedStatusFilter,
-          departmentId: departmentFilter,
-          priority: priorityFilter,
-        })
-        if (active) {
-          setError('')
-          setTickets(Array.isArray(result) ? result : [])
-          if (isUnclaimedPool) {
-            setUnclaimedTickets(Array.isArray(result) ? result.length : 0)
-          }
-        }
-      } catch (loadError) {
-        if (active) {
-          setError(
-            loadError.message ||
-              config.error,
-          )
-          setTickets([])
-        }
-      } finally {
-        if (active) {
-          setLoadedRequestKey(loadKey)
-          setLoading(false)
-        }
-      }
-    }
-
-    void loadInitialTickets()
-
-    return () => {
-      active = false
-    }
-  }, [config, loadKey, searchFilter, appliedStatusFilter, departmentFilter, isUnclaimedPool, priorityFilter, setUnclaimedTickets])
+    // One server-backed loader handles every ticket scope and filter combination.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadTickets()
+  }, [loadTickets])
 
   return (
     <section className="page">
@@ -321,6 +268,7 @@ export function TicketsPage({ view = 'submitted' }) {
 
       <TicketFilters
         departments={filterDepartments}
+        priorities={priorities}
         filters={{ search: searchFilter, status: appliedStatusFilter, departmentId: departmentFilter, priority: priorityFilter }}
         onChange={updateFilter}
         showStatus={!hideStatusFilter}
@@ -357,8 +305,9 @@ export function TicketsPage({ view = 'submitted' }) {
       ) : null}
 
       {!isLoading && !error && tickets.length > 0 ? (
-          <TicketList tickets={tickets} departments={departments} />
+          <TicketList tickets={tickets} departments={departments} priorities={priorities} />
       ) : null}
+      {!isLoading && !error && (page > 1 || hasMore) ? <div className="admin-pagination" aria-label="Ticket pages"><button type="button" className="btn ghost" disabled={page === 1} onClick={() => updatePage(page - 1)}>Previous</button><span>Page {page}</span><button type="button" className="btn ghost" disabled={!hasMore} onClick={() => updatePage(page + 1)}>Next</button></div> : null}
     </section>
   )
 }

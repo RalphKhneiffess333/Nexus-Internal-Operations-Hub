@@ -4,6 +4,9 @@ author: "Ralph Khneiffess"
 ---
 
 # Ticket Lifecycle Slice Interface - Nexus
+
+This document describes the original employee ticket UI slice. The application has since evolved beyond that bounded workflow. The current implemented API, including authentication, authorization, pagination, Chat, handoffs, administration, attachments, and realtime delivery, is documented in [../api-contract.md](../api-contract.md). Statements below that say those features do not exist are historical scope constraints for this workflow, not a description of the current repository.
+
 ## Objective
 The implementation must create the React frontend for Nexus and connect it to the existing ticket lifecycle API.
 
@@ -20,7 +23,7 @@ The frontend must consume the already existing Nexus backend API.
 
 The backend must not be modified as part of this workflow.
 
-Authorization and authentication are intentionally not implemented yet. The frontend must therefore not introduce authentication flows, role checks, permission systems, or authorization abstractions.
+Authentication and authorization were intentionally excluded from the original workflow. They are now implemented by the application and must be consumed through the current API contract rather than recreated in the employee ticket slice.
 
 The implementation should remain intentionally small, modular, and easy to extend in future workflows.
 
@@ -61,7 +64,7 @@ API error states
 Form validation appropriate for the API
 Responsive interface for desktop and mobile
 Ticket Operations Available in the UI
-The UI should expose only:
+The original UI slice exposed only:
 
 GET /tickets
 GET /tickets/:id
@@ -79,7 +82,7 @@ Notifications
 Authentication
 Authorization
 Administration
-Although the backend currently exposes claiming, closing, and reopening functionality, those operations must not be represented as employee UI actions in this workflow.
+The current backend also exposes claiming, closing, reopening, handoffs, Chat, attachments, administration, and realtime routes. The employee ticket UI restrictions above remain valid for that original slice, but they do not describe the complete current API.
 
 ### Out of Scope
 The agent must NOT implement:
@@ -287,22 +290,18 @@ Use:
 
 POST /tickets
 
-The form must support the fields required by the existing API:
+The form must support the fields required by the current ticket API:
 
 Title
 Description
 Priority
 Department
-Submitted By
-However, because authentication does not exist yet, submittedBy may be provided by the frontend as required by the current testing API.
+The submitter is derived from the authenticated session. `submittedBy` must not be sent by the frontend; the global validation pipe rejects unknown request fields.
 
-The frontend must not implement authentication merely to populate this value.
-
-The priority selector must support:
-
-LOW
-MODERATE
-HIGH
+The priority selector must load the active priority codes and display names
+from the existing priorities API. The seeded environment includes LOW,
+MODERATE, and HIGH, but administrators may add, edit, deactivate, and
+reactivate priorities.
 The department selector must use department values accepted by the existing API.
 
 Do not hardcode future department-management functionality into the frontend.
@@ -457,7 +456,7 @@ Provide an example environment file if appropriate:
 Do not commit real credentials or environment-specific secrets.
 
 API Types
-The frontend should define types representing the existing ticket API response.
+The frontend should define types representing the current ticket API response. These are examples of the current shape, not a persistence model:
 
 Example:
 
@@ -467,27 +466,47 @@ type TicketStatus =
   | "CLOSED"
   | "REOPENED";
 
-type TicketPriority =
-  | "LOW"
-  | "MODERATE"
-  | "HIGH";
+type PriorityCode = string; // active priority code managed by administrators
 
 interface Ticket {
   ticketId: string;
   ticketCode: string;
   title: string;
   description: string;
-  priority: TicketPriority;
+  priority: PriorityCode;
   status: TicketStatus;
   departmentId: string;
-  submittedBy: string;
-  agentId: string | null;
+  department: {
+    departmentId: string;
+    code: string;
+    name: string;
+  };
+  submittedBy: {
+    userId: string;
+    fullName: string;
+    email: string;
+  };
+  agent: {
+    userId: string;
+    fullName: string;
+    email: string;
+  } | null;
   active: boolean;
   completionNotes: string | null;
   createdAt: string;
   updatedAt: string;
   closedAt: string | null;
+  permissions: {
+    canModify: boolean;
+    canCancel: boolean;
+    canClaim: boolean;
+    canClose: boolean;
+    canRequestHandoff: boolean;
+    canReopen: boolean;
+  };
 }
+
+`GET /tickets` returns `{ items, page, pageSize, hasMore }`; its list user references are smaller than the detail response. See [api-contract.md](../api-contract.md) for the complete current contract.
 
 These types should reflect the actual existing API.
 
@@ -664,8 +683,7 @@ Non-open tickets cannot be cancelled through the UI
 Claiming is not exposed
 Closing is not exposed
 Reopening is not exposed
-Authentication is not implemented
-Authorization is not implemented
+Authentication and authorization were outside this historical workflow and are implemented by the current application.
 Backend remains untouched
 ## Definition of Done
 This workflow is complete when:

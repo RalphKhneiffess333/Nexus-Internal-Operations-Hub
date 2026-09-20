@@ -1,4 +1,13 @@
+---
+title: "Agentic Workflow Ticket Lifecycle - Nexus"
+author: "Ralph Khneiffess"
+---
+
 # Week 3 - Full-Stack Delivery
+
+NOTICE: This file is best treated as a historical archive for Eurisko Academy instructors as it may contain stale file references since major application updates have been implemented since the creation of this file. To properly follow its implementation, it is recommended to revert to commit a9d9b11cdfd889dd881342f3ad7a0474b9701c81 on Sep 17, 2026.
+
+For the current repository contract, use [api-contract.md](api-contract.md). The contract below has been retained as the Week 3 delivery example and is supplemented by the later Chat, handoff, administration, attachment, and realtime routes in that document.
 
 ## Overview
 
@@ -246,9 +255,9 @@ The endpoint is implemented by [tickets.controller.ts](<../backend/src/tickets/t
 }
 ```
 
-Validation in [submit-ticket.dto.ts](<../backend/src/tickets/dto/submit-ticket.dto.ts>) requires non-empty strings for `title`, `description`, and `departmentId`, and requires `priority` to be `LOW`, `MODERATE`, or `HIGH`. The global pipe in [main.ts](<../backend/src/main.ts>) rejects unknown fields.
+Validation in [submit-ticket.dto.ts](<../backend/src/tickets/dto/submit-ticket.dto.ts>) requires non-empty strings for `title`, `description`, and `departmentId`, and requires `priority` to be a sanitized non-empty priority code. The lifecycle service resolves that code against the active priorities managed by administrators. The global pipe in [main.ts](<../backend/src/main.ts>) rejects unknown fields.
 
-**Success:** `201 Created`. The body contains the created ticket fields from [schema.prisma](<../backend/prisma/schema.prisma>), including `ticketId`, `ticketCode`, input values, `status: "OPEN"`, nested submitter/agent profiles, timestamps, and a `permissions` object.
+**Success:** `201 Created`. The body is the mapped ticket response, including `ticketId`, `ticketCode`, input values, `status: "OPEN"`, a nested `department`, nested submitter/agent profiles, timestamps, and a `permissions` object. The server derives the submitter from the authenticated session and does not return a client-controlled `submittedBy` string or top-level `agentId`.
 
 Example response for an employee submitting a ticket:
 
@@ -261,6 +270,11 @@ Example response for an employee submitting a ticket:
   "priority": "MODERATE",
   "status": "OPEN",
   "departmentId": "dept-it",
+  "department": {
+    "departmentId": "dept-it",
+    "code": "IT",
+    "name": "Information Technology"
+  },
   "active": true,
   "completionNotes": null,
   "createdAt": "ISO date string",
@@ -277,6 +291,7 @@ Example response for an employee submitting a ticket:
     "canCancel": true,
     "canClaim": false,
     "canClose": false,
+    "canRequestHandoff": false,
     "canReopen": false
   }
 }
@@ -288,6 +303,8 @@ Example response for an employee submitting a ticket:
 - `401 Unauthorized`: no authenticated session, handled by [authorization.guard.ts](<../backend/src/authorization/guards/authorization.guard.ts>).
 - `404 Not Found`: the department does not exist or is inactive, handled by [submit-ticket.policy.ts](<../backend/src/tickets/policies/submit-ticket.policy.ts>).
 - `503 Service Unavailable`: database availability failure, mapped in [prisma-error.ts](<../backend/src/database/prisma-error.ts>).
+
+`GET /tickets` is a separate paginated contract: it accepts `scope`, `page`, `pageSize`, `search`, `status`, `departmentId`, `priority`, and `includeInactive`, and returns `{ items, page, pageSize, hasMore }`. Ticket list items use reduced user references. The full current contract is maintained in [api-contract.md](api-contract.md).
 
 ### 3. Authorization Rule
 

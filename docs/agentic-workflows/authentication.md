@@ -6,7 +6,9 @@ author: "Ralph Khneiffess"
 # Nexus - Authentication
 This document defines how authentication is implemented in Nexus. It describes the authentication architecture, Microsoft Entra ID integration, user account provisioning, identity-provider linking, session management, cookies, request authentication, and the separation between authentication and authorization.
 
-The current implementation is backend-only.
+The backend is the authority for authentication and session state. The React frontend consumes the endpoints below but never reads the HTTP-only session identifier.
+
+The exact implemented authentication routes and response payloads are documented in [../api-contract.md](../api-contract.md). This document defines the authentication boundary and session behavior; it does not replace the current route contract.
 
 Authentication identifies who the user is.
 
@@ -31,6 +33,20 @@ The authentication module validates the session and places the authenticated use
 The authentication architecture must remain independent from Microsoft Entra ID so additional identity providers can be introduced later without changing the rest of the application.
 The authentication module is responsible from everything from authentication via microsoft entra ID to session and cookie validation.
 
+## Implemented HTTP endpoints
+
+The current routes are:
+
+| Method | Route | Access | Result |
+|---|---|---|---|
+| GET | `/authentication/microsoft/login` | Public | Starts Microsoft login and sets temporary authentication state. |
+| GET | `/authentication/microsoft/callback?code=...&state=...` | Public | Completes login, sets the `nexus_session` cookie, and redirects to the frontend. |
+| GET | `/authentication/me` | Public | `{ user: authenticatedUser \| null }`. |
+| POST | `/authentication/logout` | Public | Clears the current session and returns `{ loggedOut: true }`. |
+| POST | `/authentication/logout-all-devices` | Authenticated | Revokes the user's sessions and returns `{ loggedOut: true }`. |
+
+The complete cross-module API reference is [../api-contract.md](../api-contract.md).
+
 ## Authentication vs Authorization
 Authentication and authorization are separate concerns.
 
@@ -51,7 +67,7 @@ Authorization answers:
 
 "Is this authenticated user allowed to perform this action?"
 
-Authorization is not implemented yet.
+Authorization is implemented by a separate module. Authentication must not contain those checks; it only establishes `request.user` and the session context.
 
 The authentication implementation must therefore not contain:
 
@@ -559,7 +575,7 @@ Check departments.
 Check ticket ownership.
 Check permissions.
 Decide whether a requested resource can be accessed.
-Those responsibilities belong to authorization, which is not implemented yet.
+Those responsibilities belong to the implemented Authorization module and resource-specific feature policies.
 
 Authentication Flow
 Initial Login

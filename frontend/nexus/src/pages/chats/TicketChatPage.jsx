@@ -5,7 +5,7 @@ import { TicketStatusBadge } from '../../components/tickets/TicketStatusBadge'
 import { LoadingState } from '../../components/ui/LoadingState'
 import { useAuthentication } from '../../features/authentication/use-authentication'
 import { useNotifications } from '../../features/notifications/use-notifications'
-import { getTicket, markChatConversationRead } from '../../features/tickets/ticket-api'
+import { getTicketChatContext, markChatConversationRead } from '../../features/tickets/ticket-api'
 
 export function TicketChatPage() {
   const { ticketId } = useParams()
@@ -19,7 +19,7 @@ export function TicketChatPage() {
     setLoading(true)
     setError('')
     try {
-      setTicket(await getTicket(ticketId))
+      setTicket(await getTicketChatContext(ticketId))
     } catch (loadError) {
       setTicket(null)
       setError(loadError.message || 'Unable to load this ticket conversation.')

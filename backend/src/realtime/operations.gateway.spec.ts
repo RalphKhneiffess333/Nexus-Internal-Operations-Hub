@@ -3,6 +3,7 @@ import type { AuthenticatedRequestUser } from '../authentication/request-user';
 import { AuthenticationService } from '../authentication/authentication.service';
 import { TicketsService } from '../tickets/tickets.service';
 import { ChatService } from '../chat/chat.service';
+import type { ConfigService } from '@nestjs/config';
 import { OperationsGateway } from './operations.gateway';
 import { OperationsServerEvent } from './realtime-events';
 
@@ -23,8 +24,8 @@ function socket(cookie = 'nexus_session=session-1') {
     id: 'socket-1',
     handshake: { headers: { cookie } },
     data: {},
-    join: jest.fn().mockResolvedValue(undefined),
-    leave: jest.fn().mockResolvedValue(undefined),
+    join: jest.fn<(room: string) => Promise<void>>().mockResolvedValue(undefined),
+    leave: jest.fn<(room: string) => Promise<void>>().mockResolvedValue(undefined),
     emit: jest.fn(),
     disconnect: jest.fn(),
   };
@@ -39,6 +40,9 @@ describe('OperationsGateway', () => {
   let ticketsService: {
     findOne: jest.MockedFunction<TicketsService['findOne']>;
   };
+  const config = {
+    get: jest.fn<ConfigService['get']>().mockReturnValue('http://localhost:5173'),
+  };
   let gateway: OperationsGateway;
   let chatService: { assertCanViewChat: jest.MockedFunction<ChatService['assertCanViewChat']> };
 
@@ -52,6 +56,7 @@ describe('OperationsGateway', () => {
     };
     chatService = { assertCanViewChat: jest.fn<ChatService['assertCanViewChat']>() };
     gateway = new OperationsGateway(
+      config as unknown as ConfigService,
       authenticationService as unknown as AuthenticationService,
       ticketsService as unknown as TicketsService,
       chatService as unknown as ChatService,
@@ -138,7 +143,7 @@ describe('OperationsGateway', () => {
 
   it('fans ticket events out only through that ticket room', () => {
     const emit = jest.fn();
-    const to = jest.fn(() => ({ emit }));
+    const to = jest.fn<(room: string) => { emit: typeof emit }>(() => ({ emit }));
     gateway.server = { to } as never;
 
     gateway.handleTicketUpdated({
@@ -164,7 +169,7 @@ describe('OperationsGateway', () => {
 
   it('fans chat messages out only through the private chat room', () => {
     const emit = jest.fn();
-    const to = jest.fn(() => ({ emit }));
+    const to = jest.fn<(room: string) => { emit: typeof emit }>(() => ({ emit }));
     gateway.server = { to } as never;
 
     gateway.handleChatMessageCreated({

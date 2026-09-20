@@ -2667,6 +2667,15 @@ h3 {
   color: var(--ink);
   background: var(--card);
 }
+.admin-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 16px;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
 .admin-subtext {
   display: block;
   margin-top: 4px;

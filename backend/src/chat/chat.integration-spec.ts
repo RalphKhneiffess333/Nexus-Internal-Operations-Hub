@@ -107,6 +107,55 @@ describe('Chat integration', () => {
     expect(await chat.listConversations(unrelatedEmployee)).toEqual([]);
   });
 
+  it('searches conversations by ticket metadata and latest message context', async () => {
+    const matching = await submitOpenTicket(tickets, {
+      title: 'VPN access request',
+    });
+    await claimTicket(tickets, matching.ticketId);
+    await chat.createMessage(
+      matching.ticketId,
+      { content: 'The secure network access details are ready.' },
+      agentUser(),
+    );
+
+    const unrelated = await submitOpenTicket(tickets, {
+      title: 'Printer replacement',
+    });
+    await claimTicket(tickets, unrelated.ticketId);
+    await chat.createMessage(
+      unrelated.ticketId,
+      { content: 'The replacement printer is on its way.' },
+      agentUser(),
+    );
+
+    await expect(
+      chat.listConversations(requestUser(), { search: matching.ticketCode }),
+    ).resolves.toEqual([
+      expect.objectContaining({ ticketId: matching.ticketId }),
+    ]);
+    await expect(
+      chat.listConversations(requestUser(), { search: 'VPN access request' }),
+    ).resolves.toEqual([
+      expect.objectContaining({ ticketId: matching.ticketId }),
+    ]);
+    await expect(
+      chat.listConversations(requestUser(), { search: 'secure network access' }),
+    ).resolves.toEqual([
+      expect.objectContaining({ ticketId: matching.ticketId }),
+    ]);
+    await expect(
+      chat.listConversations(requestUser(), { search: 'IT Agent 1' }),
+    ).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ ticketId: matching.ticketId }),
+        expect.objectContaining({ ticketId: unrelated.ticketId }),
+      ]),
+    );
+    await expect(
+      chat.listConversations(requestUser(), { search: 'does-not-exist' }),
+    ).resolves.toEqual([]);
+  });
+
   it('allows ticket viewers to read, but only the submitter and assigned agent to send', async () => {
     const open = await submitOpenTicket(tickets);
     await claimTicket(tickets, open.ticketId);

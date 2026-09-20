@@ -5,6 +5,10 @@ author: "Ralph Khneiffess"
 
 # Nexus (Internal Operations Service Hub) - Product Specs
 
+The current implemented API surface and the features intentionally not exposed as standalone endpoints are recorded in [api-contract.md](api-contract.md). This document defines product behavior and acceptance criteria; it does not define exact route names or JSON envelopes.
+
+Current implementation notes: ticket, Chat, handoff, administration, file attachment, authentication, authorization, and realtime APIs are implemented. SendGrid email delivery, reminder processing, audit-log purge processing, and other background workers described as future behavior are not currently included.
+
 ## Overview
 ### Context 
 Organizations require internal communications between their multiple departments. Although a company itself may be well established, its employees regularly need assistance from different internal departments. These requests vary from technical problems, such as laptop issues, to access and administrative requests and more.
@@ -55,7 +59,7 @@ The following assumptions are made for Nexus:
 
 ### Actors
 #### System Administrator
-The system administrator is responsible for handling Nexus's configurations, users and permissions. In short, the system administrator grants users certain permissions depending on their roles (Employee, Agent, Admin), configures Nexus's system variables (Departments, Reminder intervals, role mappings, user to department mappings), and has access to the system's history logs.
+The system administrator is responsible for handling Nexus's configurations, users and permissions. In short, the system administrator grants users certain permissions depending on their roles (Employee, Agent, Admin), configures departments, priorities and their reminder intervals, role mappings, user to department mappings, and has access to the system's history logs.
 Example 1: Upon first configuring Nexus, the administrator needs to map the user roles to their accounts.
 Example 2: A new Finance department has opened, the system administrator needs to add the "Finance" department option for the request target department.
 
@@ -94,11 +98,11 @@ Nexus must restrict access to functionality and request information based on the
 Nexus must allow the administrator to add and manage departments and link user accounts to departments.
 
 #### Request Submission
-Nexus must allow company employees (normal employees, agents and admins) to submit requests, requests sent are registered under their name and account information. Additionally, each request can be categorized by priority (Low, Moderate, High) and department (HR, IT, etc...).
+Nexus must allow company employees (normal employees, agents and admins) to submit requests, requests sent are registered under their name and account information. Additionally, each request can be categorized by an administrator-managed priority (with Low, Moderate, and High as the seeded defaults) and department (HR, IT, etc...).
 Each request has:
 - A title or a name
 - A target department or destination (HR, IT, ...)
-- A priority (Low, Moderate, High)
+- A priority selected from the active administrator-managed priority list
 - A description of the subject or notes section
 - File attachments for images, PDFs, and others (Optional)
 
@@ -151,16 +155,16 @@ If the ticket is still in the "Open" stage, Nexus must allow the employee to del
 If the ticket is closed, Nexus must allow the employee to reopen his request.
 
 #### History Tracking
-Nexus must maintain an accurate log of every single action recorded (ticket submission, assignment, modification, closing, chats, etc...)
+Nexus must maintain an accurate log of every ticket and system action recorded (ticket submission, assignment, modification, closing, handoffs, etc...). Chat messages are retained in their ticket-specific chat and are not included in the unified history logs.
 
 #### Ticket Specific Chat
-Nexus must allow employees who have a claimed ticket be able to chat with their agent through independant chats for each ticket
+Nexus must allow employees who have a claimed ticket to chat with their agent through independent chats for each ticket. The ticket submitter, all agents belonging to the ticket's department, and administrators may view the chat. Only the ticket submitter and the currently assigned agent may send messages.
 
 #### Event Notification
 Nexus must send notifications to the concerned party for every meaningful event. Nexus sends notifications as emails. Example: 
 - All department agents should receive a notification whenever a new ticket is opened
 - Employee should receive a notification whenever one of their ticket's status changes (Claimed or Closed).
-- Reminder notifications should be sent to department agents whenever a ticket has been hanging opened for more than 4 hours
+- Reminder notifications should be sent to department agents when an unclaimed ticket passes the reminder interval configured for its priority
 - Ticket events and new chat messages should be reflected to users in real-time
 
 #### Ticket Handoff
@@ -168,7 +172,7 @@ Nexus must allow an agent to attempt delegation of a claimed ticket to another a
 A handoff request can have multiple states:
 - Pending: Waiting for an accept or a reject
 - Accepted: The request was accepted, the new agent has claimed the ticket
-- Rejected: The request was denied
+- Rejected: The request was rejected
 - Cancelled: The requester agent has cancelled the handoff request
 ### Non-Functional Requirements
 #### Security
@@ -255,7 +259,7 @@ Unwanted Behavior Scenarios:
 - Department agents can view opened or reopened and unclaimed tickets for their and only their department in a dashboard
 - A department agent can claim an opened or reopened ticket if it hasn't been claimed yet
 - When an agent claims a ticket, he can start working on resolving the ticket request, no other agent can then claim it
-- If an agent is removed from a department while having claimed tickets, the ticket should go back to the ticket pool with a status of "OPEN".
+- If an agent is removed from a department while having claimed tickets, each active claimed ticket transitions to `CLOSED`. The assigned agent is cleared and the completion note is recorded as: `This agent was removed from the department.`
 - When an agent claims a ticket, the involved employee who opened the ticket is notified and can view information about the agent
 
 Unwanted Behavior Scenarios:
@@ -276,6 +280,8 @@ Unwanted Behavior Scenarios:
 #### Ticket Specific Chat
 - An employee can send messages in "Claimed" tickets chats to their agent
 - An agent can send messages in "Claimed" tickets chat to the employee
+- The ticket submitter, all agents belonging to the ticket's department, and administrators can view the chat and its files
+- Only the ticket submitter and currently assigned agent can send messages
 - File attachments are supported
 - Each ticket should maintain its own isolated chat
 - Chat messages should show the sender identity, timestamp and content
@@ -324,7 +330,7 @@ Unwanted Behavior Scenarios:
 
 
 #### History Tracking
-- Nexus records actions performed and logs them, including submission, claiming, opening, modification, handoffs, status changes, and chat messages.
+- Nexus records actions performed and logs them, including submission, claiming, opening, modification, handoffs, and status changes. Chat messages are stored and displayed in their ticket-specific chat but are not included in the unified history logs.
 - Each history entry records the action that occurred
 - Each history entry records the user who performed the action
 - Each history entry records the date and time at which the action occurred.
@@ -349,7 +355,7 @@ Unwanted Behavior Scenarios:
 - An agent can propose delegating a ticket assigned to them to another agent in the same department
 - The requester agent can cancel the handoff request
 - The destination agent is notified of the event
-- The destination agent can either accept or deny the proposal
+- The destination agent can either accept or reject the proposal
 - If a ticket is closed with a pending handoff request, the request is cancelled.
 - If either requester or requested agent leave the department with a pending request, it is cancelled
 - If the destination agent refuses the proposal, the ticket will stay assigned to the initiator agent

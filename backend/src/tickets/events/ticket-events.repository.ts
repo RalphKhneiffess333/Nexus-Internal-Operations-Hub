@@ -1,18 +1,14 @@
 import { randomUUID } from 'crypto';
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { Prisma, TicketEventAction } from '@prisma/client';
 import { mapPrismaError } from '../../database/prisma-error';
 import { PrismaService } from '../../database/prisma.service';
 import type { TicketPersistenceClient } from '../repositories/tickets.repository';
 import type { TicketEventAttachment } from '../../files/file-attachments.repository';
 import {
-  ClaimEventDetails,
-  CloseEventDetails,
-  DeleteEventDetails,
   HandoffEventDetails,
+  ModificationEventDetails,
   NewTicketEvent,
-  ReopenEventDetails,
-  SubmissionEventDetails,
   TicketEventRecord,
   TicketEventUser,
 } from './ticket-event.types';
@@ -43,8 +39,53 @@ const eventInclude = {
   },
 } satisfies Prisma.TicketEventInclude;
 
+const eventListSelect = {
+  ticketEventId: true,
+  ticketId: true,
+  action: true,
+  createdAt: true,
+  updatedAt: true,
+  user: { select: eventUserSelect },
+  ticket: {
+    select: {
+      ticketId: true,
+      ticketCode: true,
+      title: true,
+    },
+  },
+} satisfies Prisma.TicketEventSelect;
+
 type TicketEventWithUser = Prisma.TicketEventGetPayload<{
   include: typeof eventInclude;
+}>;
+
+export interface TicketEventSummary {
+  ticketEventId: string;
+  ticketId: string;
+  action: TicketEventAction;
+  createdAt: Date;
+  updatedAt: Date;
+  handoffAction?: string;
+  hasAttachments: boolean;
+}
+
+export interface TicketEventSummaryPage {
+  items: TicketEventSummary[];
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+}
+
+export interface TicketAttachmentSummary {
+  ticketEventId: string;
+  attachments: Array<{
+    attachmentId: string;
+    originalName: string;
+  }>;
+}
+
+export type TicketEventListRecord = Prisma.TicketEventGetPayload<{
+  select: typeof eventListSelect;
 }>;
 
 @Injectable()
@@ -63,7 +104,7 @@ export class TicketEventsRepository {
           ticketId: event.ticketId,
           userId: event.userId,
           action: event.action,
-          details: event.details as unknown as Prisma.InputJsonValue,
+          details: this.toInputJson(event.details),
           createdAt: event.createdAt,
           updatedAt: event.createdAt,
         },
@@ -89,20 +130,112 @@ export class TicketEventsRepository {
     }
   }
 
+  async findSummariesByTicketId(
+    ticketId: string,
+    page = 1,
+    pageSize = 50,
+  ): Promise<TicketEventSummaryPage> {
+    const safePageSize = Math.min(Math.max(pageSize, 1), 100);
+    try {
+      const events = await this.prisma.ticketEvent.findMany({
+        where: {
+          ticketId,
+          OR: [
+            { action: { not: TicketEventAction.HANDOFF } },
+            {
+              action: TicketEventAction.HANDOFF,
+              details: {
+                path: ['action'],
+                equals: 'ACCEPTED',
+              },
+            },
+          ],
+        },
+        orderBy: [{ createdAt: 'desc' }, { ticketEventId: 'desc' }],
+        skip: (Math.max(page, 1) - 1) * safePageSize,
+        take: safePageSize + 1,
+        select: {
+          ticketEventId: true,
+          ticketId: true,
+          action: true,
+          createdAt: true,
+          updatedAt: true,
+          _count: { select: { attachments: true } },
+        },
+      });
+
+      const hasMore = events.length > safePageSize;
+      const items = events.slice(0, safePageSize).reverse().map((event) => ({
+        ticketEventId: event.ticketEventId,
+        ticketId: event.ticketId,
+        action: event.action,
+        createdAt: event.createdAt,
+        updatedAt: event.updatedAt,
+        hasAttachments: event._count.attachments > 0,
+        ...(event.action === TicketEventAction.HANDOFF
+          ? { handoffAction: 'ACCEPTED' }
+          : {}),
+      }));
+      return {
+        items,
+        page: Math.max(page, 1),
+        pageSize: safePageSize,
+        hasMore,
+      };
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }
+
+  async findLatestAttachmentEventByTicketId(
+    ticketId: string,
+  ): Promise<TicketAttachmentSummary | null> {
+    try {
+      const event = await this.prisma.ticketEvent.findFirst({
+        where: {
+          ticketId,
+          attachments: { some: {} },
+        },
+        orderBy: [{ createdAt: 'desc' }, { ticketEventId: 'desc' }],
+        select: {
+          ticketEventId: true,
+          attachments: {
+            orderBy: { createdAt: 'asc' },
+            select: {
+              attachmentId: true,
+              file: { select: { originalName: true } },
+            },
+          },
+        },
+      });
+
+      return event
+        ? {
+            ticketEventId: event.ticketEventId,
+            attachments: event.attachments.map((attachment) => ({
+              attachmentId: attachment.attachmentId,
+              originalName: attachment.file.originalName,
+            })),
+          }
+        : null;
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }
+
   async findAll(
     skip = 0,
     take = 100,
     action?: TicketEventAction,
-  ): Promise<TicketEventRecord[]> {
+  ): Promise<TicketEventListRecord[]> {
     try {
-      const events = await this.prisma.ticketEvent.findMany({
+      return await this.prisma.ticketEvent.findMany({
         where: action ? { action } : undefined,
         orderBy: [{ createdAt: 'desc' }, { ticketEventId: 'desc' }],
         skip,
         take,
-        include: eventInclude,
+        select: eventListSelect,
       });
-      return this.withUserReferences(events);
     } catch (error) {
       mapPrismaError(error);
     }
@@ -141,7 +274,7 @@ export class TicketEventsRepository {
 
     return events.map((event) => {
       const user = event.user;
-      const details = event.details as Record<string, unknown>;
+      const details = this.readDetails(event.details);
       const resolveUser = (userId: string): TicketEventUser => {
         const referencedUser = usersById.get(userId);
         if (!referencedUser) {
@@ -150,66 +283,9 @@ export class TicketEventsRepository {
         return referencedUser;
       };
 
-      const responseDetails = (() => {
-        switch (event.action) {
-          case 'SUBMISSION': {
-            const typed = details as unknown as SubmissionEventDetails;
-            return {
-              title: typed.title,
-              departmentId: typed.departmentId,
-              priority: typed.priority,
-              description: typed.description,
-              submitter: resolveUser(typed.submitterId),
-            };
-          }
-          case 'CLAIM': {
-            const typed = details as unknown as ClaimEventDetails;
-            return {
-              agent: resolveUser(typed.agentId),
-              timestamp: typed.timestamp,
-            };
-          }
-          case 'CLOSE': {
-            const typed = details as unknown as CloseEventDetails;
-            return {
-              agent: resolveUser(typed.agentId),
-              completionNotes: typed.completionNotes,
-            };
-          }
-          case 'REOPEN': {
-            const typed = details as unknown as ReopenEventDetails;
-            return {
-              priority: typed.priority,
-              description: typed.description,
-              submitter: resolveUser(typed.submitterId),
-            };
-          }
-          case 'DELETE': {
-            const typed = details as unknown as DeleteEventDetails;
-            return { deletedBy: resolveUser(typed.deletedById) };
-          }
-          case 'HANDOFF': {
-            const typed = details as unknown as HandoffEventDetails;
-            return {
-              ...(typed.handoffId ? { handoffId: typed.handoffId } : {}),
-              requester: resolveUser(typed.requesterId),
-              requestedAgent: resolveUser(typed.requestedAgentId),
-              action: typed.action,
-              ...(typed.message ? { message: typed.message } : {}),
-              ...(typed.reason ? { reason: typed.reason } : {}),
-              timestamp: typed.timestamp,
-            };
-          }
-          case 'MODIFICATION':
-            return details;
-        }
-      })();
-
-      return {
+      const base = {
         ticketEventId: event.ticketEventId,
         ticketId: event.ticketId,
-        action: event.action,
-        details: responseDetails,
         createdAt: event.createdAt,
         updatedAt: event.updatedAt,
         user,
@@ -224,26 +300,197 @@ export class TicketEventsRepository {
             updatedAt: attachment.file.updatedAt,
           }),
         ),
-      } as unknown as TicketEventRecord;
+      };
+
+      switch (event.action) {
+        case 'SUBMISSION':
+          return {
+            ...base,
+            action: event.action,
+            details: {
+              title: this.stringDetail(details, 'title'),
+              departmentId: this.stringDetail(details, 'departmentId'),
+              priority: this.ticketPriorityDetail(details, 'priority'),
+              description: this.stringDetail(details, 'description'),
+              submitter: resolveUser(this.stringDetail(details, 'submitterId')),
+            },
+          };
+        case 'CLAIM':
+          return {
+            ...base,
+            action: event.action,
+            details: {
+              agent: resolveUser(this.stringDetail(details, 'agentId')),
+              timestamp: this.stringDetail(details, 'timestamp'),
+            },
+          };
+        case 'CLOSE':
+          return {
+            ...base,
+            action: event.action,
+            details: {
+              agent: resolveUser(this.stringDetail(details, 'agentId')),
+              completionNotes: this.nullableStringDetail(details, 'completionNotes'),
+            },
+          };
+        case 'REOPEN':
+          return {
+            ...base,
+            action: event.action,
+            details: {
+              priority: this.ticketPriorityDetail(details, 'priority'),
+              description: this.stringDetail(details, 'description'),
+              submitter: resolveUser(this.stringDetail(details, 'submitterId')),
+            },
+          };
+        case 'DELETE':
+          return {
+            ...base,
+            action: event.action,
+            details: {
+              deletedBy: resolveUser(this.stringDetail(details, 'deletedById')),
+            },
+          };
+        case 'HANDOFF': {
+          const handoffId = this.optionalStringDetail(details, 'handoffId');
+          const message = this.optionalStringDetail(details, 'message');
+          const reason = this.optionalStringDetail(details, 'reason');
+          return {
+            ...base,
+            action: event.action,
+            details: {
+              ...(handoffId ? { handoffId } : {}),
+              requester: resolveUser(this.stringDetail(details, 'requesterId')),
+              requestedAgent: resolveUser(
+                this.stringDetail(details, 'requestedAgentId'),
+              ),
+              action: this.handoffActionDetail(details),
+              ...(message ? { message } : {}),
+              ...(reason ? { reason } : {}),
+              timestamp: this.stringDetail(details, 'timestamp'),
+            },
+          };
+        }
+        case 'MODIFICATION':
+          return {
+            ...base,
+            action: event.action,
+            details: this.modificationDetails(details),
+          };
+      }
     });
   }
 
   private getDetailUserIds(event: TicketEventWithUser): string[] {
-    const details = event.details as Record<string, unknown>;
+    const details = this.readDetails(event.details);
     switch (event.action) {
       case 'SUBMISSION':
-        return [details.submitterId as string];
+        return [this.stringDetail(details, 'submitterId')];
       case 'CLAIM':
       case 'CLOSE':
-        return [details.agentId as string];
+        return [this.stringDetail(details, 'agentId')];
       case 'REOPEN':
-        return [details.submitterId as string];
+        return [this.stringDetail(details, 'submitterId')];
       case 'DELETE':
-        return [details.deletedById as string];
+        return [this.stringDetail(details, 'deletedById')];
       case 'HANDOFF':
-        return [details.requesterId as string, details.requestedAgentId as string];
+        return [
+          this.stringDetail(details, 'requesterId'),
+          this.stringDetail(details, 'requestedAgentId'),
+        ];
       case 'MODIFICATION':
         return [];
     }
+  }
+
+  private toInputJson(details: NewTicketEvent['details']): Prisma.InputJsonValue {
+    const json: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(details)) {
+      if (value === null) {
+        json[key] = null;
+      } else if (
+        typeof value === 'string' ||
+        typeof value === 'number' ||
+        typeof value === 'boolean'
+      ) {
+        json[key] = value;
+      } else {
+        throw new InternalServerErrorException(
+          'Ticket event details are invalid',
+        );
+      }
+    }
+    // Prisma's nested JSON input type omits JavaScript null even though the
+    // database accepts it; all values were narrowed above before this boundary.
+    return json as Prisma.InputJsonValue;
+  }
+
+  private modificationDetails(
+    details: Record<string, unknown>,
+  ): ModificationEventDetails {
+    return {
+      oldTitle: this.stringDetail(details, 'oldTitle'),
+      newTitle: this.stringDetail(details, 'newTitle'),
+      oldDepartmentId: this.stringDetail(details, 'oldDepartmentId'),
+      newDepartmentId: this.stringDetail(details, 'newDepartmentId'),
+      oldPriority: this.ticketPriorityDetail(details, 'oldPriority'),
+      newPriority: this.ticketPriorityDetail(details, 'newPriority'),
+      oldDescription: this.stringDetail(details, 'oldDescription'),
+      newDescription: this.stringDetail(details, 'newDescription'),
+    };
+  }
+
+  private readDetails(value: unknown): Record<string, unknown> {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw new InternalServerErrorException('Ticket event details are invalid');
+    }
+    return value as Record<string, unknown>;
+  }
+
+  private stringDetail(details: Record<string, unknown>, key: string): string {
+    const value = details[key];
+    if (typeof value !== 'string' || !value) {
+      throw new InternalServerErrorException('Ticket event details are invalid');
+    }
+    return value;
+  }
+
+  private optionalStringDetail(
+    details: Record<string, unknown>,
+    key: string,
+  ): string | undefined {
+    const value = details[key];
+    if (value === undefined) return undefined;
+    return this.stringDetail(details, key);
+  }
+
+  private nullableStringDetail(
+    details: Record<string, unknown>,
+    key: string,
+  ): string | null {
+    const value = details[key];
+    if (value === null) return null;
+    return this.stringDetail(details, key);
+  }
+
+  private ticketPriorityDetail(
+    details: Record<string, unknown>,
+    key: string,
+  ): string {
+    const value = this.stringDetail(details, key);
+    if (value.length === 0 || value.length > 40) {
+      throw new InternalServerErrorException('Ticket event details are invalid');
+    }
+    return value;
+  }
+
+  private handoffActionDetail(
+    details: Record<string, unknown>,
+  ): HandoffEventDetails['action'] {
+    const value = this.stringDetail(details, 'action');
+    if (!['REQUESTED', 'ACCEPTED', 'REJECTED', 'DENIED', 'CANCELLED'].includes(value)) {
+      throw new InternalServerErrorException('Ticket event details are invalid');
+    }
+    return value as HandoffEventDetails['action'];
   }
 }
