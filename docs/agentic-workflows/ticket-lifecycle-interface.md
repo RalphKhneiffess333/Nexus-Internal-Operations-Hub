@@ -298,11 +298,10 @@ However, because authentication does not exist yet, submittedBy may be provided 
 
 The frontend must not implement authentication merely to populate this value.
 
-The priority selector must support:
-
-LOW
-MODERATE
-HIGH
+The priority selector must load the active priority codes and display names
+from the existing priorities API. The seeded environment includes LOW,
+MODERATE, and HIGH, but administrators may add, edit, deactivate, and
+reactivate priorities.
 The department selector must use department values accepted by the existing API.
 
 Do not hardcode future department-management functionality into the frontend.
@@ -467,17 +466,14 @@ type TicketStatus =
   | "CLOSED"
   | "REOPENED";
 
-type TicketPriority =
-  | "LOW"
-  | "MODERATE"
-  | "HIGH";
+type PriorityCode = string; // active priority code managed by administrators
 
 interface Ticket {
   ticketId: string;
   ticketCode: string;
   title: string;
   description: string;
-  priority: TicketPriority;
+  priority: PriorityCode;
   status: TicketStatus;
   departmentId: string;
   submittedBy: string;

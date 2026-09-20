@@ -13,12 +13,6 @@ enum UserRole {
   Admin
 }
 
-enum TicketPriority {
-  LOW
-  MODERATE
-  HIGH
-}
-
 enum TicketStatus {
   OPEN
   CLAIMED
@@ -53,6 +47,10 @@ enum AuditAction {
   DEPARTMENT_DELETION
   DEPARTMENT_REACTIVATION
   DEPARTMENT_MAPPING
+  PRIORITY_ADDITION
+  PRIORITY_MODIFICATION
+  PRIORITY_DELETION
+  PRIORITY_REACTIVATION
   SYSTEM_VARIABLE_MODIFICATION
 }
 
@@ -62,6 +60,7 @@ model IdentityProvider {
   name               String
   active             Boolean  @default(true)
   createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
   users              User[]
 
   @@map("identity_providers")
@@ -114,6 +113,7 @@ model DepartmentMember {
   userId             String     @map("user_id")
   departmentId       String     @map("department_id")
   createdAt          DateTime   @default(now()) @map("created_at")
+  updatedAt          DateTime   @updatedAt @map("updated_at")
   user               User       @relation(fields: [userId], references: [userId])
   department         Department @relation(fields: [departmentId], references: [departmentId])
 
@@ -122,29 +122,44 @@ model DepartmentMember {
   @@map("department_members")
 }
 
+model Priority {
+  priorityId              String   @id @map("priority_id")
+  code                    String   @unique
+  name                    String
+  reminderIntervalMinutes Int      @map("reminder_interval_minutes")
+  active                  Boolean  @default(true)
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+  tickets                 Ticket[]
+
+  @@index([active])
+  @@map("priorities")
+}
+
 model Ticket {
-  ticketId        String           @id @map("ticket_id")
-  ticketCode      String           @unique @map("ticket_code")
-  title           String
-  description     String
-  priority        TicketPriority
-  status          TicketStatus     @default(OPEN)
-  departmentId    String           @map("department_id")
-  submittedBy     String           @map("submitted_by")
-  agentId         String?          @map("agent_id")
-  active          Boolean          @default(true)
-  completionNotes String?          @map("completion_notes")
-  createdAt       DateTime         @default(now()) @map("created_at")
-  updatedAt       DateTime         @updatedAt @map("updated_at")
-  closedAt        DateTime?        @map("closed_at")
-  unclaimedSince  DateTime?        @map("unclaimed_since")
-  lastReminderAt  DateTime?        @map("last_reminder_at")
-  department      Department       @relation(fields: [departmentId], references: [departmentId])
-  submitter       User             @relation("TicketSubmitter", fields: [submittedBy], references: [userId])
-  agent           User?            @relation("TicketAgent", fields: [agentId], references: [userId])
-  events          TicketEvent[]
-  handoffs        HandoffRequest[]
-  chatMessages    ChatMessage[]
+  ticketId         String            @id @map("ticket_id")
+  ticketCode       String            @unique @map("ticket_code")
+  title            String
+  description      String
+  priority         String
+  status           TicketStatus      @default(OPEN)
+  departmentId     String            @map("department_id")
+  submittedBy      String            @map("submitted_by")
+  agentId          String?           @map("agent_id")
+  active           Boolean           @default(true)
+  completionNotes  String?           @map("completion_notes")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+  closedAt         DateTime?         @map("closed_at")
+  unclaimedSince   DateTime?         @map("unclaimed_since")
+  lastReminderAt   DateTime?         @map("last_reminder_at")
+  priorityConfig   Priority          @relation(fields: [priority], references: [code], onUpdate: Restrict, onDelete: Restrict)
+  department       Department        @relation(fields: [departmentId], references: [departmentId])
+  submitter        User              @relation("TicketSubmitter", fields: [submittedBy], references: [userId])
+  agent            User?             @relation("TicketAgent", fields: [agentId], references: [userId])
+  events           TicketEvent[]
+  handoffs         HandoffRequest[]
+  chatMessages     ChatMessage[]
   chatReadReceipts ChatReadReceipt[]
 
   @@index([submittedBy])
@@ -193,6 +208,7 @@ model ChatReadReceipt {
   ticketId   String   @map("ticket_id")
   userId     String   @map("user_id")
   lastReadAt DateTime @map("last_read_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
   ticket     Ticket   @relation(fields: [ticketId], references: [ticketId], onDelete: Restrict)
   user       User     @relation(fields: [userId], references: [userId], onDelete: Restrict)
 
@@ -271,6 +287,7 @@ model AuditLog {
   actorId    String?     @map("actor_id")
   details    Json
   createdAt  DateTime    @default(now()) @map("created_at")
+  updatedAt  DateTime    @updatedAt @map("updated_at")
   actor      User?       @relation(fields: [actorId], references: [userId], onDelete: SetNull)
 
   @@index([createdAt])

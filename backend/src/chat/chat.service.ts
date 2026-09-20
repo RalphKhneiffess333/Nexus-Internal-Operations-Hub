@@ -22,6 +22,7 @@ import { CreateChatMessageDto } from './dto/create-chat-message.dto';
 import { ChatMessagesQueryDto } from './dto/chat-query.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ChatPolicy } from './policies/chat.policy';
+import { sanitizePlainText } from '../common/sanitization/content-sanitizer';
 import {
   ChatRepository,
   type ChatInboxPage,
@@ -188,7 +189,7 @@ export class ChatService {
     actor: AuthenticatedRequestUser,
     files?: UploadedFileInput[],
   ): Promise<ChatMessageResponse> {
-    const content = dto.content?.trim() || null;
+    const content = dto.content ? sanitizePlainText(dto.content) || null : null;
     const storedFiles = await this.filesService.storeForUser(files, actor.userId);
     if (!content && storedFiles.length === 0) {
       await this.filesService.cleanup(storedFiles);

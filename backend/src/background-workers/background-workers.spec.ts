@@ -1,5 +1,5 @@
 import { describe, expect, it, jest } from '@jest/globals';
-import { TicketPriority, TicketStatus } from '@prisma/client';
+import { TicketStatus } from '@prisma/client';
 import { AuditLogsCleanupWorker } from './audit-logs-cleanup.worker';
 import { AuditLogsCleanupRepository } from './audit-logs-cleanup.repository';
 import { OrphanedFilesWorker } from './orphaned-files.worker';
@@ -21,7 +21,7 @@ describe('background workers', () => {
         ticketCode: 'TKT-0001',
         title: 'Laptop issue',
         departmentId: 'department-1',
-        priority: TicketPriority.HIGH,
+        priority: 'HIGH',
         unclaimedSince: new Date('2026-09-19T07:00:00.000Z'),
       },
     ];
@@ -34,11 +34,11 @@ describe('background workers', () => {
           .fn<() => Promise<{ count: number }>>()
           .mockResolvedValue({ count: 1 }),
       },
-      systemConfiguration: {
+      priority: {
         findMany: jest
-          .fn<() => Promise<Array<{ key: string; value: string }>>>()
+          .fn<() => Promise<Array<{ code: string; reminderIntervalMinutes: number }>>>()
           .mockResolvedValue([
-            { key: 'REMINDER_INTERVAL_HIGH_MINUTES', value: '240' },
+            { code: 'HIGH', reminderIntervalMinutes: 240 },
           ]),
       },
     };

@@ -10,6 +10,7 @@ import {
 } from '../../components/tickets/TicketForm'
 import { validateTicketFields } from '../../components/tickets/ticket-validation'
 import { useDepartments } from '../../features/departments/use-departments'
+import { usePriorities } from '../../features/priorities/use-priorities'
 import { useAuthentication } from '../../features/authentication/use-authentication'
 import { useOperationsSocket } from '../../features/realtime/use-operations-socket'
 import { canWorkTickets } from '../../features/tickets/ticket-types'
@@ -71,6 +72,12 @@ export function TicketDetailsPage() {
     error: departmentsError,
     reload: reloadDepartments,
   } = useDepartments()
+  const {
+    priorities,
+    loading: loadingPriorities,
+    error: prioritiesError,
+    reload: reloadPriorities,
+  } = usePriorities()
 
   const loadTicket = useCallback(async ({ silent = false } = {}) => {
     if (!silent) {
@@ -458,24 +465,22 @@ export function TicketDetailsPage() {
         <div className={`ticket-workspace${timelineOpen ? '' : ' timeline-hidden'}`}>
           <div className="ticket-workspace-main">
             {editing ? (
-              loadingDepartments ? (
-                <LoadingState>Loading departments...</LoadingState>
-              ) : departmentsError ? (
+              loadingDepartments || loadingPriorities ? (
+                <LoadingState>Loading ticket options...</LoadingState>
+              ) : departmentsError || prioritiesError ? (
                 <div className="banner error">
-                  <p>{departmentsError}</p>
-                  <button
-                    type="button"
-                    className="btn ghost"
-                    onClick={reloadDepartments}
-                  >
-                    Try again
-                  </button>
+                  <p>{departmentsError || prioritiesError}</p>
+                  <div className="form-actions">
+                    {departmentsError ? <button type="button" className="btn ghost" onClick={reloadDepartments}>Retry departments</button> : null}
+                    {prioritiesError ? <button type="button" className="btn ghost" onClick={reloadPriorities}>Retry priorities</button> : null}
+                  </div>
                 </div>
               ) : (
                 <TicketForm
                   key={`${ticket.ticketId}-edit`}
                   initialValues={ticket}
                   departments={departments}
+                  priorities={priorities}
                   submitLabel="Save changes"
                   submittingLabel="Saving..."
                   submitting={saving}
@@ -495,6 +500,7 @@ export function TicketDetailsPage() {
               <TicketDetails
                 ticket={ticket}
                 departments={departments}
+                priorities={priorities}
                 timelineOpen={timelineOpen}
                 attachments={ticketAttachments?.attachments}
                 downloadingAttachmentId={downloadingAttachmentId}

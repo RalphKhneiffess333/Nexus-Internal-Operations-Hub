@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { TicketPriority, TicketStatus } from '@prisma/client';
+import { TicketStatus } from '@prisma/client';
 import { signIn } from '../support/browser-auth';
 import {
   AGENT_ID,
@@ -20,7 +20,7 @@ test('golden path: employee submits, agent claims and closes, employee sees clos
   await fillTicketForm(page, {
     title: 'Golden path ticket',
     description: 'Track this request across employee and agent workflows.',
-    priority: TicketPriority.MODERATE,
+    priority: 'MODERATE',
     department: 'Information Technology',
   });
   const submitResponsePromise = page.waitForResponse(

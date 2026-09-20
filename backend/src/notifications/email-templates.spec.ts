@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
-import { TicketPriority, TicketStatus } from '@prisma/client';
+import { TicketStatus } from '@prisma/client';
 import {
   ticketClosedTemplate,
   ticketSubmittedTemplate,
@@ -10,7 +10,7 @@ const context = {
   ticketCode: 'NEX-0001',
   title: '<script>alert("x")</script>',
   status: TicketStatus.OPEN,
-  priority: TicketPriority.HIGH,
+  priority: 'HIGH',
   departmentName: 'IT & Support',
   submitterName: 'Morgan',
   completionNotes: null,

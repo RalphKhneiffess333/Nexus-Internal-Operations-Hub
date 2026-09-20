@@ -5,6 +5,7 @@ import { TicketFilters } from '../../components/tickets/TicketFilters'
 import { LoadingState } from '../../components/ui/LoadingState'
 import { useAuthentication } from '../../features/authentication/use-authentication'
 import { useDepartments } from '../../features/departments/use-departments'
+import { usePriorities } from '../../features/priorities/use-priorities'
 import {
   getTickets,
 } from '../../features/tickets/ticket-api'
@@ -128,6 +129,7 @@ export function TicketsPage({ view = 'submitted' }) {
   const [loadedRequestKey, setLoadedRequestKey] = useState(null)
   const [error, setError] = useState('')
   const { departments } = useDepartments(isAgentDepartmentView ? 'mine' : 'all')
+  const { priorities } = usePriorities()
   const isLoading = loading || loadedRequestKey !== loadKey
   const filterDepartments = departments
 
@@ -258,6 +260,7 @@ export function TicketsPage({ view = 'submitted' }) {
 
       <TicketFilters
         departments={filterDepartments}
+        priorities={priorities}
         filters={{ search: searchFilter, status: appliedStatusFilter, departmentId: departmentFilter, priority: priorityFilter }}
         onChange={updateFilter}
         showStatus={!hideStatusFilter}
@@ -294,7 +297,7 @@ export function TicketsPage({ view = 'submitted' }) {
       ) : null}
 
       {!isLoading && !error && tickets.length > 0 ? (
-          <TicketList tickets={tickets} departments={departments} />
+          <TicketList tickets={tickets} departments={departments} priorities={priorities} />
       ) : null}
       {!isLoading && !error && (page > 1 || hasMore) ? <div className="admin-pagination" aria-label="Ticket pages"><button type="button" className="btn ghost" disabled={page === 1} onClick={() => setPage(page - 1)}>Previous</button><span>Page {page}</span><button type="button" className="btn ghost" disabled={!hasMore} onClick={() => setPage(page + 1)}>Next</button></div> : null}
     </section>

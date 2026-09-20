@@ -10,11 +10,12 @@ import {
   Max,
   Min,
 } from 'class-validator';
+import { sanitizePlainText } from '../../common/sanitization/content-sanitizer';
 
 export class CreateHandoffDto {
   @IsString()
   @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim() : value,
+    typeof value === 'string' ? sanitizePlainText(value) : value,
   )
   @IsNotEmpty()
   @Length(1, 100)
@@ -23,7 +24,7 @@ export class CreateHandoffDto {
   @IsOptional()
   @IsString()
   @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim() : value,
+    typeof value === 'string' ? sanitizePlainText(value) : value,
   )
   @IsNotEmpty()
   @Length(1, 1000)

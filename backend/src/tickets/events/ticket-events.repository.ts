@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
-import { Prisma, TicketEventAction, TicketPriority } from '@prisma/client';
+import { Prisma, TicketEventAction } from '@prisma/client';
 import { mapPrismaError } from '../../database/prisma-error';
 import { PrismaService } from '../../database/prisma.service';
 import type { TicketPersistenceClient } from '../repositories/tickets.repository';
@@ -476,12 +476,12 @@ export class TicketEventsRepository {
   private ticketPriorityDetail(
     details: Record<string, unknown>,
     key: string,
-  ): TicketPriority {
+  ): string {
     const value = this.stringDetail(details, key);
-    if (!['LOW', 'MODERATE', 'HIGH'].includes(value)) {
+    if (value.length === 0 || value.length > 40) {
       throw new InternalServerErrorException('Ticket event details are invalid');
     }
-    return value as TicketPriority;
+    return value;
   }
 
   private handoffActionDetail(

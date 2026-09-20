@@ -1,5 +1,4 @@
 import { expect, test } from '@playwright/test';
-import { TicketPriority } from '@prisma/client';
 import { signIn } from '../support/browser-auth';
 import {
   AGENT_ID,
@@ -23,7 +22,7 @@ test('participants send a ticket chat message and closed tickets become read-onl
   const ticket = await createTicketViaApi(request, EMPLOYEE_ID, {
     title: 'Chat panel workflow',
     description: 'Verify the ticket conversation.',
-    priority: TicketPriority.LOW,
+    priority: 'LOW',
     departmentId: IT_DEPARTMENT_ID,
   });
   await claimTicketViaApi(request, AGENT_ID, ticket.ticketId);
@@ -47,7 +46,7 @@ test('a claim immediately makes the visible employee chat writable', async ({
   const ticket = await createTicketViaApi(request, EMPLOYEE_ID, {
     title: 'Claim chat synchronization',
     description: 'The chat should become available without a refresh.',
-    priority: TicketPriority.MODERATE,
+    priority: 'MODERATE',
     departmentId: IT_DEPARTMENT_ID,
   });
 

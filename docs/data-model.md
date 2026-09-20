@@ -16,7 +16,10 @@ Regarding Nexus operations, some major data objects were involved:
 
 ## Detailed Database Tables
 This section discusses the detailed attributes and required tables for each entity.
-Each table requires a unique ID and timestamp tracking (created_at) attributes.
+Each table requires a unique ID and timestamp tracking (`created_at` and
+`updated_at`) attributes. `updated_at` is automatically refreshed whenever a
+record changes; append-only audit records still carry the field for consistent
+table shape, although normal updates are prohibited.
 ### User Related Tables
 #### Users Table
 The main user entity table our app will use to manage users and permissions, every user has:
@@ -43,11 +46,21 @@ Maps user accounts to departments, every mapping has:
 - A user account
 - A department
 
+### Priority Related Tables
+#### Priorities Table
+Stores the priorities that administrators make available to ticket submitters.
+Each priority has:
+- A stable unique code used by ticket records and APIs
+- A display name
+- A reminder interval in minutes for unclaimed tickets
+- An active flag; deactivation is used instead of deleting a priority that may
+  already be referenced by historical tickets
+
 ### Ticket Related Tables
 #### Tickets Table
 This table represents the current state of tickets, every ticket has:
 - A human readable unique ID to simplify app usage
-- Attributes like title and priority (LOW, MODERATE, HIGH)
+- Attributes like title and a priority code referencing the Priorities table
 - A status (OPEN, CLAIMED, CLOSED, REOPENED)
 - The department it belongs to
 - The employee who submitted it
@@ -82,7 +95,7 @@ Every event has:
 This table stores the exchanged chat messages between employees and agents, every chat message has:
 - The ticket its thread belongs in
 - A sender
-- The chat message content
+- The chat message content, stored as plain text after HTML/content sanitization
 
 ### File Attachments Related Tables
 #### Files table
@@ -110,7 +123,9 @@ every log has:
 The audit retention worker is the only supported deletion path. Database enforcement rejects updates and rejects deletes unless the record is older than two years and the controlled cleanup transaction has enabled the retention-cleanup database setting.
 
 #### System Configurations
-Stores key-value pairs of values the system uses in its operations (like priority values reminder intervals), every pair has:
+Stores other key-value pairs used by system operations. Priority names and
+reminder intervals are stored in the Priorities table rather than as system
+configuration keys. Every pair has:
 - A key
 - A value
 - A description
@@ -120,6 +135,7 @@ Stores key-value pairs of values the system uses in its operations (like priorit
 | Identity Provider - User   | 1 : N  |  An identity provider can provide many user accounts, but each user only has one identity provider  |
 | User - Departments   | N : M   | Many users can belong to many departments, this is handled by the "Department Members" junction table   |
 | Department - Ticket | 1 : N | Many tickets can belong to only one department and one departments can receive many tickets |
+| Priority - Ticket | 1 : N | One priority can be assigned to many tickets; each ticket has one priority code |
 | User - Ticket (Submitter) | 1 : N | One user can submit many tickets but one ticket only has one submitter user|
 | User - Ticket (Agent) | 1 : N | One user can be an agent for many tickets but one ticket can either have 0..1 agent|
 | Ticket - handoff Request (Requester) | 1 : N | One user can request many handoffs but each handoff has only one requester|
@@ -135,8 +151,12 @@ Stores key-value pairs of values the system uses in its operations (like priorit
 ![Database Schema Diagram](./assets/Database%20Schema.png)
 
 NOTE: Every table additionally has:
-created_at: NOT NULL, DEFAULT CURRENT_TIMESTAMP
-updated_at: NOT NULL. DEFAULT CURRENT_TIMESTAMP
+`created_at`: NOT NULL, DEFAULT CURRENT_TIMESTAMP
+`updated_at`: NOT NULL, DEFAULT CURRENT_TIMESTAMP, refreshed on update by the
+application/ORM timestamp rule. This includes Identity Providers, Users,
+Departments, Department Members, Priorities, Tickets, Ticket Events, Chat
+Messages, Chat Read Receipts, Handoff Requests, Files, Attachments, System
+Configurations, and Audit Logs.
 
 ## Log Details
 This section focuses on the different log events for both Audit Log and Ticket Events table along with their corresponding detail JSON structure.
@@ -145,7 +165,7 @@ The following are the available ticket events stored in the "actions" attribute 
 #### SUBMISSION
 - title
 - target department
-- priority level: LOW, MODERATE, HIGH
+- priority code
 - description
 - submitter ID (linked to Users table)
 
@@ -158,7 +178,7 @@ The following are the available ticket events stored in the "actions" attribute 
 - Completion notes
 
 #### REOPEN
-- priority level: LOW, MODERATE, HIGH
+- priority code
 - description
 - submitter ID (linked to Users table)
 
@@ -170,8 +190,8 @@ The following are the available ticket events stored in the "actions" attribute 
 - new title
 - old target department
 - new target department
-- old priority level
-- new priority level
+- old priority code
+- new priority code
 - old description
 - new description
 
@@ -220,13 +240,20 @@ The following are system and user log types stored in the "actions" attribute of
 - Old Value
 - New Value
 
+#### PRIORITY_ADDITION / PRIORITY_MODIFICATION / PRIORITY_DELETION / PRIORITY_REACTIVATION
+- Priority ID and code
+- Priority name and reminder interval when applicable
+- Previous and resulting active state when applicable
+
 #### SYSTEM_LOG
 - Message
 
 ## Invariants
 ### Ticket Invariants
 - Every ticket has one target department
-- Ticket priorities must be LOW, MODERATE, HIGH
+- Every new or modified ticket priority must reference an active priority code
+- Priorities use non-negative reminder intervals and are deactivated rather
+  than physically deleted when historical tickets reference them
 - A ticket's lifecycle should flow in that order OPEN -> CLAIMED -> CLOSED -> REOPENED
 - OPEN, REOPENED, and CLOSED tickets must have no agent
 - The agent who claimed the ticket must belong to the department it was sent to
@@ -257,8 +284,9 @@ The following are system and user log types stored in the "actions" attribute of
 ### System Invariants
 - Audit logs and Ticket Event logs cannot be modified or deleted
 - Audit logs must remain available for two years
-- System variables cannot have two duplicate keys
-- For reminder notification intervals, it must not be negative
+- System configuration variables cannot have two duplicate keys
+- Priority codes cannot be duplicated
+- Priority reminder intervals must not be negative
 - A ticket in OPEN or REOPENED status without an agent has an `unclaimed_since` timestamp. It has no unclaimed timestamp while CLAIMED, CLOSED, or inactive.
 - `last_reminder_at` is reset when a ticket is submitted or reopened and is set when the reminder for that unclaimed lifecycle is claimed for delivery.
 
@@ -297,6 +325,7 @@ Outside of primary keys which are automatically indexed, we have several other i
 | Tickets   | submitter_id  |  Used for optimizing ticket search queries to get all tickets owned by a user  |
 | Tickets   | department_id  |  Used for optimizing department specific ticket search queries  |
 | Tickets   | agent_id  |  Used for optimizing ticket search queries to get all tickets claimed by an agent  |
+| Priorities | active |  Optimizes loading selectable active priorities and reminder configuration |
 | Tickets   | (department_id, status, created_at)  |  Used for optimizing ticket pool search queries for specific departments in order |
 | Ticket_Events   | (ticket_id, created_at)  |  Optimizes ticket history timeline queries |
 | Ticket_Events   | (created_at)  |  Optimizes queries to find all ticket events in chronological order |
@@ -313,7 +342,7 @@ Outside of primary keys which are automatically indexed, we have several other i
 
 Nexus relies on database transactions to preserve data integrity when an operation requires multiple related database changes. An operation that modifies the state of a ticket and its corresponding history, handoff, or other records must either complete all required changes successfully or have all changes rolled back.
 
-This is particularly important because several Nexus operations modify multiple entities at once. For example, claiming a ticket requires updating the ticket's status and assigned agent while also creating a corresponding ticket event and audit log. These operations should occur within the same database transaction so that a partial failure cannot leave the system in an inconsistent state.
+This is particularly important because several Nexus operations modify multiple entities at once. For example, claiming a ticket requires updating the ticket's status and assigned agent while also creating a corresponding ticket event. These operations should occur within the same database transaction so that a partial failure cannot leave the system in an inconsistent state.
 Here's a transaction example covering ticket submissions:: 
 - Create the ticket with its initial OPEN status.
 - Create the corresponding SUBMISSION ticket event.

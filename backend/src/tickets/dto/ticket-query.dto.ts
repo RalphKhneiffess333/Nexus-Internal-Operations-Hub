@@ -1,4 +1,4 @@
-import { TicketPriority, TicketStatus } from '@prisma/client';
+import { TicketStatus } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
@@ -59,8 +59,12 @@ export class TicketQueryDto {
   departmentId?: string;
 
   @IsOptional()
-  @IsEnum(TicketPriority)
-  priority?: TicketPriority;
+  @IsString()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @Length(1, 40)
+  priority?: string;
 
   @IsOptional()
   @Transform(({ value }: { value: unknown }) => {

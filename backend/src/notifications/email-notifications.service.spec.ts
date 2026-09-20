@@ -1,5 +1,5 @@
 import { describe, expect, it, jest } from '@jest/globals';
-import { TicketPriority, TicketStatus, UserRole } from '@prisma/client';
+import { TicketStatus, UserRole } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import type { EmailProvider } from './email-provider';
 import { EmailNotificationsService } from './email-notifications.service';
@@ -20,7 +20,7 @@ function ticket() {
     ticketCode: 'NEX-0001',
     title: 'Printer issue',
     status: TicketStatus.OPEN,
-    priority: TicketPriority.MODERATE,
+    priority: 'MODERATE',
     completionNotes: null,
     submitter,
     agent: null,

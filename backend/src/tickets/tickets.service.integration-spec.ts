@@ -1,6 +1,6 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { describe, it, beforeEach, afterEach, expect } from '@jest/globals';
-import { TicketPriority, TicketStatus } from '@prisma/client';
+import { TicketStatus } from '@prisma/client';
 import { TicketsService } from './tickets.service';
 import {
   AGENT_ID,
@@ -63,7 +63,7 @@ describe('TicketsService integration', () => {
       {
         title: 'VPN access request',
         description: 'Need VPN for remote work',
-        priority: TicketPriority.LOW,
+        priority: 'LOW',
         departmentId: HR_DEPARTMENT_ID,
       },
       requestUser(),
@@ -71,7 +71,7 @@ describe('TicketsService integration', () => {
 
     expect(updated.title).toBe('VPN access request');
     expect(updated.description).toBe('Need VPN for remote work');
-    expect(updated.priority).toBe(TicketPriority.LOW);
+    expect(updated.priority).toBe('LOW');
     expect(updated.departmentId).toBe(HR_DEPARTMENT_ID);
     expect(updated.status).toBe(TicketStatus.OPEN);
   });

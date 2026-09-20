@@ -86,6 +86,31 @@ export function getAdminActivity(params = {}) {
   return apiRequest(`/admin/audit-logs/activity${query.toString() ? `?${query}` : ''}`)
 }
 
+export function getAdminPriorities() {
+  return apiRequest('/admin/priorities')
+}
+
+export function createAdminPriority(data) {
+  return apiRequest('/admin/priorities', { method: 'POST', body: data })
+}
+
+export function updateAdminPriority(priorityId, data) {
+  return apiRequest(`/admin/priorities/${priorityId}`, {
+    method: 'PATCH',
+    body: data,
+  })
+}
+
+export function deactivateAdminPriority(priorityId) {
+  return apiRequest(`/admin/priorities/${priorityId}`, { method: 'DELETE' })
+}
+
+export function reactivateAdminPriority(priorityId) {
+  return apiRequest(`/admin/priorities/${priorityId}/reactivate`, {
+    method: 'POST',
+  })
+}
+
 export function getAdminDepartmentMembers(departmentId, params = {}) {
   const query = new URLSearchParams()
   Object.entries(params).forEach(([key, value]) => {

@@ -9,6 +9,7 @@ import {
   openChatAttachment,
 } from '../../features/tickets/ticket-api'
 import { useOperationsSocket } from '../../features/realtime/use-operations-socket'
+import { sanitizePlainText } from '../../lib/content/sanitize'
 
 function sortMessages(messages) {
   return [...messages].sort((left, right) => {
@@ -76,8 +77,8 @@ export function TicketChatPanel({
 
   useEffect(() => {
     // Reset paginated history when the selected ticket changes.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     messagePageRef.current = 1
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMessagePage(1)
     setHasMoreMessages(false)
     setMessages([])
@@ -116,12 +117,13 @@ export function TicketChatPanel({
 
   async function handleSend(event) {
     event.preventDefault()
-    if (sending || (!content.trim() && files.length === 0)) return
+    const sanitizedContent = sanitizePlainText(content)
+    if (sending || (!sanitizedContent && files.length === 0)) return
 
     setSending(true)
     setSendError('')
     try {
-      const created = await createChatMessage(ticket.ticketId, content.trim(), files)
+      const created = await createChatMessage(ticket.ticketId, sanitizedContent, files)
       shouldFollowLatestRef.current = true
       setMessages((current) => mergeMessages(current, [created]))
       setContent('')

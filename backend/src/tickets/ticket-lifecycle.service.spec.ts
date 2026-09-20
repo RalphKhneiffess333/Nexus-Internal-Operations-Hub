@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import {
   Ticket,
   TicketEventAction,
-  TicketPriority,
   TicketStatus,
   UserRole,
 } from '@prisma/client';
@@ -18,6 +17,7 @@ import {
 } from '../database/seed';
 import type { AuthenticatedRequestUser } from '../authentication/request-user';
 import { DepartmentsRepository } from '../departments/repositories/departments.repository';
+import { PrioritiesRepository } from '../priorities/priorities.repository';
 import { FileAttachmentsRepository } from '../files/file-attachments.repository';
 import { FilesService } from '../files/files.service';
 import { CancelTicketPolicy } from './policies/cancel-ticket.policy';
@@ -55,6 +55,9 @@ describe('TicketLifecycleService invalid transitions', () => {
       DepartmentsRepository['findActiveDepartmentIdsByUserId']
     >;
   };
+  let prioritiesRepository: {
+    findByCode: jest.MockedFunction<PrioritiesRepository['findByCode']>;
+  };
   let filesService: {
     storeForUser: jest.MockedFunction<FilesService['storeForUser']>;
     cleanup: jest.MockedFunction<FilesService['cleanup']>;
@@ -86,6 +89,11 @@ describe('TicketLifecycleService invalid transitions', () => {
         .fn<DepartmentsRepository['findActiveDepartmentIdsByUserId']>()
         .mockResolvedValue([IT_DEPARTMENT_ID]),
     };
+    prioritiesRepository = {
+      findByCode: jest
+        .fn<PrioritiesRepository['findByCode']>()
+        .mockResolvedValue({ code: 'HIGH', active: true } as never),
+    };
     filesService = {
       storeForUser: jest
         .fn<FilesService['storeForUser']>()
@@ -111,6 +119,7 @@ describe('TicketLifecycleService invalid transitions', () => {
     service = new TicketLifecycleService(
       ticketLifecycleRepository as unknown as TicketLifecycleRepository,
       departmentsRepository as unknown as DepartmentsRepository,
+      prioritiesRepository as unknown as PrioritiesRepository,
       filesService as unknown as FilesService,
       fileAttachmentsRepository,
       new SubmitTicketPolicy(),
@@ -376,7 +385,7 @@ describe('TicketLifecycleService invalid transitions', () => {
       ticketCode: 'TKT-0001',
       title: 'Laptop will not start',
       description: 'The laptop stays on a black screen',
-      priority: TicketPriority.HIGH,
+      priority: 'HIGH',
       status: TicketStatus.OPEN,
       departmentId: IT_DEPARTMENT_ID,
       submittedBy: EMPLOYEE_ID,

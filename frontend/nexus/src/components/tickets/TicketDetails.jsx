@@ -1,14 +1,9 @@
 import { departmentLabel } from '../../features/departments/use-departments'
-import { formatDate, TicketPriority } from '../../features/tickets/ticket-types'
+import { formatDate } from '../../features/tickets/ticket-types'
+import { priorityLabel } from '../../features/priorities/use-priorities'
 import { TicketStatusBadge } from './TicketStatusBadge'
 import { TicketAttachments } from './TicketAttachments'
 import { UserLink } from '../users/UserLink'
-
-const PRIORITY_LABELS = {
-  [TicketPriority.LOW]: 'Low',
-  [TicketPriority.MODERATE]: 'Moderate',
-  [TicketPriority.HIGH]: 'High',
-}
 
 function DetailRow({ label, value, supplemental }) {
   if (
@@ -32,6 +27,7 @@ function DetailRow({ label, value, supplemental }) {
 export function TicketDetails({
   ticket,
   departments = [],
+  priorities = [],
   timelineOpen = true,
   onToggleTimeline,
   attachments = [],
@@ -72,7 +68,7 @@ export function TicketDetails({
         </div>
         <DetailRow
           label="Priority"
-          value={PRIORITY_LABELS[ticket.priority] ?? ticket.priority}
+          value={priorityLabel(ticket.priority, priorities)}
         />
         <DetailRow
           label="Department"

@@ -5,15 +5,18 @@ import { UserRole } from '../../features/tickets/ticket-types'
 import {
   addUserDepartment,
   createAdminDepartment,
+  createAdminPriority,
   createAdminUser,
   deactivateAdminDepartment,
-  getAdminConfigurations,
   getAdminDepartments,
+  getAdminPriorities,
   getAdminUsers,
+  deactivateAdminPriority,
+  reactivateAdminPriority,
   reactivateAdminDepartment,
   removeUserDepartment,
-  updateAdminConfiguration,
   updateAdminDepartment,
+  updateAdminPriority,
   updateAdminUserRole,
   updateAdminUserStatus,
 } from '../../features/administration/administration-api'
@@ -21,7 +24,7 @@ import {
 const sections = [
   { id: 'users', label: 'Users' },
   { id: 'departments', label: 'Departments' },
-  { id: 'configurations', label: 'Configuration' },
+  { id: 'priorities', label: 'Priorities' },
 ]
 
 function messageFor(error, fallback) {
@@ -35,7 +38,7 @@ export function ManagementPage() {
   const [userTotal, setUserTotal] = useState(0)
   const [departments, setDepartments] = useState([])
   const departmentOptionsLoaded = useRef(false)
-  const [configurations, setConfigurations] = useState([])
+  const [priorities, setPriorities] = useState([])
   const [selectedUserId, setSelectedUserId] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
@@ -74,8 +77,8 @@ export function ManagementPage() {
         setDepartments(departmentResult?.items ?? [])
         departmentOptionsLoaded.current = true
       } else {
-        const configurationResult = await getAdminConfigurations()
-        setConfigurations(configurationResult ?? [])
+        const priorityResult = await getAdminPriorities()
+        setPriorities(priorityResult ?? [])
       }
     } catch (loadError) {
       setError(messageFor(loadError, 'Unable to load management data.'))
@@ -135,7 +138,7 @@ export function ManagementPage() {
       {loading ? <LoadingState>Loading management data...</LoadingState> : null}
       {!loading && section === 'users' ? <UsersSection users={users} userPage={userPage} userTotal={userTotal} onUserPage={setUserPage} departments={departments} selectedUserId={selectedUserId} search={searchInput} onSearch={(value) => changeUserFilter(() => setSearchInput(value))} userStatus={userStatus} onUserStatus={(value) => changeUserFilter(() => setUserStatus(value))} userDepartmentId={userDepartmentId} onUserDepartment={(value) => changeUserFilter(() => setUserDepartmentId(value))} userHasLogged={userHasLogged} onUserHasLogged={(value) => changeUserFilter(() => setUserHasLogged(value))} onSelect={setSelectedUserId} showCreate={showCreateUser} setShowCreate={setShowCreateUser} runMutation={runMutation} /> : null}
       {!loading && section === 'departments' ? <DepartmentsSection departments={departments} runMutation={runMutation} /> : null}
-      {!loading && section === 'configurations' ? <ConfigurationsSection configurations={configurations} runMutation={runMutation} /> : null}
+      {!loading && section === 'priorities' ? <PrioritiesSection priorities={priorities} runMutation={runMutation} /> : null}
     </section>
   )
 }
@@ -277,14 +280,35 @@ function DepartmentCard({ department, onEdit, onDeactivate, runMutation }) {
   return <article className={`admin-card clay-card ${department.active ? '' : 'is-inactive'}`}><div className="admin-card-heading"><div><p className="eyebrow">{department.code}</p><h3 className="admin-card-title">{department.name}</h3></div><span className={`status-toggle ${department.active ? 'is-active' : ''}`}>{department.active ? 'Active' : 'Inactive'}</span></div><p>{department.desc}</p><p className="muted">{department._count?.members ?? 0} members · {department._count?.tickets ?? 0} tickets</p><div className="form-actions"><button type="button" className="btn ghost" onClick={onEdit}>Edit</button>{department.active ? <button type="button" className="btn danger" onClick={onDeactivate}>Deactivate</button> : <button type="button" className="btn primary" onClick={() => void runMutation(() => reactivateAdminDepartment(department.departmentId), 'Department reactivated.')}>Reactivate</button>}</div></article>
 }
 
-function ConfigurationsSection({ configurations, runMutation }) {
-  return <div className="admin-card-grid">{configurations.map((configuration) => <ConfigurationCard key={configuration.key} configuration={configuration} runMutation={runMutation} />)}</div>
+function PrioritiesSection({ priorities, runMutation }) {
+  const [priorityDialog, setPriorityDialog] = useState(null)
+  const [deactivation, setDeactivation] = useState(null)
+
+  async function deactivate() {
+    await runMutation(() => deactivateAdminPriority(deactivation.priorityId), 'Priority deactivated.')
+    setDeactivation(null)
+  }
+
+  return <div className="admin-section">
+    <div className="admin-toolbar"><div><p className="muted">Priorities control ticket routing labels and unclaimed-ticket reminder intervals.</p></div><button type="button" className="btn primary" onClick={() => setPriorityDialog({ priority: null })}>Add priority</button></div>
+    <div className="admin-card-grid">{priorities.map((priority) => <article key={priority.priorityId} className={`admin-card clay-card ${priority.active ? '' : 'is-inactive'}`}><div className="admin-card-heading"><div><p className="eyebrow">{priority.code}</p><h3 className="admin-card-title">{priority.name}</h3></div><span className={`status-toggle ${priority.active ? 'is-active' : ''}`}>{priority.active ? 'Active' : 'Inactive'}</span></div><p>Reminders every {priority.reminderIntervalMinutes} minutes.</p><div className="form-actions"><button type="button" className="btn ghost" onClick={() => setPriorityDialog({ priority })}>Edit</button>{priority.active ? <button type="button" className="btn danger" onClick={() => setDeactivation(priority)}>Deactivate</button> : <button type="button" className="btn primary" onClick={() => void runMutation(() => reactivateAdminPriority(priority.priorityId), 'Priority reactivated.')}>Reactivate</button>}</div></article>)}</div>
+    {!priorities.length ? <div className="empty-state"><h2>No priorities found</h2><p>Add a priority to make it available for new tickets.</p></div> : null}
+    {priorityDialog ? <AdminDialog title={priorityDialog.priority ? 'Edit priority' : 'Add priority'} description="Set the label and reminder interval used by tickets with this priority." onClose={() => setPriorityDialog(null)}><PriorityForm key={priorityDialog.priority?.priorityId ?? 'new'} priority={priorityDialog.priority} runMutation={runMutation} onDone={() => setPriorityDialog(null)} /></AdminDialog> : null}
+    {deactivation ? <ConfirmDialog title="Deactivate priority?" description={`${deactivation.name} will remain visible for historical tickets but cannot be selected for new or updated tickets.`} confirmLabel="Deactivate priority" danger onConfirm={deactivate} onClose={() => setDeactivation(null)} /> : null}
+  </div>
 }
 
-function ConfigurationCard({ configuration, runMutation }) {
-  const [value, setValue] = useState(configuration.value)
-  const title = configuration.key.toLowerCase().replaceAll('_', ' ').replace(/\b\w/g, (character) => character.toUpperCase())
-  return <article className="admin-card clay-card"><p className="eyebrow">Operational setting</p><h3 className="admin-card-title">{title}</h3><p>{configuration.description}</p><label className="field"><span>Minutes</span><input type="number" min="0" value={value} onChange={(event) => setValue(event.target.value)} /></label><button type="button" className="btn primary" onClick={() => void runMutation(() => updateAdminConfiguration(configuration.key, value), 'Configuration updated.')}>Save</button></article>
+function PriorityForm({ priority, runMutation, onDone }) {
+  const [form, setForm] = useState({ code: priority?.code ?? '', name: priority?.name ?? '', reminderIntervalMinutes: priority?.reminderIntervalMinutes ?? 240 })
+  function update(event) { setForm({ ...form, [event.target.name]: event.target.value }) }
+  async function submit(event) {
+    event.preventDefault()
+    const payload = { ...form, reminderIntervalMinutes: Number(form.reminderIntervalMinutes) }
+    const action = priority ? () => updateAdminPriority(priority.priorityId, { name: payload.name, reminderIntervalMinutes: payload.reminderIntervalMinutes }) : () => createAdminPriority(payload)
+    const saved = await runMutation(action, priority ? 'Priority updated.' : 'Priority created.')
+    if (saved) onDone()
+  }
+  return <form className="admin-form" onSubmit={submit}><div className="admin-form-grid"><label className="field"><span>Code</span><input name="code" required disabled={Boolean(priority)} value={form.code} onChange={update} /></label><label className="field"><span>Name</span><input name="name" required value={form.name} onChange={update} /></label><label className="field"><span>Reminder interval (minutes)</span><input name="reminderIntervalMinutes" type="number" min="0" required value={form.reminderIntervalMinutes} onChange={update} /></label></div><div className="form-actions"><button type="submit" className="btn primary">Save priority</button><button type="button" className="btn ghost" onClick={onDone}>Cancel</button></div></form>
 }
 
 function AdminDialog({ title, description, children, onClose, wide = false }) {

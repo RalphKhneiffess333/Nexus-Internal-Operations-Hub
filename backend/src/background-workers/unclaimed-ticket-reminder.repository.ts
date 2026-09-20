@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { TicketPriority, TicketStatus } from '@prisma/client';
+import { TicketStatus } from '@prisma/client';
 import { mapPrismaError } from '../database/prisma-error';
 import { PrismaService } from '../database/prisma.service';
 
@@ -8,13 +8,8 @@ export interface UnclaimedTicketCandidate {
   ticketCode: string;
   title: string;
   departmentId: string;
-  priority: TicketPriority;
+  priority: string;
   unclaimedSince: Date | null;
-}
-
-export interface TicketReminderConfiguration {
-  key: string;
-  value: string;
 }
 
 @Injectable()
@@ -69,13 +64,12 @@ export class UnclaimedTicketReminderRepository {
     }
   }
 
-  async findConfigurations(
-    keys: string[],
-  ): Promise<TicketReminderConfiguration[]> {
+  async findPriorityIntervals(codes: string[]) {
+    if (codes.length === 0) return [];
     try {
-      return await this.prisma.systemConfiguration.findMany({
-        where: { key: { in: keys } },
-        select: { key: true, value: true },
+      return await this.prisma.priority.findMany({
+        where: { code: { in: codes }, active: true },
+        select: { code: true, reminderIntervalMinutes: true },
       });
     } catch (error) {
       mapPrismaError(error);

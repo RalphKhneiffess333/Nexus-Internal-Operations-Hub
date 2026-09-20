@@ -11,6 +11,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { RealtimeModule } from './realtime/realtime.module';
 import { ChatModule } from './chat/chat.module';
 import { BackgroundWorkersModule } from './background-workers/background-workers.module';
+import { PrioritiesModule } from './priorities/priorities.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { BackgroundWorkersModule } from './background-workers/background-workers
     ChatModule,
     RealtimeModule,
     BackgroundWorkersModule,
+    PrioritiesModule,
   ],
 })
 export class AppModule {}

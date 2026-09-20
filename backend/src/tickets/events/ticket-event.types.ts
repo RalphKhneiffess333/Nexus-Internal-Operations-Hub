@@ -1,7 +1,6 @@
 import {
   TicketEvent,
   TicketEventAction,
-  TicketPriority,
   UserRole,
 } from '@prisma/client';
 import type { TicketEventAttachment } from '../../files/file-attachments.repository';
@@ -9,7 +8,7 @@ import type { TicketEventAttachment } from '../../files/file-attachments.reposit
 export interface SubmissionEventDetails {
   title: string;
   departmentId: string;
-  priority: TicketPriority;
+  priority: string;
   description: string;
   submitterId: string;
 }
@@ -25,7 +24,7 @@ export interface CloseEventDetails {
 }
 
 export interface ReopenEventDetails {
-  priority: TicketPriority;
+  priority: string;
   description: string;
   submitterId: string;
 }
@@ -39,8 +38,8 @@ export interface ModificationEventDetails {
   newTitle: string;
   oldDepartmentId: string;
   newDepartmentId: string;
-  oldPriority: TicketPriority;
-  newPriority: TicketPriority;
+  oldPriority: string;
+  newPriority: string;
   oldDescription: string;
   newDescription: string;
 }

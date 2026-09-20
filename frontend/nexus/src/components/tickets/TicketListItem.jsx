@@ -1,16 +1,11 @@
 import { Link, useLocation } from 'react-router-dom'
 import { departmentLabel } from '../../features/departments/use-departments'
-import { formatDate, TicketPriority } from '../../features/tickets/ticket-types'
+import { formatDate } from '../../features/tickets/ticket-types'
+import { priorityLabel } from '../../features/priorities/use-priorities'
 import { TicketStatusBadge } from './TicketStatusBadge'
 import { UserLink } from '../users/UserLink'
 
-const PRIORITY_LABELS = {
-  [TicketPriority.LOW]: 'Low',
-  [TicketPriority.MODERATE]: 'Moderate',
-  [TicketPriority.HIGH]: 'High',
-}
-
-export function TicketListItem({ ticket, departments = [] }) {
+export function TicketListItem({ ticket, departments = [], priorities = [] }) {
   const location = useLocation()
   const ticketLocation = `${location.pathname}${location.search}`
 
@@ -31,7 +26,7 @@ export function TicketListItem({ ticket, departments = [] }) {
         <dl className="ticket-row-meta">
           <div>
             <dt>Priority</dt>
-            <dd>{PRIORITY_LABELS[ticket.priority] ?? ticket.priority}</dd>
+            <dd>{priorityLabel(ticket.priority, priorities)}</dd>
           </div>
           <div>
             <dt>Department</dt>

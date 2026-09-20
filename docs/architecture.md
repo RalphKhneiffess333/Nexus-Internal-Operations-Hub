@@ -37,7 +37,7 @@ Nexus backend is divided into multiple modules, each module having its own funct
 
 ![Module Architecture](assets/Module%20Architecture.png)
 
-- User Module: Manages employee accounts info (name, email, phone number, etc...) and provides the necessary functions to view and edit them.
+- User Module: Manages employee accounts info (name, email, phone number, etc...) and provides the necessary functions to view them.
 
 - Authentication Strategy: Provides a baseline interface for authentication functions using identity providers such as logging in and session management, a strategy is used here for future proofing in case more identity providers were implemented in the app.
 
@@ -47,14 +47,14 @@ Nexus backend is divided into multiple modules, each module having its own funct
 Authorization is handled by: Role + Department + Resource Ownership + Resource State
 Example: An IT (Department) agent (Role) can close a ticket if he claimed it (Resource Ownership) and if the ticket has a "Claimed" status (Resource State).
 
-- Administration Module: Manages system configurations like configuring reminder periods, and managing departments and account linking to roles.
+- Administration Module: Manages departments, configurable priorities and their reminder periods, and account linking to roles.
 
 - Ticket Management Module: Core module responsible for request submission, automatic routing to department ticket pool, ticket claiming, status tracking (open, claimed, closed, reopened), modifications, deletions, closings with completion notes, reopenings, and ticket handoffs. This module enforces lifecycle validation rules for tickets, modifications and deletions for tickets are rejected if the ticket is anything other "Open".
 The authorization module provides the check for roles but not resources as resources are specific to their specialized modules.
 
 - Chat Module: Main module for ticket-specific chats between employees and agents, including managing file and message chats and locking on ticket closure. Chat viewing is authorized for the ticket submitter, all agents belonging to the ticket's department, and administrators; sending is limited to the ticket submitter and current assigned agent.
 
-- Notification Module: Responsible for sending email notifications on ticket submissions, status updates, chat messages, and reminder alerts for tickets unclaimed for durations past their configured time. 
+- Notification Module: Responsible for sending email notifications on ticket submissions, status updates, and reminder alerts for tickets unclaimed for durations past their configured time. 
 
 - Audit Module: Responsible for logging of all system actions. Audit logs must be stored for a minimum of two years. Immutability is enforced at the database level by prohibiting UPDATE and DELETE operations on the audit log table, additionally, a background worker periodically checks and deletes logs that have exceeded their 2 year timeline.
 
@@ -184,7 +184,6 @@ Some reliability practices require background processes for managing:
 
 #### Ticket Handoff Flow
 ![Ticket handoff Flow Diagram](./assets/Ticket%20Handoff%20Flow%20Diagram.png)
-Nexus should keep 
 
 ### Reliability Practices
 - Errors should be controlled and not crash the entire system

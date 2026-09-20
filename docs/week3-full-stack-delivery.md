@@ -253,7 +253,7 @@ The endpoint is implemented by [tickets.controller.ts](<../backend/src/tickets/t
 }
 ```
 
-Validation in [submit-ticket.dto.ts](<../backend/src/tickets/dto/submit-ticket.dto.ts>) requires non-empty strings for `title`, `description`, and `departmentId`, and requires `priority` to be `LOW`, `MODERATE`, or `HIGH`. The global pipe in [main.ts](<../backend/src/main.ts>) rejects unknown fields.
+Validation in [submit-ticket.dto.ts](<../backend/src/tickets/dto/submit-ticket.dto.ts>) requires non-empty strings for `title`, `description`, and `departmentId`, and requires `priority` to be a sanitized non-empty priority code. The lifecycle service resolves that code against the active priorities managed by administrators. The global pipe in [main.ts](<../backend/src/main.ts>) rejects unknown fields.
 
 **Success:** `201 Created`. The body contains the created ticket fields from [schema.prisma](<../backend/prisma/schema.prisma>), including `ticketId`, `ticketCode`, input values, `status: "OPEN"`, nested submitter/agent profiles, timestamps, and a `permissions` object.
 

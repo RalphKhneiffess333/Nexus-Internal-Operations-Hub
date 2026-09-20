@@ -55,7 +55,7 @@ The following assumptions are made for Nexus:
 
 ### Actors
 #### System Administrator
-The system administrator is responsible for handling Nexus's configurations, users and permissions. In short, the system administrator grants users certain permissions depending on their roles (Employee, Agent, Admin), configures Nexus's system variables (Departments, Reminder intervals, role mappings, user to department mappings), and has access to the system's history logs.
+The system administrator is responsible for handling Nexus's configurations, users and permissions. In short, the system administrator grants users certain permissions depending on their roles (Employee, Agent, Admin), configures departments, priorities and their reminder intervals, role mappings, user to department mappings, and has access to the system's history logs.
 Example 1: Upon first configuring Nexus, the administrator needs to map the user roles to their accounts.
 Example 2: A new Finance department has opened, the system administrator needs to add the "Finance" department option for the request target department.
 
@@ -94,11 +94,11 @@ Nexus must restrict access to functionality and request information based on the
 Nexus must allow the administrator to add and manage departments and link user accounts to departments.
 
 #### Request Submission
-Nexus must allow company employees (normal employees, agents and admins) to submit requests, requests sent are registered under their name and account information. Additionally, each request can be categorized by priority (Low, Moderate, High) and department (HR, IT, etc...).
+Nexus must allow company employees (normal employees, agents and admins) to submit requests, requests sent are registered under their name and account information. Additionally, each request can be categorized by an administrator-managed priority (with Low, Moderate, and High as the seeded defaults) and department (HR, IT, etc...).
 Each request has:
 - A title or a name
 - A target department or destination (HR, IT, ...)
-- A priority (Low, Moderate, High)
+- A priority selected from the active administrator-managed priority list
 - A description of the subject or notes section
 - File attachments for images, PDFs, and others (Optional)
 
@@ -160,7 +160,7 @@ Nexus must allow employees who have a claimed ticket to chat with their agent th
 Nexus must send notifications to the concerned party for every meaningful event. Nexus sends notifications as emails. Example: 
 - All department agents should receive a notification whenever a new ticket is opened
 - Employee should receive a notification whenever one of their ticket's status changes (Claimed or Closed).
-- Reminder notifications should be sent to department agents whenever a ticket has been hanging opened for more than 4 hours
+- Reminder notifications should be sent to department agents when an unclaimed ticket passes the reminder interval configured for its priority
 - Ticket events and new chat messages should be reflected to users in real-time
 
 #### Ticket Handoff

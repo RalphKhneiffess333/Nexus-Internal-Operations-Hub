@@ -18,27 +18,17 @@ import {
   UpdateConfigurationDto,
   UpdateDepartmentDto,
 } from './dto/admin.dto';
+import { CreatePriorityDto, UpdatePriorityDto } from './dto/priority.dto';
+import { PrioritiesRepository } from '../priorities/priorities.repository';
 
-const supportedConfiguration = new Map([
-  [
-    'REMINDER_INTERVAL_LOW_MINUTES',
-    'Reminder interval for LOW tickets in minutes',
-  ],
-  [
-    'REMINDER_INTERVAL_MODERATE_MINUTES',
-    'Reminder interval for MODERATE tickets in minutes',
-  ],
-  [
-    'REMINDER_INTERVAL_HIGH_MINUTES',
-    'Reminder interval for HIGH tickets in minutes',
-  ],
-]);
+const supportedConfiguration = new Map<string, string>();
 
 @Injectable()
 export class AdministrationService {
   constructor(
     private readonly administrationRepository: AdministrationRepository,
     private readonly auditService: AuditService,
+    private readonly prioritiesRepository: PrioritiesRepository,
   ) {}
 
   async listDepartments(query: PageQueryDto) {
@@ -209,6 +199,107 @@ export class AdministrationService {
       createdAt: configuration.createdAt,
       updatedAt: configuration.updatedAt,
     }));
+  }
+
+  listPriorities() {
+    return this.prioritiesRepository.list(false);
+  }
+
+  async createPriority(
+    dto: CreatePriorityDto,
+    actor: AuthenticatedRequestUser,
+  ) {
+    return this.administrationRepository
+      .transaction(async (tx) => {
+        const priority = await this.prioritiesRepository.create(
+          {
+            code: dto.code.trim().toUpperCase(),
+            name: dto.name.trim(),
+            reminderIntervalMinutes: dto.reminderIntervalMinutes,
+          },
+          tx,
+        );
+        await this.auditService.append(
+          tx,
+          actor.userId,
+          AuditAction.PRIORITY_ADDITION,
+          {
+            priorityId: priority.priorityId,
+            code: priority.code,
+            name: priority.name,
+            reminderIntervalMinutes: priority.reminderIntervalMinutes,
+          },
+        );
+        return priority;
+      })
+      .catch((error) => this.mapConflict(error));
+  }
+
+  async updatePriority(
+    priorityId: string,
+    dto: UpdatePriorityDto,
+    actor: AuthenticatedRequestUser,
+  ) {
+    return this.administrationRepository.transaction(async (tx) => {
+      const before = await this.prioritiesRepository.findById(priorityId, tx);
+      if (!before) throw new NotFoundException('Priority was not found');
+      const after = await this.prioritiesRepository.update(
+        priorityId,
+        {
+          ...(dto.name === undefined ? {} : { name: dto.name.trim() }),
+          ...(dto.reminderIntervalMinutes === undefined
+            ? {}
+            : { reminderIntervalMinutes: dto.reminderIntervalMinutes }),
+        },
+        tx,
+      );
+      await this.auditService.append(
+        tx,
+        actor.userId,
+        AuditAction.PRIORITY_MODIFICATION,
+        {
+          priorityId,
+          before: {
+            name: before.name,
+            reminderIntervalMinutes: before.reminderIntervalMinutes,
+          },
+          after: {
+            name: after.name,
+            reminderIntervalMinutes: after.reminderIntervalMinutes,
+          },
+        },
+      );
+      return after;
+    });
+  }
+
+  async setPriorityActive(
+    priorityId: string,
+    active: boolean,
+    actor: AuthenticatedRequestUser,
+  ) {
+    return this.administrationRepository.transaction(async (tx) => {
+      const before = await this.prioritiesRepository.findById(priorityId, tx);
+      if (!before) throw new NotFoundException('Priority was not found');
+      if (before.active === active) return before;
+      if (!active && (await this.prioritiesRepository.countActive(tx)) <= 1) {
+        throw new ConflictException('At least one priority must remain active');
+      }
+      const after = await this.prioritiesRepository.setActive(
+        priorityId,
+        active,
+        tx,
+      );
+      await this.auditService.append(
+        tx,
+        actor.userId,
+        active
+          ? AuditAction.PRIORITY_REACTIVATION
+          : AuditAction.PRIORITY_DELETION,
+        { priorityId, code: before.code, beforeActive: before.active, afterActive: active },
+      );
+      return after;
+    });
   }
 
   async updateConfiguration(

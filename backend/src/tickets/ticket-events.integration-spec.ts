@@ -16,7 +16,6 @@ import { promises as fs } from 'node:fs';
 import { resolve } from 'node:path';
 import {
   TicketEventAction,
-  TicketPriority,
   TicketStatus,
 } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
@@ -90,7 +89,7 @@ describe('Ticket events integration', () => {
       details: {
         title: 'Laptop will not start',
         departmentId: IT_DEPARTMENT_ID,
-        priority: TicketPriority.HIGH,
+        priority: 'HIGH',
         description: 'The laptop stays on a black screen',
         submitter: { userId: EMPLOYEE_ID },
       },
@@ -103,8 +102,8 @@ describe('Ticket events integration', () => {
         newTitle: 'Laptop power failure',
         oldDepartmentId: IT_DEPARTMENT_ID,
         newDepartmentId: HR_DEPARTMENT_ID,
-        oldPriority: TicketPriority.HIGH,
-        newPriority: TicketPriority.HIGH,
+        oldPriority: 'HIGH',
+        newPriority: 'HIGH',
         oldDescription: 'The laptop stays on a black screen',
         newDescription: 'The laptop stays on a black screen',
       },
@@ -129,7 +128,7 @@ describe('Ticket events integration', () => {
       user: { userId: EMPLOYEE_ID },
       action: TicketEventAction.REOPEN,
       details: {
-        priority: TicketPriority.HIGH,
+        priority: 'HIGH',
         description: 'The replacement adapter also failed',
         submitter: { userId: EMPLOYEE_ID },
       },

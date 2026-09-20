@@ -1,6 +1,5 @@
 import {
   TicketEventAction,
-  TicketPriority,
   TicketStatus,
 } from '@prisma/client';
 import {
@@ -22,7 +21,7 @@ test('submits, claims, closes, and reopens a ticket over HTTP', async ({
     data: {
       title: 'Badge access',
       description: 'Need building access',
-      priority: TicketPriority.MODERATE,
+      priority: 'MODERATE',
       departmentId: 'dept-it',
     },
   });
@@ -81,7 +80,7 @@ test('keeps tickets after the application restarts', async ({ e2e }) => {
     data: {
       title: 'Persistent ticket',
       description: 'Must survive a restart',
-      priority: TicketPriority.LOW,
+      priority: 'LOW',
       departmentId: 'dept-it',
     },
   });
@@ -106,7 +105,7 @@ test('rejects closing an OPEN ticket over HTTP', async ({ e2e }) => {
     data: {
       title: 'Email issue',
       description: 'Cannot send mail',
-      priority: TicketPriority.LOW,
+      priority: 'LOW',
       departmentId: 'dept-it',
     },
   });
@@ -131,7 +130,7 @@ test('rejects an admin claiming outside their department over HTTP', async ({
     data: {
       title: 'Benefits question',
       description: 'Need help with enrollment',
-      priority: TicketPriority.LOW,
+      priority: 'LOW',
       departmentId: 'dept-hr',
     },
   });
@@ -159,7 +158,7 @@ test('allows only one concurrent claim to succeed', async ({ e2e }) => {
     data: {
       title: 'Concurrent claim',
       description: 'Two agents try to claim at once',
-      priority: TicketPriority.HIGH,
+      priority: 'HIGH',
       departmentId: 'dept-it',
     },
   });
@@ -204,7 +203,7 @@ test('returns complete event details from ticket-owned history endpoints', async
     data: {
       title: 'Original title',
       description: 'Original description',
-      priority: TicketPriority.LOW,
+      priority: 'LOW',
       departmentId: 'dept-it',
     },
   });
@@ -213,7 +212,7 @@ test('returns complete event details from ticket-owned history endpoints', async
 
   const modifyResponse = await e2e.api.patch(`/tickets/${submitted.ticketId}`, {
     headers: { Cookie: e2e.sessionCookie(EMPLOYEE_ID) },
-    data: { title: 'Updated title', priority: TicketPriority.HIGH },
+    data: { title: 'Updated title', priority: 'HIGH' },
   });
   expect(modifyResponse.status()).toBe(200);
 
@@ -232,8 +231,8 @@ test('returns complete event details from ticket-owned history endpoints', async
     newTitle: 'Updated title',
     oldDepartmentId: 'dept-it',
     newDepartmentId: 'dept-it',
-    oldPriority: TicketPriority.LOW,
-    newPriority: TicketPriority.HIGH,
+    oldPriority: 'LOW',
+    newPriority: 'HIGH',
     oldDescription: 'Original description',
     newDescription: 'Original description',
   });
@@ -293,7 +292,7 @@ test('uploads and downloads attachments through ticket event endpoints', async (
       multipart: {
         title: 'VPN issue with evidence',
         description: 'The VPN client shows an error.',
-        priority: TicketPriority.HIGH,
+        priority: 'HIGH',
         departmentId: 'dept-it',
         files: {
           name: 'vpn-error.txt',

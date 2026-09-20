@@ -20,6 +20,7 @@ import {
   UpdateConfigurationDto,
   UpdateDepartmentDto,
 } from './dto/admin.dto';
+import { CreatePriorityDto, UpdatePriorityDto } from './dto/priority.dto';
 
 @Controller('admin')
 @Roles(UserRole.Admin)
@@ -53,6 +54,39 @@ export class AdministrationController {
     @Req() req: AuthenticatedRequest,
   ) {
     return this.administrationService.setDepartmentActive(id, true, req.user!);
+  }
+
+  @Get('priorities') listPriorities() {
+    return this.administrationService.listPriorities();
+  }
+
+  @Post('priorities') createPriority(
+    @Body() dto: CreatePriorityDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.administrationService.createPriority(dto, req.user!);
+  }
+
+  @Patch('priorities/:priorityId') updatePriority(
+    @Param('priorityId', IdentifierValidationPipe) id: string,
+    @Body() dto: UpdatePriorityDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.administrationService.updatePriority(id, dto, req.user!);
+  }
+
+  @Delete('priorities/:priorityId') deactivatePriority(
+    @Param('priorityId', IdentifierValidationPipe) id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.administrationService.setPriorityActive(id, false, req.user!);
+  }
+
+  @Post('priorities/:priorityId/reactivate') reactivatePriority(
+    @Param('priorityId', IdentifierValidationPipe) id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.administrationService.setPriorityActive(id, true, req.user!);
   }
   @Get('departments/:departmentId/members') listMembers(
     @Param('departmentId', IdentifierValidationPipe) id: string,

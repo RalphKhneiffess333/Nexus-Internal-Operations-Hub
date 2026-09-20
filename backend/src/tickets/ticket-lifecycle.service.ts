@@ -1,7 +1,9 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { TicketEventAction, TicketStatus, UserRole } from '@prisma/client';
 import type { AuthenticatedRequestUser } from '../authentication/request-user';
 import { DepartmentsRepository } from '../departments/repositories/departments.repository';
+import { PrioritiesRepository } from '../priorities/priorities.repository';
+import { sanitizePlainText } from '../common/sanitization/content-sanitizer';
 import {
   FileAttachmentsRepository,
   type StoredFileMetadata,
@@ -33,6 +35,7 @@ export class TicketLifecycleService {
   constructor(
     private readonly ticketLifecycleRepository: TicketLifecycleRepository,
     private readonly departmentsRepository: DepartmentsRepository,
+    private readonly prioritiesRepository: PrioritiesRepository,
     private readonly filesService: FilesService,
     private readonly fileAttachmentsRepository: FileAttachmentsRepository,
     private readonly submitTicketPolicy: SubmitTicketPolicy,
@@ -56,6 +59,11 @@ export class TicketLifecycleService {
       dto.departmentId,
     );
     this.submitTicketPolicy.assert(department, actor.role);
+    const priority = await this.prioritiesRepository.findByCode(dto.priority);
+    if (!priority?.active) throw new NotFoundException('Priority was not found');
+    const sanitizedTitle = sanitizePlainText(dto.title);
+    const sanitizedDescription = sanitizePlainText(dto.description);
+    const priorityCode = priority.code;
 
     const mutation = await this.withStoredFiles(
       files,
@@ -64,9 +72,9 @@ export class TicketLifecycleService {
         const now = new Date();
         return this.ticketLifecycleRepository.createWithEvent(
           {
-            title: dto.title,
-            description: dto.description,
-            priority: dto.priority,
+            title: sanitizedTitle,
+            description: sanitizedDescription,
+            priority: priorityCode,
             status: TicketStatus.OPEN,
             departmentId: dto.departmentId,
             submittedBy: actor.userId,
@@ -83,10 +91,10 @@ export class TicketLifecycleService {
             userId: actor.userId,
             action: TicketEventAction.SUBMISSION,
             details: {
-              title: dto.title,
+              title: sanitizedTitle,
               departmentId: dto.departmentId,
-              priority: dto.priority,
-              description: dto.description,
+              priority: priorityCode,
+              description: sanitizedDescription,
               submitterId: actor.userId,
             },
             createdAt: now,
@@ -192,12 +200,14 @@ export class TicketLifecycleService {
           ? [
               `This ticket was closed by administrator ${actor.fullName}.`,
               dto.completionNotes?.trim()
-                ? `Administrator's completion notes: ${dto.completionNotes.trim()}`
+                ? `Administrator's completion notes: ${sanitizePlainText(dto.completionNotes)}`
                 : null,
             ]
               .filter((note): note is string => Boolean(note))
               .join('\n')
-          : (dto.completionNotes ?? null);
+          : (dto.completionNotes
+              ? sanitizePlainText(dto.completionNotes)
+              : null);
         ticket.closedAt = now;
         ticket.updatedAt = now;
         return this.ticketLifecycleRepository.saveWithEvent(
@@ -258,7 +268,7 @@ export class TicketLifecycleService {
         ticket.lastReminderAt = null;
         ticket.closedAt = null;
         if (dto.description) {
-          ticket.description = dto.description;
+          ticket.description = sanitizePlainText(dto.description);
         }
         ticket.updatedAt = now;
         return this.ticketLifecycleRepository.saveWithEvent(
@@ -308,6 +318,15 @@ export class TicketLifecycleService {
       ? await this.departmentsRepository.findById(dto.departmentId)
       : null;
     this.modifyTicketPolicy.assert(ticket, actor, dto, department);
+    const priority = dto.priority
+      ? await this.prioritiesRepository.findByCode(dto.priority)
+      : null;
+    if (
+      dto.priority !== undefined &&
+      (!priority || (!priority.active && priority.code !== ticket.priority))
+    ) {
+      throw new NotFoundException('Priority was not found');
+    }
 
     const attachmentIdsToRemove = this.parseRemovedAttachmentIds(
       dto.removedAttachmentIds,
@@ -328,9 +347,10 @@ export class TicketLifecycleService {
     const oldDepartmentId = ticket.departmentId;
 
     if (dto.departmentId !== undefined) ticket.departmentId = dto.departmentId;
-    if (dto.title !== undefined) ticket.title = dto.title;
-    if (dto.description !== undefined) ticket.description = dto.description;
-    if (dto.priority !== undefined) ticket.priority = dto.priority;
+    if (dto.title !== undefined) ticket.title = sanitizePlainText(dto.title);
+    if (dto.description !== undefined)
+      ticket.description = sanitizePlainText(dto.description);
+    if (dto.priority !== undefined) ticket.priority = priority!.code;
 
     const changed =
       oldTitle !== ticket.title ||

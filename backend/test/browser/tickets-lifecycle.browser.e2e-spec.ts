@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { TicketPriority, TicketStatus } from '@prisma/client';
+import { TicketStatus } from '@prisma/client';
 import { signIn } from '../support/browser-auth';
 import {
   AGENT_ID,
@@ -25,7 +25,7 @@ test('employees reopen closed tickets with an updated description', async ({
   const ticket = await createTicketViaApi(request, EMPLOYEE_ID, {
     title: 'Door access',
     description: 'Cannot enter the office.',
-    priority: TicketPriority.MODERATE,
+    priority: 'MODERATE',
     departmentId: IT_DEPARTMENT_ID,
   });
   await claimTicketViaApi(request, AGENT_ID, ticket.ticketId);
@@ -70,7 +70,7 @@ test('employees edit a modifiable ticket and the saved values persist', async ({
   const ticket = await createTicketViaApi(request, EMPLOYEE_ID, {
     title: 'Old monitor request',
     description: 'The display flickers.',
-    priority: TicketPriority.LOW,
+    priority: 'LOW',
     departmentId: IT_DEPARTMENT_ID,
   });
 
@@ -80,7 +80,7 @@ test('employees edit a modifiable ticket and the saved values persist', async ({
   await fillTicketForm(page, {
     title: 'Updated monitor request',
     description: 'The display flickers and has color banding.',
-    priority: TicketPriority.HIGH,
+    priority: 'HIGH',
     department: 'Information Technology',
   });
   await page.getByRole('button', { name: 'Save changes' }).click();
@@ -98,7 +98,7 @@ test('employees edit a modifiable ticket and the saved values persist', async ({
   expect(stored.description).toBe(
     'The display flickers and has color banding.',
   );
-  expect(stored.priority).toBe(TicketPriority.HIGH);
+  expect(stored.priority).toBe('HIGH');
 });
 
 test('employees can dismiss and then confirm ticket cancellation', async ({
@@ -108,7 +108,7 @@ test('employees can dismiss and then confirm ticket cancellation', async ({
   const ticket = await createTicketViaApi(request, EMPLOYEE_ID, {
     title: 'Cancel this request',
     description: 'This request is no longer needed.',
-    priority: TicketPriority.LOW,
+    priority: 'LOW',
     departmentId: IT_DEPARTMENT_ID,
   });
 

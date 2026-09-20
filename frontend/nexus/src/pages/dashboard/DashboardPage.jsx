@@ -5,18 +5,12 @@ import { LoadingState } from '../../components/ui/LoadingState'
 import { getDashboardSummary } from '../../features/dashboard/dashboard-api'
 import {
   formatDateTime,
-  TicketPriority,
   TicketStatus,
   UserRole,
 } from '../../features/tickets/ticket-types'
 import { TicketStatusBadge } from '../../components/tickets/TicketStatusBadge'
 import { useAuthentication } from '../../features/authentication/use-authentication'
-
-const PRIORITY_LABELS = {
-  [TicketPriority.LOW]: 'Low',
-  [TicketPriority.MODERATE]: 'Moderate',
-  [TicketPriority.HIGH]: 'High',
-}
+import { usePriorities, priorityLabel } from '../../features/priorities/use-priorities'
 
 const ACTIVITY_LABELS = {
   SUBMISSION: 'Ticket submitted',
@@ -55,6 +49,7 @@ function sumStatuses(counts, statuses) {
 
 export function DashboardPage() {
   const { user } = useAuthentication()
+  const { priorities } = usePriorities()
   const [summary, setSummary] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -159,10 +154,11 @@ export function DashboardPage() {
         <AgentWorkspace
           work={summary?.work}
           departments={summary?.departments ?? []}
-          attentionTickets={attentionTickets}
+        attentionTickets={attentionTickets}
+        priorities={priorities}
         />
       ) : (
-        <EmployeeWorkspace tickets={summary?.myTickets?.recent ?? []} attentionTickets={attentionTickets} />
+        <EmployeeWorkspace tickets={summary?.myTickets?.recent ?? []} attentionTickets={attentionTickets} priorities={priorities} />
       )}
 
       {isAdmin ? <AdminActivity activity={summary?.administration?.recentActivity ?? []} /> : null}
@@ -185,7 +181,7 @@ function MetricCard({ label, value, tone }) {
   )
 }
 
-function EmployeeWorkspace({ tickets, attentionTickets }) {
+function EmployeeWorkspace({ tickets, attentionTickets, priorities }) {
   return (
     <section className="dashboard-section dashboard-content-grid">
       <div className="dashboard-panel clay-card">
@@ -193,14 +189,14 @@ function EmployeeWorkspace({ tickets, attentionTickets }) {
           <div><p className="eyebrow">Latest activity</p><h2>Recent requests</h2></div>
           <Link to="/tickets" className="dashboard-section-link">View all</Link>
         </div>
-        <TicketPreviewList tickets={tickets} emptyTitle="No requests yet" emptyText="Submit a ticket when you need help from an internal department." />
+        <TicketPreviewList tickets={tickets} priorities={priorities} emptyTitle="No requests yet" emptyText="Submit a ticket when you need help from an internal department." />
       </div>
-      <AttentionPanel tickets={attentionTickets} employee />
+      <AttentionPanel tickets={attentionTickets} priorities={priorities} employee />
     </section>
   )
 }
 
-function AgentWorkspace({ work, departments, attentionTickets }) {
+function AgentWorkspace({ work, departments, attentionTickets, priorities }) {
   const assignedTickets = work?.assigned?.recent ?? []
   const poolAttention = work?.pool?.attention ?? []
   const incoming = work?.handoffs?.incomingPending ?? 0
@@ -214,7 +210,7 @@ function AgentWorkspace({ work, departments, attentionTickets }) {
             <div><p className="eyebrow">Active work</p><h2>Assigned to me</h2></div>
             <Link to="/tickets?view=claimed" className="dashboard-section-link">View all</Link>
           </div>
-          <TicketPreviewList tickets={assignedTickets} emptyTitle="Your queue is clear" emptyText="Claim a request from one of your department pools to start working." />
+          <TicketPreviewList tickets={assignedTickets} priorities={priorities} emptyTitle="Your queue is clear" emptyText="Claim a request from one of your department pools to start working." />
         </div>
         <div className="dashboard-panel clay-card">
           <div className="dashboard-panel-heading">
@@ -236,7 +232,7 @@ function AgentWorkspace({ work, departments, attentionTickets }) {
       <section className="dashboard-section dashboard-utility-grid">
         <QuickStatusCard label="Incoming handoffs" value={incoming} description="Requests waiting for your response" to="/tickets/handoffs" tone="purple" />
         <QuickStatusCard label="Outgoing handoffs" value={outgoing} description="Proposals still awaiting a response" to="/tickets/handoffs" tone="peach" />
-        <AttentionPanel tickets={attentionTickets} ticketsFromPool={poolAttention} />
+        <AttentionPanel tickets={attentionTickets} ticketsFromPool={poolAttention} priorities={priorities} />
       </section>
     </>
   )
@@ -263,7 +259,7 @@ function AdminOverview({ administration }) {
   )
 }
 
-function AttentionPanel({ tickets, ticketsFromPool = [], employee = false }) {
+function AttentionPanel({ tickets, ticketsFromPool = [], employee = false, priorities = [] }) {
   const source = tickets.length ? tickets : ticketsFromPool
   return (
     <div className="dashboard-panel dashboard-attention clay-card">
@@ -272,7 +268,7 @@ function AttentionPanel({ tickets, ticketsFromPool = [], employee = false }) {
       </div>
       {source.length ? (
         <div className="dashboard-attention-list">
-          {source.map((ticket) => <DashboardTicketCard key={ticket.ticketId} ticket={ticket} compact />)}
+          {source.map((ticket) => <DashboardTicketCard key={ticket.ticketId} ticket={ticket} priorities={priorities} compact />)}
         </div>
       ) : (
         <div className="dashboard-clear-state"><span aria-hidden="true">✓</span><p>{employee ? 'Nothing needs your attention right now.' : 'No priority items in your current queues.'}</p></div>
@@ -285,14 +281,14 @@ function QuickStatusCard({ label, value, description, to, tone }) {
   return <Link to={to} className={`dashboard-utility-card dashboard-utility-${tone}`}><span>{label}</span><strong>{value}</strong><small>{description}</small><b aria-hidden="true">→</b></Link>
 }
 
-function TicketPreviewList({ tickets, emptyTitle, emptyText }) {
+function TicketPreviewList({ tickets, priorities = [], emptyTitle, emptyText }) {
   if (!tickets.length) {
     return <div className="dashboard-clear-state"><span aria-hidden="true">✓</span><div><strong>{emptyTitle}</strong><p>{emptyText}</p></div></div>
   }
-  return <div className="dashboard-ticket-list">{tickets.map((ticket) => <DashboardTicketCard key={ticket.ticketId} ticket={ticket} />)}</div>
+  return <div className="dashboard-ticket-list">{tickets.map((ticket) => <DashboardTicketCard key={ticket.ticketId} ticket={ticket} priorities={priorities} />)}</div>
 }
 
-function DashboardTicketCard({ ticket, compact = false }) {
+function DashboardTicketCard({ ticket, priorities = [], compact = false }) {
   return (
     <article className={`dashboard-ticket dashboard-ticket-${ticket.status?.toLowerCase() ?? 'unknown'} ${compact ? 'is-compact' : ''}`}>
       <Link className="dashboard-ticket-link" to={`/tickets/${ticket.ticketId}`} state={{ from: '/dashboard' }} aria-label={`View ticket ${ticket.title} ${ticket.ticketCode}`} />
@@ -305,7 +301,7 @@ function DashboardTicketCard({ ticket, compact = false }) {
         {!compact ? (
           <div className="dashboard-ticket-meta">
             <span>{ticket.department?.name ?? 'Department'}</span>
-            <span>{PRIORITY_LABELS[ticket.priority] ?? ticket.priority}</span>
+            <span>{priorityLabel(ticket.priority, priorities)}</span>
             <span>{formatDateTime(ticket.updatedAt)}</span>
           </div>
         ) : null}

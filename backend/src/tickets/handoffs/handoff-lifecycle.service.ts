@@ -19,6 +19,7 @@ import {
   HandoffResponseMapper,
 } from './handoff-response.mapper';
 import { HandoffsRepository, HandoffRecord } from './handoffs.repository';
+import { sanitizePlainText } from '../../common/sanitization/content-sanitizer';
 
 @Injectable()
 export class HandoffLifecycleService {
@@ -97,7 +98,7 @@ export class HandoffLifecycleService {
           requesterId: requester.userId,
           requestedAgentId: requestedAgent.userId,
           status: HandoffStatus.PENDING,
-          message: dto.message?.trim() || null,
+          message: dto.message ? sanitizePlainText(dto.message) || null : null,
           createdAt: now,
           updatedAt: now,
           resolvedAt: null,

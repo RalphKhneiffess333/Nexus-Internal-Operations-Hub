@@ -1,6 +1,5 @@
 import { expect } from '@playwright/test';
 import type { APIRequestContext, Page } from '@playwright/test';
-import { TicketPriority } from '@prisma/client';
 import { backendUrl, createSessionCookie } from './browser-auth';
 
 export async function createTicketViaApi(
@@ -9,7 +8,7 @@ export async function createTicketViaApi(
   data: {
     title: string;
     description: string;
-    priority: TicketPriority;
+    priority: string;
     departmentId: string;
   },
 ) {
@@ -70,7 +69,7 @@ export async function fillTicketForm(
   values: {
     title: string;
     description: string;
-    priority: TicketPriority;
+    priority: string;
     department: string;
   },
 ): Promise<void> {

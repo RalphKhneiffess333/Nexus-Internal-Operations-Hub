@@ -266,7 +266,7 @@ Every endpoint response has the same structure:
   "ticketCode": "TKT-0001",
   "title": "string",
   "description": "string",
-  "priority": "LOW | MODERATE | HIGH",
+  "priority": "priority code managed by the administrator",
   "status": "OPEN | CLAIMED | CLOSED | REOPENED",
   "departmentId": "string",
   "submittedBy": "string",

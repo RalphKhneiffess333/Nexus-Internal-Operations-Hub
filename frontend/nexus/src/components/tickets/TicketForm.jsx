@@ -1,16 +1,11 @@
 import { useState } from 'react'
-import { TicketPriority } from '../../features/tickets/ticket-types'
+import { sanitizePlainText } from '../../lib/content/sanitize'
 import { FilePicker } from './FilePicker'
-
-const PRIORITY_OPTIONS = [
-  { value: TicketPriority.LOW, label: 'Low' },
-  { value: TicketPriority.MODERATE, label: 'Moderate' },
-  { value: TicketPriority.HIGH, label: 'High' },
-]
 
 export function TicketForm({
   initialValues,
   departments = [],
+  priorities = [],
   submitLabel,
   submittingLabel,
   submitting,
@@ -26,6 +21,10 @@ export function TicketForm({
   const [removedAttachmentIds, setRemovedAttachmentIds] = useState([])
   const defaultDepartmentId =
     initialValues?.departmentId ?? departments[0]?.departmentId ?? ''
+  const currentInactivePriority = initialValues?.priority &&
+    !priorities.some((priority) => priority.code === initialValues.priority)
+    ? { code: initialValues.priority, name: `${initialValues.priority} (inactive)` }
+    : null
   return (
     <form
       className="ticket-form clay-card content-reveal"
@@ -33,8 +32,8 @@ export function TicketForm({
         event.preventDefault()
         const form = new FormData(event.currentTarget)
         onSubmit({
-          title: String(form.get('title') ?? '').trim(),
-          description: String(form.get('description') ?? '').trim(),
+          title: sanitizePlainText(form.get('title')),
+          description: sanitizePlainText(form.get('description')),
           priority: String(form.get('priority') ?? ''),
           departmentId: String(form.get('departmentId') ?? ''),
           submittedBy: includeSubmittedBy
@@ -75,12 +74,18 @@ export function TicketForm({
         <span>Priority</span>
         <select
           name="priority"
-          defaultValue={initialValues?.priority ?? TicketPriority.MODERATE}
+          defaultValue={initialValues?.priority ?? priorities[0]?.code ?? ''}
           required
         >
-          {PRIORITY_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
+          {priorities.length === 0 ? <option value="">No priorities available</option> : null}
+          {currentInactivePriority ? (
+            <option value={currentInactivePriority.code}>
+              {currentInactivePriority.name}
+            </option>
+          ) : null}
+          {priorities.map((priority) => (
+            <option key={priority.code} value={priority.code}>
+              {priority.name}
             </option>
           ))}
         </select>
@@ -166,7 +171,7 @@ export function TicketForm({
             Cancel
           </button>
         ) : null}
-        <button type="submit" className="btn primary" disabled={submitting || departments.length === 0}>
+        <button type="submit" className="btn primary" disabled={submitting || departments.length === 0 || priorities.length === 0}>
           {submitting ? submittingLabel : submitLabel}
         </button>
       </div>

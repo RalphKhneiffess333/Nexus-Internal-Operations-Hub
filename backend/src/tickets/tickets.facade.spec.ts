@@ -1,4 +1,4 @@
-import { TicketPriority, TicketStatus, UserRole } from '@prisma/client';
+import { TicketStatus, UserRole } from '@prisma/client';
 import { describe, expect, it, jest } from '@jest/globals';
 import type { AuthenticatedRequestUser } from '../authentication/request-user';
 import { TicketLifecycleService } from './ticket-lifecycle.service';
@@ -23,7 +23,7 @@ describe('TicketsService façade', () => {
       {
         ticketId: 'ticket-1',
         status: TicketStatus.OPEN,
-        priority: TicketPriority.HIGH,
+        priority: 'HIGH',
       },
     ];
     const list = jest

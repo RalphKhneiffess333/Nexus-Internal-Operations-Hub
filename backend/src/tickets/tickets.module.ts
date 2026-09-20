@@ -29,6 +29,7 @@ import { TicketNotificationService } from './ticket-notification.service';
 import { TicketAccessService } from './ticket-access.service';
 import { TicketQueryService } from './ticket-query.service';
 import { TicketLifecycleService } from './ticket-lifecycle.service';
+import { PrioritiesModule } from '../priorities/priorities.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { TicketLifecycleService } from './ticket-lifecycle.service';
     FilesModule,
     NotificationsModule,
     TicketEventsModule,
+    PrioritiesModule,
   ],
   controllers: [TicketsController, HandoffsController],
   providers: [

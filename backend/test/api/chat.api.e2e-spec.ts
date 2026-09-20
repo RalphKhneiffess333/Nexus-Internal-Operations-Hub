@@ -1,4 +1,3 @@
-import { TicketPriority } from '@prisma/client';
 import { AGENT_ID, EMPLOYEE_2_ID, EMPLOYEE_ID, expect, test } from '../support/api-app';
 
 test('persists chat messages only for claimed-ticket participants over HTTP', async ({ e2e }) => {
@@ -7,7 +6,7 @@ test('persists chat messages only for claimed-ticket participants over HTTP', as
     data: {
       title: 'Chat API ticket',
       description: 'Need a message thread.',
-      priority: TicketPriority.MODERATE,
+      priority: 'MODERATE',
       departmentId: 'dept-it',
     },
   });

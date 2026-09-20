@@ -3,7 +3,6 @@ import { Injectable } from '@nestjs/common';
 import {
   Prisma,
   TicketEventAction,
-  TicketPriority,
   TicketStatus,
   UserRole,
 } from '@prisma/client';
@@ -13,7 +12,7 @@ import { mapPrismaError } from '../../database/prisma-error';
 export interface CreateTicketInput {
   title: string;
   description: string;
-  priority: TicketPriority;
+  priority: string;
   status: TicketStatus;
   departmentId: string;
   submittedBy: string;
@@ -134,7 +133,7 @@ export interface TicketFilters {
   search?: string;
   status?: TicketStatus;
   departmentId?: string;
-  priority?: TicketPriority;
+  priority?: string;
   includeInactive?: boolean;
   page?: number;
   pageSize?: number;

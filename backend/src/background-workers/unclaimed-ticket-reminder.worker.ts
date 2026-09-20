@@ -1,14 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { TicketPriority } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
 import { EmailNotificationsService } from '../notifications/email-notifications.service';
 import { UnclaimedTicketReminderRepository } from './unclaimed-ticket-reminder.repository';
-
-const priorityConfigurationKeys: Record<TicketPriority, string> = {
-  [TicketPriority.LOW]: 'REMINDER_INTERVAL_LOW_MINUTES',
-  [TicketPriority.MODERATE]: 'REMINDER_INTERVAL_MODERATE_MINUTES',
-  [TicketPriority.HIGH]: 'REMINDER_INTERVAL_HIGH_MINUTES',
-};
 
 @Injectable()
 export class UnclaimedTicketReminderWorker {
@@ -21,11 +14,13 @@ export class UnclaimedTicketReminderWorker {
   ) {}
 
   async runOnce(now = new Date()): Promise<void> {
-    const intervals = await this.readIntervals();
     const candidates = await this.repository.findCandidates();
+    const intervals = await this.readIntervals(
+      [...new Set(candidates.map((ticket) => ticket.priority))],
+    );
 
     for (const ticket of candidates) {
-      const intervalMinutes = intervals[ticket.priority];
+      const intervalMinutes = intervals.get(ticket.priority) ?? 0;
       if (!intervalMinutes || !ticket.unclaimedSince) continue;
 
       const dueAt = new Date(
@@ -60,30 +55,14 @@ export class UnclaimedTicketReminderWorker {
     }
   }
 
-  private async readIntervals(): Promise<Record<TicketPriority, number>> {
-    const configurations = await this.repository.findConfigurations(
-      Object.values(priorityConfigurationKeys),
-    );
-    const values = new Map(
-      configurations.map((configuration) => [
-        configuration.key,
-        this.readNonNegativeInteger(configuration.value),
+  private async readIntervals(codes: string[]): Promise<Map<string, number>> {
+    const priorities = await this.repository.findPriorityIntervals(codes);
+    return new Map(
+      priorities.map((priority) => [
+        priority.code,
+        priority.reminderIntervalMinutes,
       ]),
     );
-
-    return {
-      [TicketPriority.LOW]:
-        values.get(priorityConfigurationKeys[TicketPriority.LOW]) ?? 0,
-      [TicketPriority.MODERATE]:
-        values.get(priorityConfigurationKeys[TicketPriority.MODERATE]) ?? 0,
-      [TicketPriority.HIGH]:
-        values.get(priorityConfigurationKeys[TicketPriority.HIGH]) ?? 0,
-    };
-  }
-
-  private readNonNegativeInteger(value: string): number {
-    const parsed = Number(value);
-    return Number.isInteger(parsed) && parsed >= 0 ? parsed : 0;
   }
 
   private describeError(error: unknown): string {

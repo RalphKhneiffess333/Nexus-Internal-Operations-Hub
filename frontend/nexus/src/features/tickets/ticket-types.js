@@ -5,12 +5,6 @@ export const TicketStatus = {
   REOPENED: 'REOPENED',
 }
 
-export const TicketPriority = {
-  LOW: 'LOW',
-  MODERATE: 'MODERATE',
-  HIGH: 'HIGH',
-}
-
 export const TicketEventAction = {
   SUBMISSION: 'SUBMISSION',
   CLAIM: 'CLAIM',
