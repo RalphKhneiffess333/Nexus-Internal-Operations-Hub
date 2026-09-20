@@ -9,6 +9,6 @@ import { TicketEventsModule } from '../tickets/events/ticket-events.module';
   imports: [DatabaseModule, TicketEventsModule],
   controllers: [AuditController],
   providers: [AuditService, AuditRepository],
-  exports: [AuditService],
+  exports: [AuditService, AuditRepository],
 })
 export class AuditModule {}

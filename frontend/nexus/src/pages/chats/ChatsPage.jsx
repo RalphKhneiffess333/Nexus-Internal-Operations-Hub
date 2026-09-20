@@ -16,6 +16,8 @@ function messagePreview(conversation) {
 export function ChatsPage() {
   const { markAllChatsRead } = useNotifications()
   const [conversations, setConversations] = useState([])
+  const [page, setPage] = useState(1)
+  const [hasMore, setHasMore] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -26,16 +28,18 @@ export function ChatsPage() {
       setError('')
     }
     try {
-      const result = await getChatConversations()
-      setConversations(Array.isArray(result) ? result : [])
+      const result = await getChatConversations({ page, pageSize: 50 })
+      setConversations(result?.items ?? [])
+      setHasMore(Boolean(result?.hasMore))
     } catch (loadError) {
       if (!silent) {
         setError(loadError.message || 'Unable to load your conversations.')
+        setHasMore(false)
       }
     } finally {
       if (!silent) setLoading(false)
     }
-  }, [markAllChatsRead])
+  }, [markAllChatsRead, page])
 
   useEffect(() => {
     // The inbox is synchronized from the server when this route is mounted.
@@ -59,7 +63,7 @@ export function ChatsPage() {
             Conversations are organized by ticket so every update stays in context.
           </p>
         </div>
-        <span className="chats-count" aria-label={`${conversations.length} ticket conversations`}>
+        <span className="chats-count" aria-label={`${conversations.length} ticket conversations on this page`}>
           {conversations.length}
         </span>
       </header>
@@ -110,6 +114,7 @@ export function ChatsPage() {
           ))}
         </ol>
       ) : null}
+      {!loading && !error && (page > 1 || hasMore) ? <div className="admin-pagination" aria-label="Chat pages"><button type="button" className="btn ghost" disabled={page === 1} onClick={() => setPage(page - 1)}>Previous</button><span>Page {page}</span><button type="button" className="btn ghost" disabled={!hasMore} onClick={() => setPage(page + 1)}>Next</button></div> : null}
     </section>
   )
 }

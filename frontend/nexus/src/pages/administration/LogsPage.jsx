@@ -1,8 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { LoadingState } from '../../components/ui/LoadingState'
 import { UserDetailsDialog } from '../../components/users/UserDetailsDialog'
-import { getAdminTicketEvents, getAuditLogs } from '../../features/administration/administration-api'
+import {
+  getAdminTicketEvent,
+  getAdminActivity,
+  getAuditLog,
+} from '../../features/administration/administration-api'
 import { getUser } from '../../features/users/users-api'
 import { formatDateTime } from '../../features/tickets/ticket-types'
 
@@ -36,10 +40,11 @@ const ticketActions = [
 
 export function LogsPage() {
   const [section, setSection] = useState('all')
-  const [auditLogs, setAuditLogs] = useState([])
-  const [ticketEvents, setTicketEvents] = useState([])
+  const [entries, setEntries] = useState([])
   const [action, setAction] = useState('')
   const [ticketAction, setTicketAction] = useState('')
+  const [page, setPage] = useState(1)
+  const [hasMore, setHasMore] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -47,18 +52,21 @@ export function LogsPage() {
     setLoading(true)
     setError('')
     try {
-      const [auditResult, ticketResult] = await Promise.all([
-        getAuditLogs({ page: 1, pageSize: 100, action }),
-        getAdminTicketEvents({ page: 1, pageSize: 100, action: ticketAction }),
-      ])
-      setAuditLogs(auditResult?.items ?? [])
-      setTicketEvents(ticketResult ?? [])
+      const result = await getAdminActivity({
+        page,
+        pageSize: 25,
+        source: section === 'all' ? 'all' : section === 'audit' ? 'audit' : 'ticket',
+        auditAction: action,
+        ticketAction,
+      })
+      setEntries(result?.items ?? [])
+      setHasMore(Boolean(result?.hasMore))
     } catch (loadError) {
       setError(loadError.message || 'Unable to load system history.')
     } finally {
       setLoading(false)
     }
-  }, [action, ticketAction])
+  }, [action, page, section, ticketAction])
 
   useEffect(() => {
     // This effect owns the async history synchronization for the selected filters.
@@ -66,19 +74,15 @@ export function LogsPage() {
     void loadLogs()
   }, [loadLogs])
 
-  const entries = useMemo(() => {
-    const audit = auditLogs.map((log) => ({ id: log.auditLogId, source: 'Audit log', action: log.action, createdAt: log.createdAt, actor: log.actor, details: log.details }))
-    const tickets = ticketEvents.map((event) => ({ id: event.ticketEventId, source: 'Ticket event', action: event.action, createdAt: event.createdAt, actor: event.user, ticketId: event.ticketId, details: event.details }))
-    if (section === 'audit') return audit
-    if (section === 'tickets') return tickets
-    return [...audit, ...tickets].sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt))
-  }, [auditLogs, ticketEvents, section])
-
-  return <section className="page administration-page"><header className="page-header"><div><p className="eyebrow">History</p><h1>Logs</h1><p className="page-description">Read-only administrative and ticket-domain history.</p></div></header>{error ? <div className="banner error"><p>{error}</p><button type="button" className="btn ghost" onClick={loadLogs}>Try again</button></div> : null}<div className="pool-switcher" role="tablist" aria-label="Log sections">{logSections.map((item) => <button key={item.id} type="button" role="tab" aria-selected={section === item.id} className={section === item.id ? 'is-active' : ''} onClick={() => setSection(item.id)}>{item.label}</button>)}</div><div className="log-filters">{section !== 'tickets' ? <label className="field admin-log-filter"><span>Audit action</span><select value={action} onChange={(event) => setAction(event.target.value)}><option value="">All audit actions</option>{auditActions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label> : null}{section !== 'audit' ? <label className="field admin-log-filter"><span>Ticket event</span><select value={ticketAction} onChange={(event) => setTicketAction(event.target.value)}><option value="">All ticket events</option>{ticketActions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label> : null}</div>{loading ? <LoadingState>Loading history...</LoadingState> : null}{!loading && !error ? <div className="log-list">{entries.map((entry) => <LogEntry key={`${entry.source}-${entry.id}`} entry={entry} />)}{entries.length === 0 ? <div className="empty-state clay-card"><h2>No history found</h2><p>There are no events matching these filters.</p></div> : null}</div> : null}</section>
+  return <section className="page administration-page"><header className="page-header"><div><p className="eyebrow">History</p><h1>Logs</h1><p className="page-description">Read-only administrative and ticket-domain history.</p></div></header>{error ? <div className="banner error"><p>{error}</p><button type="button" className="btn ghost" onClick={loadLogs}>Try again</button></div> : null}<div className="pool-switcher" role="tablist" aria-label="Log sections">{logSections.map((item) => <button key={item.id} type="button" role="tab" aria-selected={section === item.id} className={section === item.id ? 'is-active' : ''} onClick={() => { setPage(1); setSection(item.id) }}>{item.label}</button>)}</div><div className="log-filters">{section !== 'tickets' ? <label className="field admin-log-filter"><span>Audit action</span><select value={action} onChange={(event) => { setPage(1); setAction(event.target.value) }}><option value="">All audit actions</option>{auditActions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label> : null}{section !== 'audit' ? <label className="field admin-log-filter"><span>Ticket event</span><select value={ticketAction} onChange={(event) => { setPage(1); setTicketAction(event.target.value) }}><option value="">All ticket events</option>{ticketActions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label> : null}</div>{loading ? <LoadingState>Loading history...</LoadingState> : null}{!loading && !error ? <div className="log-list">{entries.map((entry) => <LogEntry key={`${entry.source}-${entry.id}`} entry={entry} />)}{entries.length === 0 ? <div className="empty-state clay-card"><h2>No history found</h2><p>There are no events matching these filters.</p></div> : null}</div> : null}{!loading && !error && (page > 1 || hasMore) ? <div className="admin-pagination" aria-label="History pages"><button type="button" className="btn ghost" disabled={page === 1} onClick={() => setPage(page - 1)}>Previous</button><span>Page {page}</span><button type="button" className="btn ghost" disabled={!hasMore} onClick={() => setPage(page + 1)}>Next</button></div> : null}</section>
 }
 
 function LogEntry({ entry }) {
   const [expanded, setExpanded] = useState(false)
+  const [details, setDetails] = useState(undefined)
+  const [detailsLoaded, setDetailsLoaded] = useState(false)
+  const [detailsLoading, setDetailsLoading] = useState(false)
+  const [detailsError, setDetailsError] = useState('')
   const [userDetails, setUserDetails] = useState(null)
   const [userLoading, setUserLoading] = useState(false)
   const [userError, setUserError] = useState('')
@@ -97,10 +101,33 @@ function LogEntry({ entry }) {
     }
   }
 
-  return <article className="log-entry clay-card"><div className="log-entry-row"><button type="button" className="log-entry-button" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}><span className="log-entry-source">{entry.source}</span><span className="log-entry-action">{formatLogAction(entry.action)}</span><span className="log-entry-actor">{entry.actor?.fullName || 'System'}</span><time>{formatDateTime(entry.createdAt)}</time></button><div className="log-entry-actions">{entry.ticketId ? <Link className="log-ticket-link" to={`/tickets/${entry.ticketId}`} state={{ from: '/admin/logs' }}>View ticket</Link> : null}{entry.actor ? <button type="button" className="log-user-link" onClick={() => void openUserDetails()} disabled={userLoading}>{userLoading ? 'Loading...' : 'View user'}</button> : null}</div></div>{expanded ? <LogDetails entry={entry} /> : null}{userDetails ? <UserDetailsDialog user={userDetails} error={userError} onClose={() => { setUserDetails(null); setUserError('') }} /> : null}</article>
+  async function toggleDetails() {
+    const nextExpanded = !expanded
+    setExpanded(nextExpanded)
+    if (!nextExpanded || detailsLoaded || detailsLoading) return
+
+    setDetailsLoading(true)
+    setDetailsError('')
+    try {
+      const result = entry.source === 'audit'
+        ? await getAuditLog(entry.id)
+        : await getAdminTicketEvent(entry.ticketId, entry.id)
+      setDetails(result?.details ?? null)
+      setDetailsLoaded(true)
+    } catch (loadError) {
+      setDetailsError(loadError.message || 'Unable to load event details.')
+    } finally {
+      setDetailsLoading(false)
+    }
+  }
+
+  return <article className="log-entry clay-card"><div className="log-entry-row"><button type="button" className="log-entry-button" aria-expanded={expanded} onClick={() => void toggleDetails()}><span className="log-entry-source">{entry.source === 'audit' ? 'Audit log' : 'Ticket event'}</span><span className="log-entry-action">{formatLogAction(entry.action)}</span><span className="log-entry-actor">{entry.actor?.fullName || 'System'}</span><time>{formatDateTime(entry.createdAt)}</time></button><div className="log-entry-actions">{entry.ticketId ? <Link className="log-ticket-link" to={`/tickets/${entry.ticketId}`} state={{ from: '/admin/logs' }}>View ticket</Link> : null}{entry.actor ? <button type="button" className="log-user-link" onClick={() => void openUserDetails()} disabled={userLoading}>{userLoading ? 'Loading...' : 'View user'}</button> : null}</div></div>{expanded ? <LogDetails entry={{ ...entry, details }} loading={detailsLoading} loaded={detailsLoaded} error={detailsError} /> : null}{userDetails ? <UserDetailsDialog user={userDetails} error={userError} onClose={() => { setUserDetails(null); setUserError('') }} /> : null}</article>
 }
 
-function LogDetails({ entry }) {
+function LogDetails({ entry, loading, loaded, error }) {
+  if (loading) return <div className="log-entry-details"><p className="muted">Loading event details…</p></div>
+  if (error) return <div className="log-entry-details"><p className="mapping-notice">{error}</p></div>
+  if (!loaded) return <div className="log-entry-details"><p className="muted">Loading event details…</p></div>
   const details = entry.details && typeof entry.details === 'object' ? Object.entries(entry.details).filter(([key]) => !isTechnicalIdentifier(key)) : []
   return <div className="log-entry-details"><div className="log-details-heading"><span>Event details</span><span>{formatLogAction(entry.action)}</span></div>{details.length ? <dl className="log-detail-list">{details.map(([key, value]) => <div className="log-detail-row" key={key}><dt>{humanizeKey(key)}</dt><dd><DetailValue value={value} /></dd></div>)}</dl> : <p className="muted">No additional details were recorded for this event.</p>}</div>
 }

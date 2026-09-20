@@ -8,10 +8,6 @@ export function getAdminUsers(params = {}) {
   return apiRequest(`/admin/users${query.toString() ? `?${query}` : ''}`)
 }
 
-export function getAdminUser(userId) {
-  return apiRequest(`/admin/users/${userId}`)
-}
-
 export function createAdminUser(data) {
   return apiRequest('/admin/users', { method: 'POST', body: data })
 }
@@ -82,18 +78,26 @@ export function updateAdminConfiguration(key, value) {
   })
 }
 
-export function getAuditLogs(params = {}) {
+export function getAdminActivity(params = {}) {
   const query = new URLSearchParams()
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== '') query.set(key, value)
   })
-  return apiRequest(`/admin/audit-logs${query.toString() ? `?${query}` : ''}`)
+  return apiRequest(`/admin/audit-logs/activity${query.toString() ? `?${query}` : ''}`)
 }
 
-export function getAdminTicketEvents(params = {}) {
+export function getAdminDepartmentMembers(departmentId, params = {}) {
   const query = new URLSearchParams()
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== '') query.set(key, value)
   })
-  return apiRequest(`/admin/audit-logs/ticket-events${query.toString() ? `?${query}` : ''}`)
+  return apiRequest(`/admin/departments/${departmentId}/members${query.toString() ? `?${query}` : ''}`)
+}
+
+export function getAuditLog(auditLogId) {
+  return apiRequest(`/admin/audit-logs/${auditLogId}`)
+}
+
+export function getAdminTicketEvent(ticketId, ticketEventId) {
+  return apiRequest(`/tickets/${ticketId}/events/${ticketEventId}`)
 }

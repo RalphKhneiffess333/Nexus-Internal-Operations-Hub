@@ -249,24 +249,14 @@ export function TicketTimeline({
   departments = [],
   onSelect,
   onRetry,
+  hasMore = false,
+  loadingMore = false,
+  onLoadMore,
   downloadingAttachmentId,
   onOpenAttachment,
   onDownloadAttachment,
 }) {
-  const visibleEvents = events.filter(
-    (event) =>
-      event.action !== TicketEventAction.HANDOFF ||
-      event.details?.action === 'ACCEPTED',
-  )
-  const orderedEvents = [...visibleEvents].sort((left, right) => {
-    const timestampDifference =
-      new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()
-
-    return (
-      timestampDifference ||
-      left.ticketEventId.localeCompare(right.ticketEventId)
-    )
-  })
+  const orderedEvents = events
 
   return (
     <aside
@@ -388,6 +378,11 @@ export function TicketTimeline({
               )
             })}
           </ol>
+        ) : null}
+        {!loading && !error && hasMore ? (
+          <button type="button" className="btn ghost" onClick={onLoadMore} disabled={loadingMore}>
+            {loadingMore ? 'Loading older activity…' : 'Load older activity'}
+          </button>
         ) : null}
       </div>
     </aside>

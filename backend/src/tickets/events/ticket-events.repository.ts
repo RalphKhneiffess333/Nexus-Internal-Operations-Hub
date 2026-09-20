@@ -39,8 +39,53 @@ const eventInclude = {
   },
 } satisfies Prisma.TicketEventInclude;
 
+const eventListSelect = {
+  ticketEventId: true,
+  ticketId: true,
+  action: true,
+  createdAt: true,
+  updatedAt: true,
+  user: { select: eventUserSelect },
+  ticket: {
+    select: {
+      ticketId: true,
+      ticketCode: true,
+      title: true,
+    },
+  },
+} satisfies Prisma.TicketEventSelect;
+
 type TicketEventWithUser = Prisma.TicketEventGetPayload<{
   include: typeof eventInclude;
+}>;
+
+export interface TicketEventSummary {
+  ticketEventId: string;
+  ticketId: string;
+  action: TicketEventAction;
+  createdAt: Date;
+  updatedAt: Date;
+  handoffAction?: string;
+  hasAttachments: boolean;
+}
+
+export interface TicketEventSummaryPage {
+  items: TicketEventSummary[];
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+}
+
+export interface TicketAttachmentSummary {
+  ticketEventId: string;
+  attachments: Array<{
+    attachmentId: string;
+    originalName: string;
+  }>;
+}
+
+export type TicketEventListRecord = Prisma.TicketEventGetPayload<{
+  select: typeof eventListSelect;
 }>;
 
 @Injectable()
@@ -85,20 +130,112 @@ export class TicketEventsRepository {
     }
   }
 
+  async findSummariesByTicketId(
+    ticketId: string,
+    page = 1,
+    pageSize = 50,
+  ): Promise<TicketEventSummaryPage> {
+    const safePageSize = Math.min(Math.max(pageSize, 1), 100);
+    try {
+      const events = await this.prisma.ticketEvent.findMany({
+        where: {
+          ticketId,
+          OR: [
+            { action: { not: TicketEventAction.HANDOFF } },
+            {
+              action: TicketEventAction.HANDOFF,
+              details: {
+                path: ['action'],
+                equals: 'ACCEPTED',
+              },
+            },
+          ],
+        },
+        orderBy: [{ createdAt: 'desc' }, { ticketEventId: 'desc' }],
+        skip: (Math.max(page, 1) - 1) * safePageSize,
+        take: safePageSize + 1,
+        select: {
+          ticketEventId: true,
+          ticketId: true,
+          action: true,
+          createdAt: true,
+          updatedAt: true,
+          _count: { select: { attachments: true } },
+        },
+      });
+
+      const hasMore = events.length > safePageSize;
+      const items = events.slice(0, safePageSize).reverse().map((event) => ({
+        ticketEventId: event.ticketEventId,
+        ticketId: event.ticketId,
+        action: event.action,
+        createdAt: event.createdAt,
+        updatedAt: event.updatedAt,
+        hasAttachments: event._count.attachments > 0,
+        ...(event.action === TicketEventAction.HANDOFF
+          ? { handoffAction: 'ACCEPTED' }
+          : {}),
+      }));
+      return {
+        items,
+        page: Math.max(page, 1),
+        pageSize: safePageSize,
+        hasMore,
+      };
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }
+
+  async findLatestAttachmentEventByTicketId(
+    ticketId: string,
+  ): Promise<TicketAttachmentSummary | null> {
+    try {
+      const event = await this.prisma.ticketEvent.findFirst({
+        where: {
+          ticketId,
+          attachments: { some: {} },
+        },
+        orderBy: [{ createdAt: 'desc' }, { ticketEventId: 'desc' }],
+        select: {
+          ticketEventId: true,
+          attachments: {
+            orderBy: { createdAt: 'asc' },
+            select: {
+              attachmentId: true,
+              file: { select: { originalName: true } },
+            },
+          },
+        },
+      });
+
+      return event
+        ? {
+            ticketEventId: event.ticketEventId,
+            attachments: event.attachments.map((attachment) => ({
+              attachmentId: attachment.attachmentId,
+              originalName: attachment.file.originalName,
+            })),
+          }
+        : null;
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }
+
   async findAll(
     skip = 0,
     take = 100,
     action?: TicketEventAction,
-  ): Promise<TicketEventRecord[]> {
+  ): Promise<TicketEventListRecord[]> {
     try {
-      const events = await this.prisma.ticketEvent.findMany({
+      return await this.prisma.ticketEvent.findMany({
         where: action ? { action } : undefined,
         orderBy: [{ createdAt: 'desc' }, { ticketEventId: 'desc' }],
         skip,
         take,
-        include: eventInclude,
+        select: eventListSelect,
       });
-      return this.withUserReferences(events);
     } catch (error) {
       mapPrismaError(error);
     }

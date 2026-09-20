@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { LoadingState } from '../../components/ui/LoadingState'
 import { UserLink } from '../../components/users/UserLink'
 import { UserRole } from '../../features/tickets/ticket-types'
@@ -31,7 +31,10 @@ function messageFor(error, fallback) {
 export function ManagementPage() {
   const [section, setSection] = useState('users')
   const [users, setUsers] = useState([])
+  const [userPage, setUserPage] = useState(1)
+  const [userTotal, setUserTotal] = useState(0)
   const [departments, setDepartments] = useState([])
+  const departmentOptionsLoaded = useRef(false)
   const [configurations, setConfigurations] = useState([])
   const [selectedUserId, setSelectedUserId] = useState('')
   const [searchInput, setSearchInput] = useState('')
@@ -50,22 +53,36 @@ export function ManagementPage() {
   }, [searchInput])
 
   const loadData = useCallback(async () => {
+    setLoading(true)
     setError('')
     try {
-      const [userResult, departmentResult, configurationResult] = await Promise.all([
-        getAdminUsers({ page: 1, pageSize: 100, search, status: userStatus, departmentId: userDepartmentId, hasLogged: userHasLogged }),
-        getAdminDepartments({ page: 1, pageSize: 100 }),
-        getAdminConfigurations(),
-      ])
-      setUsers(userResult?.items ?? [])
-      setDepartments(departmentResult?.items ?? [])
-      setConfigurations(configurationResult ?? [])
+      if (section === 'users') {
+        const [userResult, departmentResult] = await Promise.all([
+          getAdminUsers({ page: userPage, pageSize: 25, search, status: userStatus, departmentId: userDepartmentId, hasLogged: userHasLogged }),
+          departmentOptionsLoaded.current
+            ? Promise.resolve(null)
+            : getAdminDepartments({ page: 1, pageSize: 50 }),
+        ])
+        setUsers(userResult?.items ?? [])
+        setUserTotal(userResult?.total ?? 0)
+        if (departmentResult) {
+          setDepartments(departmentResult.items ?? [])
+          departmentOptionsLoaded.current = true
+        }
+      } else if (section === 'departments') {
+        const departmentResult = await getAdminDepartments({ page: 1, pageSize: 50 })
+        setDepartments(departmentResult?.items ?? [])
+        departmentOptionsLoaded.current = true
+      } else {
+        const configurationResult = await getAdminConfigurations()
+        setConfigurations(configurationResult ?? [])
+      }
     } catch (loadError) {
       setError(messageFor(loadError, 'Unable to load management data.'))
     } finally {
       setLoading(false)
     }
-  }, [search, userStatus, userDepartmentId, userHasLogged])
+  }, [section, userPage, search, userStatus, userDepartmentId, userHasLogged])
 
   useEffect(() => {
     // This effect owns the async data synchronization for the selected search.
@@ -85,6 +102,11 @@ export function ManagementPage() {
       setError(messageFor(mutationError, 'The change could not be saved.'))
       return false
     }
+  }
+
+  function changeUserFilter(update) {
+    setUserPage(1)
+    update()
   }
 
   return (
@@ -111,14 +133,14 @@ export function ManagementPage() {
       </div>
 
       {loading ? <LoadingState>Loading management data...</LoadingState> : null}
-      {!loading && section === 'users' ? <UsersSection users={users} departments={departments} selectedUserId={selectedUserId} search={searchInput} onSearch={setSearchInput} userStatus={userStatus} onUserStatus={setUserStatus} userDepartmentId={userDepartmentId} onUserDepartment={setUserDepartmentId} userHasLogged={userHasLogged} onUserHasLogged={setUserHasLogged} onSelect={setSelectedUserId} showCreate={showCreateUser} setShowCreate={setShowCreateUser} runMutation={runMutation} /> : null}
+      {!loading && section === 'users' ? <UsersSection users={users} userPage={userPage} userTotal={userTotal} onUserPage={setUserPage} departments={departments} selectedUserId={selectedUserId} search={searchInput} onSearch={(value) => changeUserFilter(() => setSearchInput(value))} userStatus={userStatus} onUserStatus={(value) => changeUserFilter(() => setUserStatus(value))} userDepartmentId={userDepartmentId} onUserDepartment={(value) => changeUserFilter(() => setUserDepartmentId(value))} userHasLogged={userHasLogged} onUserHasLogged={(value) => changeUserFilter(() => setUserHasLogged(value))} onSelect={setSelectedUserId} showCreate={showCreateUser} setShowCreate={setShowCreateUser} runMutation={runMutation} /> : null}
       {!loading && section === 'departments' ? <DepartmentsSection departments={departments} runMutation={runMutation} /> : null}
       {!loading && section === 'configurations' ? <ConfigurationsSection configurations={configurations} runMutation={runMutation} /> : null}
     </section>
   )
 }
 
-function UsersSection({ users, departments, selectedUserId, search, onSearch, userStatus, onUserStatus, userDepartmentId, onUserDepartment, userHasLogged, onUserHasLogged, onSelect, showCreate, setShowCreate, runMutation }) {
+function UsersSection({ users, userPage, userTotal, onUserPage, departments, selectedUserId, search, onSearch, userStatus, onUserStatus, userDepartmentId, onUserDepartment, userHasLogged, onUserHasLogged, onSelect, showCreate, setShowCreate, runMutation }) {
   const [pendingAction, setPendingAction] = useState(null)
   const [departmentUserId, setDepartmentUserId] = useState('')
   const departmentUser = users.find((user) => user.userId === departmentUserId) ?? null
@@ -166,6 +188,7 @@ function UsersSection({ users, departments, selectedUserId, search, onSearch, us
         </table>
         {users.length === 0 ? <div className="empty-state"><h2>No users found</h2><p>Try a different search or pre-provision a user.</p></div> : null}
       </div>
+      {userTotal > 25 ? <div className="admin-pagination" aria-label="User pages"><button type="button" className="btn ghost" disabled={userPage === 1} onClick={() => onUserPage(userPage - 1)}>Previous</button><span>Page {userPage} of {Math.ceil(userTotal / 25)}</span><button type="button" className="btn ghost" disabled={userPage >= Math.ceil(userTotal / 25)} onClick={() => onUserPage(userPage + 1)}>Next</button></div> : null}
       {departmentUser ? <AdminDialog title="Department mapping" description={`${departmentUser.fullName} · ${departmentUser.role}`} wide onClose={() => setDepartmentUserId('')}><UserDepartmentEditor user={departmentUser} departments={departments} runMutation={runMutation} /></AdminDialog> : null}
 
       {pendingAction ? (

@@ -60,7 +60,7 @@ export class UserAdministrationService {
       this.usersRepository.count(where),
     ]);
     return {
-      items: items.map((user) => this.userResponseMapper.toSafeResponse(user)),
+      items: items.map((user) => this.userResponseMapper.toListResponse(user)),
       page: query.page,
       pageSize: query.pageSize,
       total,

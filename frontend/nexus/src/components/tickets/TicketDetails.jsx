@@ -76,7 +76,7 @@ export function TicketDetails({
         />
         <DetailRow
           label="Department"
-          value={departmentLabel(ticket.departmentId, departments)}
+          value={ticket.department?.name ?? departmentLabel(ticket.departmentId, departments)}
         />
         <DetailRow
           label="Assigned agent"

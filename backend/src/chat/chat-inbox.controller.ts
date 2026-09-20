@@ -1,9 +1,10 @@
-import { Controller, Get, Param, Post, Req } from '@nestjs/common';
+import { Controller, Get, Param, Post, Query, Req } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import type { AuthenticatedRequest } from '../authentication/request-user';
 import { IdentifierValidationPipe } from '../common/pipes/identifier-validation.pipe';
 import { Roles } from '../authorization/decorators/roles.decorator';
 import { ChatService } from './chat.service';
+import { ChatMessagesQueryDto } from './dto/chat-query.dto';
 
 @Controller('chats')
 export class ChatInboxController {
@@ -11,8 +12,11 @@ export class ChatInboxController {
 
   @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
   @Get()
-  listConversations(@Req() request: AuthenticatedRequest) {
-    return this.chatService.listConversations(request.user!);
+  listConversations(
+    @Query() query: ChatMessagesQueryDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.chatService.listConversationsPage(request.user!, query);
   }
 
   @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)

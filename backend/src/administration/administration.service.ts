@@ -4,7 +4,7 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
-import { AuditAction, User } from '@prisma/client';
+import { AuditAction } from '@prisma/client';
 import type { AuthenticatedRequestUser } from '../authentication/request-user';
 import { AuditService } from '../audit/audit.service';
 import { ADMINISTRATION_DEPARTMENT_CODE } from '../departments/department.constants';
@@ -178,13 +178,23 @@ export class AdministrationService {
     });
   }
 
-  async listMembers(departmentId: string) {
+  async listMembersPage(departmentId: string, query: PageQueryDto) {
     const department = await this.administrationRepository.findDepartment(
       departmentId,
     );
     if (!department) throw new NotFoundException('Department was not found');
-    const members = await this.administrationRepository.listMembers(departmentId);
-    return members.map(({ user }) => this.safeUser(user));
+    const result = await this.administrationRepository.listMembers(
+      departmentId,
+      query.search,
+      (query.page - 1) * query.pageSize,
+      query.pageSize,
+    );
+    return {
+      items: result.items.map(({ user }) => this.toMemberResponse(user)),
+      page: query.page,
+      pageSize: query.pageSize,
+      total: result.total,
+    };
   }
 
   async listConfigurations() {
@@ -241,20 +251,19 @@ export class AdministrationService {
     });
   }
 
-  private safeUser(
-    user: User,
-  ) {
+  private toMemberResponse(user: {
+    userId: string;
+    email: string;
+    fullName: string;
+    role: string;
+    isActive: boolean;
+  }) {
     return {
       userId: user.userId,
       email: user.email,
       fullName: user.fullName,
-      phoneNumber: user.phoneNumber,
       role: user.role,
       isActive: user.isActive,
-      hasLogged: user.hasLogged,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-      departments: [],
     };
   }
 

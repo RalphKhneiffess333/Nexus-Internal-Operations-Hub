@@ -7,12 +7,10 @@ import { useDepartments } from '../../features/departments/use-departments'
 import {
   acceptHandoff,
   cancelHandoff,
+  getHandoffParticipants,
   getHandoffs,
-  getIncomingHandoffs,
-  getOutgoingHandoffs,
   rejectHandoff,
 } from '../../features/tickets/ticket-api'
-import { HandoffStatus } from '../../features/tickets/ticket-types'
 
 export function HandoffsPage() {
   const { user } = useAuthentication()
@@ -33,9 +31,15 @@ export function HandoffsPage() {
   const [actionError, setActionError] = useState('')
   const [busy, setBusy] = useState(false)
   const { departments } = useDepartments()
+  const [page, setPage] = useState(1)
+  const [hasMore, setHasMore] = useState(false)
+  const [pendingCount, setPendingCount] = useState(0)
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => setSearch(searchInput.trim()), 250)
+    const timeout = window.setTimeout(() => {
+      setSearch(searchInput.trim())
+      setPage(1)
+    }, 250)
     return () => window.clearTimeout(timeout)
   }, [searchInput])
 
@@ -43,39 +47,31 @@ export function HandoffsPage() {
     setLoading(true)
     setError('')
     try {
-      const [incomingResult, outgoingResult] = await Promise.all([
-        getIncomingHandoffs({
-          ...filters,
-          requestedAgentId: '',
-          search,
-        }),
-        getOutgoingHandoffs({
-          ...filters,
-          requesterId: '',
-          search,
-        }),
-      ])
-      setIncoming(Array.isArray(incomingResult) ? incomingResult : [])
-      setOutgoing(Array.isArray(outgoingResult) ? outgoingResult : [])
+      const result = await getHandoffs({
+        ...filters,
+        direction: view,
+        requestedAgentId: view === 'incoming' ? '' : filters.requestedAgentId,
+        requesterId: view === 'outgoing' ? '' : filters.requesterId,
+        search,
+        page,
+        pageSize: 25,
+      })
+      const requests = result?.items ?? []
+      if (view === 'incoming') setIncoming(requests)
+      else setOutgoing(requests)
+      setHasMore(Boolean(result?.hasMore))
+      setPendingCount(result?.pendingCount ?? 0)
     } catch (loadError) {
       setError(loadError.message || 'Unable to load handoff requests.')
     } finally {
       setLoading(false)
     }
-  }, [filters, search])
+  }, [filters, page, search, view])
 
   const loadParticipantOptions = useCallback(async () => {
     try {
-      const result = await getHandoffs()
-      const handoffs = Array.isArray(result) ? result : []
-      const users = new Map()
-      handoffs.forEach((handoff) => {
-        if (handoff.requester) users.set(handoff.requester.userId, handoff.requester)
-        if (handoff.requestedAgent) users.set(handoff.requestedAgent.userId, handoff.requestedAgent)
-      })
-      setParticipantOptions(
-        [...users.values()].sort((left, right) => left.fullName.localeCompare(right.fullName)),
-      )
+      const result = await getHandoffParticipants()
+      setParticipantOptions(Array.isArray(result) ? result : [])
     } catch {
       setParticipantOptions([])
     }
@@ -94,10 +90,12 @@ export function HandoffsPage() {
   }, [loadParticipantOptions])
 
   function updateFilter(name, value) {
+    setPage(1)
     setFilters((current) => ({ ...current, [name]: value }))
   }
 
   function clearFilters() {
+    setPage(1)
     setSearchInput('')
     setSearch('')
     setFilters({
@@ -123,8 +121,6 @@ export function HandoffsPage() {
   }
 
   const requests = view === 'incoming' ? incoming : outgoing
-  const pendingCount = requests.filter((handoff) => handoff.status === HandoffStatus.PENDING).length
-
   return (
     <section className="page">
       <header className="page-header">
@@ -141,7 +137,7 @@ export function HandoffsPage() {
           role="tab"
           aria-selected={view === 'incoming'}
           className={view === 'incoming' ? 'is-active' : ''}
-          onClick={() => setView('incoming')}
+          onClick={() => { setPage(1); setView('incoming') }}
         >
           Incoming
         </button>
@@ -150,7 +146,7 @@ export function HandoffsPage() {
           role="tab"
           aria-selected={view === 'outgoing'}
           className={view === 'outgoing' ? 'is-active' : ''}
-          onClick={() => setView('outgoing')}
+          onClick={() => { setPage(1); setView('outgoing') }}
         >
           Outgoing
         </button>
@@ -197,7 +193,8 @@ export function HandoffsPage() {
           ))}
         </div>
       ) : null}
-      {!loading && requests.length > 0 ? <p className="handoff-footnote">Pending in this view: {pendingCount}</p> : null}
+      {!loading && !error && pendingCount > 0 ? <p className="handoff-footnote">Pending matching filters: {pendingCount}</p> : null}
+      {!loading && !error && (page > 1 || hasMore) ? <div className="admin-pagination" aria-label="Handoff pages"><button type="button" className="btn ghost" disabled={page === 1} onClick={() => setPage(page - 1)}>Previous</button><span>Page {page}</span><button type="button" className="btn ghost" disabled={!hasMore} onClick={() => setPage(page + 1)}>Next</button></div> : null}
     </section>
   )
 }

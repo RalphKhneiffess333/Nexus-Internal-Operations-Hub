@@ -286,8 +286,9 @@ describe('Ticket handoffs integration', () => {
         status: HandoffStatus.PENDING,
       },
     );
-    expect(outgoing).toHaveLength(1);
-    expect(outgoing[0]).toMatchObject({
+    expect(outgoing.items).toHaveLength(1);
+    expect(outgoing.pendingCount).toBe(1);
+    expect(outgoing.items[0]).toMatchObject({
       requester: { userId: AGENT_ID },
       requestedAgent: { userId: IT_AGENT_2_ID },
       ticket: {
@@ -304,8 +305,9 @@ describe('Ticket handoffs integration', () => {
         search: 'VPN',
       },
     );
-    expect(incoming).toHaveLength(1);
-    expect(incoming[0].handoffId).toBe(outgoing[0].handoffId);
+    expect(incoming.items).toHaveLength(1);
+    expect(incoming.pendingCount).toBe(1);
+    expect(incoming.items[0].handoffId).toBe(outgoing.items[0].handoffId);
   });
 
   async function claimedTicket() {

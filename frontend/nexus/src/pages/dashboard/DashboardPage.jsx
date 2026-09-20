@@ -87,8 +87,7 @@ export function DashboardPage() {
   const activeWorkCount = assignedCounts[TicketStatus.CLAIMED] ?? 0
 
   const attentionTickets = useMemo(() => {
-    const tickets = summary?.myTickets?.recent ?? []
-    return tickets.filter((ticket) => ticket.status === TicketStatus.REOPENED).slice(0, 3)
+    return summary?.myTickets?.attention ?? []
   }, [summary])
 
   if (loading && !summary) return <LoadingState>Preparing your workspace...</LoadingState>
@@ -203,7 +202,7 @@ function EmployeeWorkspace({ tickets, attentionTickets }) {
 
 function AgentWorkspace({ work, departments, attentionTickets }) {
   const assignedTickets = work?.assigned?.recent ?? []
-  const poolTickets = work?.pool?.recent ?? []
+  const poolAttention = work?.pool?.attention ?? []
   const incoming = work?.handoffs?.incomingPending ?? 0
   const outgoing = work?.handoffs?.outgoingPending ?? 0
 
@@ -237,7 +236,7 @@ function AgentWorkspace({ work, departments, attentionTickets }) {
       <section className="dashboard-section dashboard-utility-grid">
         <QuickStatusCard label="Incoming handoffs" value={incoming} description="Requests waiting for your response" to="/tickets/handoffs" tone="purple" />
         <QuickStatusCard label="Outgoing handoffs" value={outgoing} description="Proposals still awaiting a response" to="/tickets/handoffs" tone="peach" />
-        <AttentionPanel tickets={attentionTickets} ticketsFromPool={poolTickets} />
+        <AttentionPanel tickets={attentionTickets} ticketsFromPool={poolAttention} />
       </section>
     </>
   )
@@ -265,7 +264,7 @@ function AdminOverview({ administration }) {
 }
 
 function AttentionPanel({ tickets, ticketsFromPool = [], employee = false }) {
-  const source = tickets.length ? tickets : ticketsFromPool.filter((ticket) => ticket.priority === TicketPriority.HIGH).slice(0, 3)
+  const source = tickets.length ? tickets : ticketsFromPool
   return (
     <div className="dashboard-panel dashboard-attention clay-card">
       <div className="dashboard-panel-heading">

@@ -1,7 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { TicketStatus, UserRole } from '@prisma/client';
 import type { AuthenticatedRequestUser } from '../authentication/request-user';
-import type { TicketRecord } from './repositories/tickets.repository';
+import type {
+  TicketChatContextRecord,
+  TicketListRecord,
+  TicketRecord,
+} from './repositories/tickets.repository';
 
 export interface TicketActionPermissions {
   canModify: boolean;
@@ -18,6 +22,11 @@ export interface TicketUserProfile {
   email: string;
 }
 
+export interface TicketUserReference {
+  userId: string;
+  fullName: string;
+}
+
 export type TicketWithPermissions = Omit<
   TicketRecord,
   'submittedBy' | 'agentId' | 'submitter' | 'agent'
@@ -26,6 +35,30 @@ export type TicketWithPermissions = Omit<
   agent: TicketUserProfile | null;
   permissions: TicketActionPermissions;
 };
+
+export type TicketListWithPermissions = Omit<
+  TicketListRecord,
+  'submittedBy' | 'agentId' | 'submitter' | 'agent'
+> & {
+  submittedBy: TicketUserReference;
+  agent: TicketUserReference | null;
+  permissions: TicketActionPermissions;
+};
+
+export interface TicketChatContextResponse {
+  ticketId: string;
+  ticketCode: string;
+  title: string;
+  status: TicketStatus;
+  active: boolean;
+  submittedBy: TicketUserReference;
+  agent: TicketUserReference | null;
+}
+
+type TicketPermissionRecord = Pick<
+  TicketRecord,
+  'active' | 'status' | 'agentId' | 'submittedBy' | 'departmentId'
+>;
 
 @Injectable()
 export class TicketResponseMapper {
@@ -37,6 +70,31 @@ export class TicketResponseMapper {
     return tickets.map((ticket) =>
       this.withPermission(ticket, actor, actorDepartmentIds),
     );
+  }
+
+  withListPermissions(
+    tickets: TicketListRecord[],
+    actor: AuthenticatedRequestUser,
+    actorDepartmentIds: string[],
+  ): TicketListWithPermissions[] {
+    return tickets.map((ticket) => {
+      const { submittedBy, agentId, submitter, agent, ...ticketFields } = ticket;
+      return {
+        ...ticketFields,
+        submittedBy: {
+          userId: submittedBy,
+          fullName: submitter.fullName,
+        },
+        agent:
+          agent && agentId
+            ? {
+                userId: agentId,
+                fullName: agent.fullName,
+              }
+            : null,
+        permissions: this.permissions(ticket, actor, actorDepartmentIds),
+      };
+    });
   }
 
   withPermission(
@@ -61,22 +119,30 @@ export class TicketResponseMapper {
               email: agent.email,
             }
           : null,
-      permissions: {
-        canModify: this.canModify(ticket, actor),
-        canCancel: this.canCancel(ticket, actor),
-        canClaim: this.canClaim(ticket, actor, actorDepartmentIds),
-        canClose: this.canClose(ticket, actor),
-        canRequestHandoff: this.canRequestHandoff(
-          ticket,
-          actor,
-          actorDepartmentIds,
-        ),
-        canReopen: this.canReopen(ticket, actor),
-      },
+      permissions: this.permissions(ticket, actor, actorDepartmentIds),
     };
   }
 
-  private canModify(ticket: TicketRecord, actor: AuthenticatedRequestUser) {
+  private permissions(
+    ticket: TicketPermissionRecord,
+    actor: AuthenticatedRequestUser,
+    actorDepartmentIds: string[],
+  ): TicketActionPermissions {
+    return {
+      canModify: this.canModify(ticket, actor),
+      canCancel: this.canCancel(ticket, actor),
+      canClaim: this.canClaim(ticket, actor, actorDepartmentIds),
+      canClose: this.canClose(ticket, actor),
+      canRequestHandoff: this.canRequestHandoff(
+        ticket,
+        actor,
+        actorDepartmentIds,
+      ),
+      canReopen: this.canReopen(ticket, actor),
+    };
+  }
+
+  private canModify(ticket: TicketPermissionRecord, actor: AuthenticatedRequestUser) {
     return (
       ticket.active &&
       ticket.status === TicketStatus.OPEN &&
@@ -85,12 +151,12 @@ export class TicketResponseMapper {
     );
   }
 
-  private canCancel(ticket: TicketRecord, actor: AuthenticatedRequestUser) {
+  private canCancel(ticket: TicketPermissionRecord, actor: AuthenticatedRequestUser) {
     return this.canModify(ticket, actor);
   }
 
   private canClaim(
-    ticket: TicketRecord,
+    ticket: TicketPermissionRecord,
     actor: AuthenticatedRequestUser,
     actorDepartmentIds: string[],
   ) {
@@ -107,7 +173,7 @@ export class TicketResponseMapper {
     );
   }
 
-  private canClose(ticket: TicketRecord, actor: AuthenticatedRequestUser) {
+  private canClose(ticket: TicketPermissionRecord, actor: AuthenticatedRequestUser) {
     return (
       actor.isActive &&
       (actor.role === UserRole.Agent || actor.role === UserRole.Admin) &&
@@ -118,7 +184,7 @@ export class TicketResponseMapper {
   }
 
   private canRequestHandoff(
-    ticket: TicketRecord,
+    ticket: TicketPermissionRecord,
     actor: AuthenticatedRequestUser,
     actorDepartmentIds: string[],
   ) {
@@ -132,7 +198,7 @@ export class TicketResponseMapper {
     );
   }
 
-  private canReopen(ticket: TicketRecord, actor: AuthenticatedRequestUser) {
+  private canReopen(ticket: TicketPermissionRecord, actor: AuthenticatedRequestUser) {
     return (
       ticket.active &&
       ticket.status === TicketStatus.CLOSED &&

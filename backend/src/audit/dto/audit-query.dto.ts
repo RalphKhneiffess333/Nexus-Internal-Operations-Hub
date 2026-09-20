@@ -70,3 +70,30 @@ export class TicketEventsQueryDto {
   @IsEnum(TicketEventAction)
   action?: TicketEventAction;
 }
+
+export class ActivityQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page = 1;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  pageSize = 25;
+
+  @IsOptional()
+  @IsEnum(['all', 'audit', 'ticket'] as const)
+  source: 'all' | 'audit' | 'ticket' = 'all';
+
+  @IsOptional()
+  @IsEnum(auditActions)
+  auditAction?: (typeof auditActions)[number];
+
+  @IsOptional()
+  @IsEnum(TicketEventAction)
+  ticketAction?: TicketEventAction;
+}

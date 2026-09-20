@@ -21,6 +21,7 @@ import { ModifyTicketDto } from './dto/modify-ticket.dto';
 import { ReopenTicketDto } from './dto/reopen-ticket.dto';
 import { SubmitTicketDto } from './dto/submit-ticket.dto';
 import { TicketQueryDto } from './dto/ticket-query.dto';
+import { TicketEventQueryDto } from './dto/ticket-event-query.dto';
 import { TicketsService } from './tickets.service';
 import { MAX_FILE_SIZE, MAX_FILES_PER_EVENT } from '../files/file-validation';
 import type { UploadedFileInput } from '../files/file-validation';
@@ -55,61 +56,32 @@ export class TicketsController {
     @Query() query: TicketQueryDto,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.ticketsService.findAll(request.user!, query);
+    return this.ticketsService.listPage(request.user!, query);
+  }
+
+  @Roles(UserRole.Agent, UserRole.Admin)
+  @Get('pool/count')
+  countPool(@Req() request: AuthenticatedRequest) {
+    return this.ticketsService.countPool(request.user!);
   }
 
   @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
-  @Get('submitted')
-  findSubmitted(
-    @Query() query: TicketQueryDto,
+  @Get(':id/attachments')
+  findAttachments(
+    @Param('id', IdentifierValidationPipe) id: string,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.ticketsService.findSubmitted(request.user!, query);
-  }
-
-  @Roles(UserRole.Agent, UserRole.Admin)
-  @Get('claimed')
-  findClaimed(
-    @Query() query: TicketQueryDto,
-    @Req() request: AuthenticatedRequest,
-  ) {
-    return this.ticketsService.findClaimed(request.user!, query);
-  }
-
-  @Roles(UserRole.Agent, UserRole.Admin)
-  @Get('resolved')
-  findResolved(
-    @Query() query: TicketQueryDto,
-    @Req() request: AuthenticatedRequest,
-  ) {
-    return this.ticketsService.findResolved(request.user!, query);
-  }
-
-  @Roles(UserRole.Agent, UserRole.Admin)
-  @Get('department')
-  findDepartmentTickets(
-    @Query() query: TicketQueryDto,
-    @Req() request: AuthenticatedRequest,
-  ) {
-    return this.ticketsService.findDepartmentTickets(request.user!, query);
-  }
-
-  @Roles(UserRole.Agent, UserRole.Admin)
-  @Get('pool')
-  findPool(
-    @Query() query: TicketQueryDto,
-    @Req() request: AuthenticatedRequest,
-  ) {
-    return this.ticketsService.findPool(request.user!, query);
+    return this.ticketsService.findAttachments(id, request.user!);
   }
 
   @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
   @Get(':id/events')
   findEvents(
     @Param('id', IdentifierValidationPipe) id: string,
+    @Query() query: TicketEventQueryDto,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.ticketsService.findEvents(id, request.user!);
+    return this.ticketsService.findEventSummaries(id, request.user!, query);
   }
 
   @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
@@ -142,9 +114,12 @@ export class TicketsController {
   @Get(':id')
   findOne(
     @Param('id', IdentifierValidationPipe) id: string,
+    @Query('view') view: string | undefined,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.ticketsService.findOne(id, request.user!);
+    return view === 'chat'
+      ? this.ticketsService.findChatContext(id, request.user!)
+      : this.ticketsService.findOne(id, request.user!);
   }
 
   @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)
@@ -229,7 +204,7 @@ export class TicketsController {
     @Query() query: HandoffQueryDto,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.handoffsService.listForTicket(id, request.user!, query.status);
+    return this.handoffsService.listForTicket(id, request.user!, query);
   }
 
   @Roles(UserRole.Agent, UserRole.Admin)

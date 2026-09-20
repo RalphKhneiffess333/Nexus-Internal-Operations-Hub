@@ -19,12 +19,16 @@ import {
 } from '../realtime/realtime-events';
 import { TicketsRepository } from '../tickets/repositories/tickets.repository';
 import { CreateChatMessageDto } from './dto/create-chat-message.dto';
+import { ChatMessagesQueryDto } from './dto/chat-query.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ChatPolicy } from './policies/chat.policy';
 import {
   ChatRepository,
+  type ChatInboxPage,
   type ChatInboxTicketRecord,
+  type ChatMessageListPage,
   type ChatMessageRecord,
+  type ChatMessageListRecord,
 } from './repositories/chat.repository';
 
 export interface ChatAttachmentResponse {
@@ -52,6 +56,22 @@ export interface ChatMessageResponse {
   attachments: ChatAttachmentResponse[];
 }
 
+export interface ChatMessageListResponse {
+  messageId: string;
+  ticketId: string;
+  content: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  sender: {
+    userId: string;
+    fullName: string;
+  };
+  attachments: Array<{
+    attachmentId: string;
+    originalName: string;
+  }>;
+}
+
 export interface ChatConversationResponse {
   ticketId: string;
   ticketCode: string;
@@ -61,10 +81,27 @@ export interface ChatConversationResponse {
     messageId: string;
     content: string | null;
     createdAt: Date;
-    sender: ChatMessageResponse['sender'];
+    sender: {
+      userId: string;
+      fullName: string;
+    };
     hasAttachments: boolean;
   } | null;
   unread: boolean;
+}
+
+export interface ChatMessageListPageResponse {
+  items: ChatMessageListResponse[];
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+}
+
+export interface ChatConversationPageResponse {
+  items: ChatConversationResponse[];
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
 }
 
 @Injectable()
@@ -83,30 +120,58 @@ export class ChatService {
   async listMessages(
     ticketId: string,
     actor: AuthenticatedRequestUser,
-  ): Promise<ChatMessageResponse[]> {
+    query: ChatMessagesQueryDto = {},
+  ): Promise<ChatMessageListResponse[]> {
+    const result = await this.listMessagesPage(ticketId, actor, query);
+    return result.items;
+  }
+
+  async listMessagesPage(
+    ticketId: string,
+    actor: AuthenticatedRequestUser,
+    query: ChatMessagesQueryDto = {},
+  ): Promise<ChatMessageListPageResponse> {
     const ticket = await this.ticketsRepository.findById(ticketId);
     if (!ticket || !ticket.active) throw new NotFoundException('Ticket was not found');
     const departmentIds = await this.getActorDepartmentIds(actor.userId);
     this.chatPolicy.assertCanView(actor, ticket, departmentIds);
-    const messages = await this.chatRepository.findByTicketId(ticketId);
-    return messages.map((message) => this.toResponse(message));
+    const result: ChatMessageListPage = await this.chatRepository.findByTicketId(
+      ticketId,
+      query.page,
+      query.pageSize,
+    );
+    return {
+      ...result,
+      items: result.items.map((message) => this.toListResponse(message)),
+    };
   }
 
   async listConversations(
     actor: AuthenticatedRequestUser,
+    query: ChatMessagesQueryDto = {},
   ): Promise<ChatConversationResponse[]> {
+    const result = await this.listConversationsPage(actor, query);
+    return result.items;
+  }
+
+  async listConversationsPage(
+    actor: AuthenticatedRequestUser,
+    query: ChatMessagesQueryDto = {},
+  ): Promise<ChatConversationPageResponse> {
     const actorDepartmentIds = await this.getActorDepartmentIds(actor.userId);
-    const tickets = await this.chatRepository.findInboxTickets(actor.userId);
-    return tickets
-      .filter((ticket) =>
-        this.viewableByActor(ticket, actor, actorDepartmentIds),
-      )
-      .map((ticket) => this.toConversationResponse(ticket, actor.userId))
-      .sort((left, right) => {
-        const rightTime = right.lastMessage?.createdAt.getTime() ?? 0;
-        const leftTime = left.lastMessage?.createdAt.getTime() ?? 0;
-        return rightTime - leftTime || right.ticketCode.localeCompare(left.ticketCode);
-      });
+    const result: ChatInboxPage = await this.chatRepository.findInboxTickets(
+      actor.userId,
+      actor.role,
+      actorDepartmentIds,
+      query.page,
+      query.pageSize,
+    );
+    return {
+      ...result,
+      items: result.items.map((ticket) =>
+        this.toConversationResponse(ticket, actor.userId),
+      ),
+    };
   }
 
   async markConversationRead(
@@ -256,17 +321,21 @@ export class ChatService {
     };
   }
 
-  private viewableByActor(
-    ticket: ChatInboxTicketRecord,
-    actor: AuthenticatedRequestUser,
-    actorDepartmentIds: string[],
-  ): boolean {
-    try {
-      this.chatPolicy.assertCanView(actor, ticket, actorDepartmentIds);
-      return true;
-    } catch {
-      return false;
-    }
+  private toListResponse(
+    message: ChatMessageListRecord,
+  ): ChatMessageListResponse {
+    return {
+      messageId: message.messageId,
+      ticketId: message.ticketId,
+      content: message.content,
+      createdAt: message.createdAt,
+      updatedAt: message.updatedAt,
+      sender: message.sender,
+      attachments: message.attachments.map((attachment) => ({
+        attachmentId: attachment.attachmentId,
+        originalName: attachment.file.originalName,
+      })),
+    };
   }
 
   private toConversationResponse(

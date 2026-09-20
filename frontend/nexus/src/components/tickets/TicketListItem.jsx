@@ -35,7 +35,7 @@ export function TicketListItem({ ticket, departments = [] }) {
           </div>
           <div>
             <dt>Department</dt>
-            <dd>{departmentLabel(ticket.departmentId, departments)}</dd>
+            <dd>{ticket.department?.name ?? departmentLabel(ticket.departmentId, departments)}</dd>
           </div>
           <div>
             <dt>Submitted by</dt>

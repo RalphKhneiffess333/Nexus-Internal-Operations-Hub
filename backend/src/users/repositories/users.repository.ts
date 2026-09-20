@@ -7,11 +7,47 @@ import { mapPrismaError } from '../../database/prisma-error';
 export type UserPersistenceClient = PrismaService | Prisma.TransactionClient;
 
 const adminUserInclude = {
-  departmentMembers: { include: { department: true } },
+  departmentMembers: {
+    select: {
+      department: {
+        select: {
+          departmentId: true,
+          code: true,
+          name: true,
+          active: true,
+        },
+      },
+    },
+  },
 } satisfies Prisma.UserInclude;
+
+const adminUserListSelect = {
+  userId: true,
+  email: true,
+  fullName: true,
+  role: true,
+  isActive: true,
+  hasLogged: true,
+  departmentMembers: {
+    select: {
+      department: {
+        select: {
+          departmentId: true,
+          code: true,
+          name: true,
+          active: true,
+        },
+      },
+    },
+  },
+} satisfies Prisma.UserSelect;
 
 export type AdminUserRecord = Prisma.UserGetPayload<{
   include: typeof adminUserInclude;
+}>;
+
+export type AdminUserListRecord = Prisma.UserGetPayload<{
+  select: typeof adminUserListSelect;
 }>;
 
 @Injectable()
@@ -98,14 +134,14 @@ export class UsersRepository {
     where: Prisma.UserWhereInput,
     skip: number,
     take: number,
-  ): Promise<AdminUserRecord[]> {
+  ): Promise<AdminUserListRecord[]> {
     try {
       return await this.prisma.user.findMany({
         where,
         orderBy: { fullName: 'asc' },
         skip,
         take,
-        include: adminUserInclude,
+        select: adminUserListSelect,
       });
     } catch (error) {
       mapPrismaError(error);

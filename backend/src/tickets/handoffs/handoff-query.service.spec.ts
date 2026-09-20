@@ -130,11 +130,17 @@ describe('HandoffQueryService', () => {
         agent: null,
       },
     };
-    const findForActor = jest
-      .fn<HandoffsRepository['findForActor']>()
-      .mockResolvedValue([handoff] as never);
+    const findList = jest
+      .fn<HandoffsRepository['findList']>()
+      .mockResolvedValue({
+        items: [handoff],
+        page: 1,
+        pageSize: 25,
+        hasMore: false,
+        pendingCount: 1,
+      } as never);
     const service = new HandoffQueryService(
-      { findForActor } as unknown as HandoffsRepository,
+      { findList } as unknown as HandoffsRepository,
       {} as TicketsRepository,
       {} as DepartmentsRepository,
       {} as HandoffPolicy,
@@ -145,7 +151,11 @@ describe('HandoffQueryService', () => {
 
     const result = await service.list(actor, 'outgoing', query);
 
-    expect(findForActor).toHaveBeenCalledWith(actor.userId, 'outgoing', query);
-    expect(result[0]).toMatchObject({ handoffId: 'handoff-1' });
+    expect(findList).toHaveBeenCalledWith({
+      ...query,
+      userId: actor.userId,
+      direction: 'outgoing',
+    });
+    expect(result.items[0]).toMatchObject({ handoffId: 'handoff-1' });
   });
 });

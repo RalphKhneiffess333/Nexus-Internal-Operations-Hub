@@ -56,8 +56,9 @@ export class AdministrationController {
   }
   @Get('departments/:departmentId/members') listMembers(
     @Param('departmentId', IdentifierValidationPipe) id: string,
+    @Query() query: PageQueryDto,
   ) {
-    return this.administrationService.listMembers(id);
+    return this.administrationService.listMembersPage(id, query);
   }
 
   @Get('configurations') listConfigurations() {

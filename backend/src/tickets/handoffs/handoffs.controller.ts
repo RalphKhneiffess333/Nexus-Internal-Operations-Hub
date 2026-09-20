@@ -13,23 +13,16 @@ export class HandoffsController {
 
   @Get()
   list(@Query() query: HandoffQueryDto, @Req() request: AuthenticatedRequest) {
-    return this.handoffsService.list(request.user!, 'all', query);
+    return this.handoffsService.list(
+      request.user!,
+      query.direction ?? 'all',
+      query,
+    );
   }
 
-  @Get('incoming')
-  listIncoming(
-    @Query() query: HandoffQueryDto,
-    @Req() request: AuthenticatedRequest,
-  ) {
-    return this.handoffsService.list(request.user!, 'incoming', query);
-  }
-
-  @Get('outgoing')
-  listOutgoing(
-    @Query() query: HandoffQueryDto,
-    @Req() request: AuthenticatedRequest,
-  ) {
-    return this.handoffsService.list(request.user!, 'outgoing', query);
+  @Get('participants')
+  listParticipants(@Req() request: AuthenticatedRequest) {
+    return this.handoffsService.listParticipants(request.user!);
   }
 
   @Post(':handoffId/accept')

@@ -1,19 +1,30 @@
-import { Injectable, NotFoundException, StreamableFile } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  StreamableFile,
+} from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import type { AuthenticatedRequestUser } from '../authentication/request-user';
 import { FileAttachmentsRepository } from '../files/file-attachments.repository';
 import { FilesService } from '../files/files.service';
-import { TicketQueryDto } from './dto/ticket-query.dto';
+import { TicketListScope, TicketQueryDto } from './dto/ticket-query.dto';
+import { TicketEventQueryDto } from './dto/ticket-event-query.dto';
 import type { TicketEventRecord } from './events/ticket-event.types';
 import { TicketEventsRepository } from './events/ticket-events.repository';
 import { ViewTicketPolicy } from './policies/view-ticket.policy';
 import {
+  TicketListWithPermissions,
+  TicketChatContextResponse,
   TicketResponseMapper,
   TicketWithPermissions,
 } from './ticket-response.mapper';
 import { TicketAccessService } from './ticket-access.service';
 import type { TicketRecord } from './repositories/tickets.repository';
-import { TicketsRepository } from './repositories/tickets.repository';
+import {
+  TicketsRepository,
+  type TicketListPage,
+} from './repositories/tickets.repository';
 
 @Injectable()
 export class TicketQueryService {
@@ -27,92 +38,58 @@ export class TicketQueryService {
     private readonly ticketAccess: TicketAccessService,
   ) {}
 
-  async findAll(
+  async list(
     actor: AuthenticatedRequestUser,
     filters: TicketQueryDto = {},
-  ): Promise<TicketWithPermissions[]> {
-    const tickets = await this.ticketsRepository.findAll(filters);
+  ): Promise<TicketListWithPermissions[]> {
+    const result = await this.listPage(actor, filters);
+    return result.items;
+  }
+
+  async listPage(
+    actor: AuthenticatedRequestUser,
+    filters: TicketQueryDto = {},
+  ): Promise<{
+    items: TicketListWithPermissions[];
+    page: number;
+    pageSize: number;
+    hasMore: boolean;
+  }> {
+    const scope = filters.scope ?? TicketListScope.ALL;
+    if (
+      actor.role === UserRole.Employee &&
+      [
+        TicketListScope.CLAIMED,
+        TicketListScope.RESOLVED,
+        TicketListScope.DEPARTMENT,
+        TicketListScope.POOL,
+      ].includes(scope)
+    ) {
+      throw new ForbiddenException('This ticket view is not available');
+    }
     const actorDepartmentIds =
       await this.ticketAccess.getActorDepartmentIds(actor);
-    const canIncludeInactive =
-      actor.role === UserRole.Admin && filters.includeInactive === true;
-
-    return this.ticketResponseMapper.withPermissions(
-      tickets.filter(
-        (ticket) =>
-          (ticket.active || canIncludeInactive) &&
-          this.viewTicketPolicy.canView(actor, ticket, actorDepartmentIds),
+    const result: TicketListPage = await this.ticketsRepository.findList(
+      scope,
+      actor.userId,
+      actor.role,
+      actorDepartmentIds,
+      filters,
+    );
+    return {
+      ...result,
+      items: this.ticketResponseMapper.withListPermissions(
+        result.items,
+        actor,
+        actorDepartmentIds,
       ),
-      actor,
-      actorDepartmentIds,
-    );
+    };
   }
 
-  async findSubmitted(
-    actor: AuthenticatedRequestUser,
-    filters: TicketQueryDto = {},
-  ): Promise<TicketWithPermissions[]> {
-    const tickets = await this.ticketsRepository.findActiveBySubmitter(
-      actor.userId,
-      filters,
-    );
-    return this.mapTickets(tickets, actor);
-  }
-
-  async findClaimed(
-    actor: AuthenticatedRequestUser,
-    filters: TicketQueryDto = {},
-  ): Promise<TicketWithPermissions[]> {
-    const tickets = await this.ticketsRepository.findActiveByAgent(
-      actor.userId,
-      filters,
-    );
-    return this.mapTickets(tickets, actor);
-  }
-
-  async findResolved(
-    actor: AuthenticatedRequestUser,
-    filters: TicketQueryDto = {},
-  ): Promise<TicketWithPermissions[]> {
-    const tickets = await this.ticketsRepository.findActiveResolvedByAgent(
-      actor.userId,
-      filters,
-    );
-    return this.mapTickets(tickets, actor);
-  }
-
-  async findDepartmentTickets(
-    actor: AuthenticatedRequestUser,
-    filters: TicketQueryDto = {},
-  ): Promise<TicketWithPermissions[]> {
+  async countPool(actor: AuthenticatedRequestUser): Promise<{ count: number }> {
     const actorDepartmentIds =
       await this.ticketAccess.getActorDepartmentIds(actor);
-    const tickets = await this.ticketsRepository.findActiveByDepartmentIds(
-      actorDepartmentIds,
-      filters,
-    );
-    return this.ticketResponseMapper.withPermissions(
-      tickets,
-      actor,
-      actorDepartmentIds,
-    );
-  }
-
-  async findPool(
-    actor: AuthenticatedRequestUser,
-    filters: TicketQueryDto = {},
-  ): Promise<TicketWithPermissions[]> {
-    const actorDepartmentIds =
-      await this.ticketAccess.getActorDepartmentIds(actor);
-    const tickets = await this.ticketsRepository.findTicketPool(
-      actorDepartmentIds,
-      filters,
-    );
-    return this.ticketResponseMapper.withPermissions(
-      tickets,
-      actor,
-      actorDepartmentIds,
-    );
+    return { count: await this.ticketsRepository.countPool(actorDepartmentIds) };
   }
 
   async findOne(
@@ -130,12 +107,59 @@ export class TicketQueryService {
     );
   }
 
+  async findChatContext(
+    ticketId: string,
+    actor: AuthenticatedRequestUser,
+  ): Promise<TicketChatContextResponse> {
+    const ticket = await this.ticketAccess.getTicketChatContext(
+      ticketId,
+      actor,
+    );
+    return {
+      ticketId: ticket.ticketId,
+      ticketCode: ticket.ticketCode,
+      title: ticket.title,
+      status: ticket.status,
+      active: ticket.active,
+      submittedBy: {
+        userId: ticket.submittedBy,
+        fullName: ticket.submitter.fullName,
+      },
+      agent: ticket.agentId && ticket.agent
+        ? { userId: ticket.agentId, fullName: ticket.agent.fullName }
+        : null,
+    };
+  }
+
   async findEvents(
     ticketId: string,
     actor: AuthenticatedRequestUser,
   ): Promise<TicketEventRecord[]> {
     await this.ticketAccess.assertCanViewTicket(ticketId, actor);
     return this.ticketEventsRepository.findByTicketId(ticketId);
+  }
+
+  async findEventSummaries(
+    ticketId: string,
+    actor: AuthenticatedRequestUser,
+    query: TicketEventQueryDto = new TicketEventQueryDto(),
+  ) {
+    await this.ticketAccess.assertCanViewTicket(ticketId, actor);
+    return this.ticketEventsRepository.findSummariesByTicketId(
+      ticketId,
+      query.page,
+      query.pageSize,
+    );
+  }
+
+  async findAttachments(
+    ticketId: string,
+    actor: AuthenticatedRequestUser,
+  ) {
+    await this.ticketAccess.assertCanViewTicket(ticketId, actor);
+    return this.ticketEventsRepository.findLatestAttachmentEventByTicketId(
+      ticketId,
+    );
   }
 
   async findEvent(
@@ -180,16 +204,4 @@ export class TicketQueryService {
     });
   }
 
-  private async mapTickets(
-    tickets: TicketRecord[],
-    actor: AuthenticatedRequestUser,
-  ): Promise<TicketWithPermissions[]> {
-    const actorDepartmentIds =
-      await this.ticketAccess.getActorDepartmentIds(actor);
-    return this.ticketResponseMapper.withPermissions(
-      tickets,
-      actor,
-      actorDepartmentIds,
-    );
-  }
 }

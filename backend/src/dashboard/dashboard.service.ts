@@ -28,6 +28,10 @@ export class DashboardService {
       ...activeWhere,
       agentId: actor.userId,
     };
+    const myAttentionWhere: Prisma.TicketWhereInput = {
+      ...myTicketWhere,
+      status: TicketStatus.REOPENED,
+    };
     const poolTicketWhere: Prisma.TicketWhereInput = {
       ...activeWhere,
       agentId: null,
@@ -35,10 +39,16 @@ export class DashboardService {
       ...(isAdmin ? {} : { departmentId: { in: departmentIds } }),
     };
 
-    const [myTicketCounts, myRecentTickets, activeTicketCounts] =
+    const [
+      myTicketCounts,
+      myRecentTickets,
+      myAttentionTickets,
+      activeTicketCounts,
+    ] =
       await Promise.all([
         this.dashboardRepository.countTicketsByStatus(myTicketWhere),
         this.dashboardRepository.findRecentTickets(myTicketWhere),
+        this.dashboardRepository.findRecentTickets(myAttentionWhere, 3),
         isAdmin
           ? this.dashboardRepository.countTicketsByStatus(activeWhere)
           : Promise.resolve(null),
@@ -51,6 +61,9 @@ export class DashboardService {
       myTickets: {
         counts: myTicketCounts,
         recent: myRecentTickets.map((ticket) => this.toTicketSummary(ticket)),
+        attention: myAttentionTickets.map((ticket) =>
+          this.toTicketSummary(ticket),
+        ),
       },
     };
 
@@ -61,6 +74,7 @@ export class DashboardService {
       assignedRecent,
       poolCounts,
       poolRecent,
+      poolAttention,
       incoming,
       outgoing,
     ] = await Promise.all([
@@ -68,6 +82,10 @@ export class DashboardService {
       this.dashboardRepository.findRecentTickets(assignedTicketWhere),
       this.dashboardRepository.countTicketsByStatus(poolTicketWhere),
       this.dashboardRepository.findRecentTickets(poolTicketWhere),
+      this.dashboardRepository.findRecentTickets(
+        { ...poolTicketWhere, priority: 'HIGH' },
+        3,
+      ),
       this.dashboardRepository.countPendingIncomingHandoffs(actor.userId),
       this.dashboardRepository.countPendingOutgoingHandoffs(actor.userId),
     ]);

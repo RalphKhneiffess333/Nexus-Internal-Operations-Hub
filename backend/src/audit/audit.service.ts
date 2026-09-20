@@ -1,6 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { AuditAction, Prisma } from '@prisma/client';
-import { AuditQueryDto, TicketEventsQueryDto } from './dto/audit-query.dto';
+import {
+  ActivityQueryDto,
+  AuditQueryDto,
+  TicketEventsQueryDto,
+} from './dto/audit-query.dto';
 import { AuditRepository } from './audit.repository';
 import { TicketEventsRepository } from '../tickets/events/ticket-events.repository';
 
@@ -31,10 +35,30 @@ export class AuditService {
       query.pageSize,
     );
     return {
-      items: result.items.map((item) => this.toResponse(item)),
+      items: result.items.map((item) => this.toListResponse(item)),
       page: query.page,
       pageSize: query.pageSize,
       total: result.total,
+    };
+  }
+
+  async listActivity(query: ActivityQueryDto) {
+    const page = Math.max(query.page, 1);
+    const pageSize = Math.min(Math.max(query.pageSize, 1), 100);
+    const offset = (page - 1) * pageSize;
+    const entries = await this.auditRepository.listActivity(
+      query.source,
+      query.auditAction,
+      query.ticketAction,
+      offset,
+      pageSize + 1,
+    );
+
+    return {
+      items: entries.slice(0, pageSize),
+      page,
+      pageSize,
+      hasMore: entries.length > pageSize,
     };
   }
 
@@ -50,6 +74,22 @@ export class AuditService {
       query.pageSize,
       query.action,
     );
+  }
+
+  private toListResponse(log: {
+    auditLogId: string;
+    actorId: string | null;
+    action: AuditAction;
+    createdAt: Date;
+    actor: { userId: string; fullName: string } | null;
+  }) {
+    return {
+      auditLogId: log.auditLogId,
+      actorId: log.actorId,
+      action: log.action,
+      createdAt: log.createdAt,
+      actor: log.actor,
+    };
   }
 
   private toResponse(log: {

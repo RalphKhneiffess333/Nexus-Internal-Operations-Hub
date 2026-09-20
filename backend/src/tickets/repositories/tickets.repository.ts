@@ -5,6 +5,7 @@ import {
   TicketEventAction,
   TicketPriority,
   TicketStatus,
+  UserRole,
 } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { mapPrismaError } from '../../database/prisma-error';
@@ -44,17 +45,99 @@ const ticketInclude = {
       email: true,
     },
   },
+  department: {
+    select: {
+      departmentId: true,
+      code: true,
+      name: true,
+    },
+  },
 } satisfies Prisma.TicketInclude;
+
+const ticketListSelect = {
+  ticketId: true,
+  ticketCode: true,
+  title: true,
+  priority: true,
+  status: true,
+  departmentId: true,
+  submittedBy: true,
+  agentId: true,
+  active: true,
+  createdAt: true,
+  updatedAt: true,
+  submitter: {
+    select: {
+      userId: true,
+      fullName: true,
+    },
+  },
+  agent: {
+    select: {
+      userId: true,
+      fullName: true,
+    },
+  },
+  department: {
+    select: {
+      departmentId: true,
+      code: true,
+      name: true,
+    },
+  },
+} satisfies Prisma.TicketSelect;
+
+const ticketChatContextSelect = {
+  ticketId: true,
+  ticketCode: true,
+  title: true,
+  status: true,
+  active: true,
+  submittedBy: true,
+  agentId: true,
+  departmentId: true,
+  submitter: {
+    select: {
+      userId: true,
+      fullName: true,
+    },
+  },
+  agent: {
+    select: {
+      userId: true,
+      fullName: true,
+    },
+  },
+} satisfies Prisma.TicketSelect;
 
 export type TicketRecord = Prisma.TicketGetPayload<{
   include: typeof ticketInclude;
 }>;
 
+export type TicketListRecord = Prisma.TicketGetPayload<{
+  select: typeof ticketListSelect;
+}>;
+
+export type TicketChatContextRecord = Prisma.TicketGetPayload<{
+  select: typeof ticketChatContextSelect;
+}>;
+
+export interface TicketListPage {
+  items: TicketListRecord[];
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+}
+
 export interface TicketFilters {
+  scope?: 'all' | 'submitted' | 'claimed' | 'resolved' | 'department' | 'pool';
   search?: string;
   status?: TicketStatus;
   departmentId?: string;
   priority?: TicketPriority;
+  includeInactive?: boolean;
+  page?: number;
+  pageSize?: number;
 }
 
 function ticketFilterWhere(filters: TicketFilters): Prisma.TicketWhereInput {
@@ -95,6 +178,19 @@ export class TicketsRepository {
     }
   }
 
+  async findChatContext(
+    ticketId: string,
+  ): Promise<TicketChatContextRecord | null> {
+    try {
+      return await this.prisma.ticket.findUnique({
+        where: { ticketId },
+        select: ticketChatContextSelect,
+      });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }
+
   async findByIdForUpdate(
     ticketId: string,
     client: Prisma.TransactionClient,
@@ -109,6 +205,116 @@ export class TicketsRepository {
       return await client.ticket.findUnique({
         where: { ticketId },
         include: ticketInclude,
+      });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }
+
+  async findList(
+    scope: NonNullable<TicketFilters['scope']>,
+    actorId: string,
+    actorRole: UserRole,
+    actorDepartmentIds: string[],
+    filters: TicketFilters = {},
+  ): Promise<TicketListPage> {
+    const page = Math.max(filters.page ?? 1, 1);
+    const pageSize = Math.min(Math.max(filters.pageSize ?? 50, 1), 100);
+    const activeWhere =
+      actorRole === UserRole.Admin && filters.includeInactive === true
+        ? {}
+        : { active: true };
+    const scopedDepartmentIds = filters.departmentId
+      ? actorDepartmentIds.filter(
+          (departmentId) => departmentId === filters.departmentId,
+        )
+      : actorDepartmentIds;
+
+    if (
+      (scope === 'department' || scope === 'pool') &&
+      scopedDepartmentIds.length === 0
+    ) {
+      return { items: [], page, pageSize, hasMore: false };
+    }
+
+    const scopeWhere: Prisma.TicketWhereInput = (() => {
+      switch (scope) {
+        case 'submitted':
+          return { submittedBy: actorId };
+        case 'claimed':
+          return { agentId: actorId };
+        case 'resolved':
+          return {
+            events: {
+              some: { action: TicketEventAction.CLOSE, userId: actorId },
+            },
+          };
+        case 'department':
+          return { departmentId: { in: scopedDepartmentIds } };
+        case 'pool':
+          return {
+            agentId: null,
+            status: filters.status ?? {
+              in: [TicketStatus.OPEN, TicketStatus.REOPENED],
+            },
+            departmentId: { in: scopedDepartmentIds },
+          };
+        case 'all':
+        default:
+          if (actorRole === UserRole.Admin) return {};
+          return {
+            OR: [
+              { submittedBy: actorId },
+              ...(actorRole === UserRole.Agent && actorDepartmentIds.length > 0
+                ? [{ departmentId: { in: actorDepartmentIds } }]
+                : []),
+            ],
+          };
+      }
+    })();
+
+    if (
+      scope === 'pool' &&
+      filters.status &&
+      filters.status !== TicketStatus.OPEN &&
+      filters.status !== TicketStatus.REOPENED
+    ) {
+      return { items: [], page, pageSize, hasMore: false };
+    }
+
+    try {
+      const records = await this.prisma.ticket.findMany({
+        where: {
+          ...activeWhere,
+          ...scopeWhere,
+          ...ticketFilterWhere(filters),
+        },
+        orderBy: [{ updatedAt: 'desc' }, { ticketId: 'desc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize + 1,
+        select: ticketListSelect,
+      });
+      return {
+        items: records.slice(0, pageSize),
+        page,
+        pageSize,
+        hasMore: records.length > pageSize,
+      };
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }
+
+  async countPool(actorDepartmentIds: string[]): Promise<number> {
+    if (actorDepartmentIds.length === 0) return 0;
+    try {
+      return await this.prisma.ticket.count({
+        where: {
+          active: true,
+          agentId: null,
+          status: { in: [TicketStatus.OPEN, TicketStatus.REOPENED] },
+          departmentId: { in: actorDepartmentIds },
+        },
       });
     } catch (error) {
       mapPrismaError(error);
@@ -130,181 +336,6 @@ export class TicketsRepository {
         },
         select: { ticketId: true },
         orderBy: { ticketId: 'asc' },
-      });
-    } catch (error) {
-      mapPrismaError(error);
-    }
-  }
-
-  async findAll(filters: TicketFilters = {}): Promise<TicketRecord[]> {
-    try {
-      return await this.prisma.ticket.findMany({
-        where: ticketFilterWhere(filters),
-        include: ticketInclude,
-      });
-    } catch (error) {
-      mapPrismaError(error);
-    }
-  }
-
-  async findActive(filters: TicketFilters = {}): Promise<TicketRecord[]> {
-    try {
-      return await this.prisma.ticket.findMany({
-        where: { active: true, ...ticketFilterWhere(filters) },
-        orderBy: { createdAt: 'desc' },
-        include: ticketInclude,
-      });
-    } catch (error) {
-      mapPrismaError(error);
-    }
-  }
-
-  async findActiveBySubmitter(
-    submittedBy: string,
-    filters: TicketFilters = {},
-  ): Promise<TicketRecord[]> {
-    try {
-      return await this.prisma.ticket.findMany({
-        where: {
-          active: true,
-          submittedBy,
-          ...ticketFilterWhere(filters),
-        },
-        orderBy: { createdAt: 'desc' },
-        include: ticketInclude,
-      });
-    } catch (error) {
-      mapPrismaError(error);
-    }
-  }
-
-  async findActiveByAgent(
-    agentId: string,
-    filters: TicketFilters = {},
-  ): Promise<TicketRecord[]> {
-    try {
-      return await this.prisma.ticket.findMany({
-        where: {
-          active: true,
-          agentId,
-          ...ticketFilterWhere(filters),
-        },
-        orderBy: { updatedAt: 'desc' },
-        include: ticketInclude,
-      });
-    } catch (error) {
-      mapPrismaError(error);
-    }
-  }
-
-  async findActiveResolvedByAgent(
-    agentId: string,
-    filters: TicketFilters = {},
-  ): Promise<TicketRecord[]> {
-    try {
-      const closeEvents = await this.prisma.ticketEvent.findMany({
-        where: {
-          action: TicketEventAction.CLOSE,
-          userId: agentId,
-          ticket: { active: true, ...ticketFilterWhere(filters) },
-        },
-        select: {
-          ticketId: true,
-        },
-      });
-      const resolvedTicketIds = [
-        ...new Set(closeEvents.map((event) => event.ticketId)),
-      ];
-
-      if (resolvedTicketIds.length === 0) {
-        return [];
-      }
-
-      return await this.prisma.ticket.findMany({
-        where: {
-          active: true,
-          ticketId: { in: resolvedTicketIds },
-          ...ticketFilterWhere(filters),
-        },
-        orderBy: { updatedAt: 'desc' },
-        include: ticketInclude,
-      });
-    } catch (error) {
-      mapPrismaError(error);
-    }
-  }
-
-  async findActiveByDepartmentIds(
-    departmentIds: string[],
-    filters: TicketFilters = {},
-  ): Promise<TicketRecord[]> {
-    const scopedDepartmentIds = filters.departmentId
-      ? departmentIds.filter(
-          (departmentId) => departmentId === filters.departmentId,
-        )
-      : departmentIds;
-
-    if (scopedDepartmentIds.length === 0) {
-      return [];
-    }
-
-    try {
-      return await this.prisma.ticket.findMany({
-        where: {
-          active: true,
-          ...ticketFilterWhere(filters),
-          departmentId: { in: scopedDepartmentIds },
-        },
-        orderBy: { createdAt: 'desc' },
-        include: ticketInclude,
-      });
-    } catch (error) {
-      mapPrismaError(error);
-    }
-  }
-
-  async findTicketPool(
-    departmentIds?: string[],
-    filters: TicketFilters = {},
-  ): Promise<TicketRecord[]> {
-    if (
-      filters.status &&
-      filters.status !== TicketStatus.OPEN &&
-      filters.status !== TicketStatus.REOPENED
-    ) {
-      return [];
-    }
-
-    const scopedDepartmentIds =
-      departmentIds && filters.departmentId
-        ? departmentIds.filter(
-            (departmentId) => departmentId === filters.departmentId,
-          )
-        : departmentIds;
-
-    if (scopedDepartmentIds && scopedDepartmentIds.length === 0) {
-      return [];
-    }
-
-    try {
-      return await this.prisma.ticket.findMany({
-        where: {
-          active: true,
-          agentId: null,
-          ...ticketFilterWhere(filters),
-          status: filters.status ?? {
-            in: [TicketStatus.OPEN, TicketStatus.REOPENED],
-          },
-          ...(scopedDepartmentIds
-            ? {
-                departmentId: {
-                  in: scopedDepartmentIds,
-                },
-              }
-            : {}),
-        },
-        orderBy: { createdAt: 'desc' },
-        include: ticketInclude,
       });
     } catch (error) {
       mapPrismaError(error);

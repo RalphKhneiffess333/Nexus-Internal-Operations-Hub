@@ -8,6 +8,7 @@ import {
   StreamableFile,
   UploadedFiles,
   UseInterceptors,
+  Query,
 } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { FilesInterceptor } from '@nestjs/platform-express';
@@ -18,6 +19,7 @@ import { MAX_FILES_PER_EVENT, MAX_FILE_SIZE } from '../files/file-validation';
 import type { UploadedFileInput } from '../files/file-validation';
 import { ChatService } from './chat.service';
 import { CreateChatMessageDto } from './dto/create-chat-message.dto';
+import { ChatMessagesQueryDto } from './dto/chat-query.dto';
 
 @Controller('tickets/:ticketId/chat/messages')
 export class ChatController {
@@ -27,9 +29,10 @@ export class ChatController {
   @Get()
   listMessages(
     @Param('ticketId', IdentifierValidationPipe) ticketId: string,
+    @Query() query: ChatMessagesQueryDto,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.chatService.listMessages(ticketId, request.user!);
+    return this.chatService.listMessagesPage(ticketId, request.user!, query);
   }
 
   @Roles(UserRole.Employee, UserRole.Agent, UserRole.Admin)

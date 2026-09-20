@@ -1,11 +1,14 @@
 import { HandoffStatus } from '@prisma/client';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
+  IsInt,
   IsEnum,
   IsNotEmpty,
   IsOptional,
   IsString,
   Length,
+  Max,
+  Min,
 } from 'class-validator';
 
 export class CreateHandoffDto {
@@ -28,6 +31,23 @@ export class CreateHandoffDto {
 }
 
 export class HandoffQueryDto {
+  @IsOptional()
+  @IsEnum(['all', 'incoming', 'outgoing'] as const)
+  direction?: 'all' | 'incoming' | 'outgoing';
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number = 1;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  pageSize?: number = 25;
+
   @IsOptional()
   @IsEnum(HandoffStatus)
   status?: HandoffStatus;

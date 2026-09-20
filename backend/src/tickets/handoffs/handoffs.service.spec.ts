@@ -20,13 +20,20 @@ describe('HandoffsService façade', () => {
   };
 
   it('delegates query and lifecycle calls without changing arguments or results', async () => {
-    const handoffs = [{ handoffId: 'handoff-1' }];
+    const handoff = { handoffId: 'handoff-1' };
+    const handoffs = {
+      items: [handoff],
+      page: 1,
+      pageSize: 25,
+      hasMore: false,
+      pendingCount: 0,
+    };
     const list = jest
       .fn<HandoffQueryService['list']>()
       .mockResolvedValue(handoffs as never);
     const create = jest
       .fn<HandoffLifecycleService['create']>()
-      .mockResolvedValue(handoffs[0] as never);
+      .mockResolvedValue(handoff as never);
     const query = { list } as unknown as HandoffQueryService;
     const lifecycle = { create } as unknown as HandoffLifecycleService;
     const cancellation = {} as HandoffCancellationService;
@@ -37,9 +44,7 @@ describe('HandoffsService façade', () => {
     await expect(service.list(actor, 'incoming', filters)).resolves.toBe(
       handoffs,
     );
-    await expect(service.create('ticket-1', dto, actor)).resolves.toBe(
-      handoffs[0],
-    );
+    await expect(service.create('ticket-1', dto, actor)).resolves.toBe(handoff);
     expect(list).toHaveBeenCalledWith(actor, 'incoming', filters);
     expect(create).toHaveBeenCalledWith('ticket-1', dto, actor);
   });

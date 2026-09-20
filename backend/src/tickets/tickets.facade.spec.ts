@@ -26,16 +26,16 @@ describe('TicketsService façade', () => {
         priority: TicketPriority.HIGH,
       },
     ];
-    const findAll = jest
-      .fn<TicketQueryService['findAll']>()
+    const list = jest
+      .fn<TicketQueryService['list']>()
       .mockResolvedValue(result as never);
-    const query = { findAll } as unknown as TicketQueryService;
+    const query = { list } as unknown as TicketQueryService;
     const lifecycle = {} as TicketLifecycleService;
     const service = new TicketsService(query, lifecycle);
     const filters = { status: TicketStatus.OPEN };
 
-    await expect(service.findAll(actor, filters)).resolves.toBe(result);
-    expect(findAll.mock.calls).toContainEqual([actor, filters]);
+    await expect(service.list(actor, filters)).resolves.toBe(result);
+    expect(list.mock.calls).toContainEqual([actor, filters]);
   });
 
   it('delegates lifecycle commands without exposing child services to consumers', async () => {

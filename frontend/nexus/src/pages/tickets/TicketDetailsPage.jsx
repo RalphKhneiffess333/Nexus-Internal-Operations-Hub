@@ -18,6 +18,7 @@ import {
   cancelTicket,
   claimTicket,
   closeTicket,
+  getTicketAttachments,
   getTicket,
   getTicketEvent,
   getTicketEvents,
@@ -26,17 +27,6 @@ import {
   reopenTicket,
   updateTicket,
 } from '../../features/tickets/ticket-api'
-
-function latestEventWithAttachments(events) {
-  return [...events]
-    .sort((left, right) => {
-      const timestampDifference =
-        new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()
-      return timestampDifference || left.ticketEventId.localeCompare(right.ticketEventId)
-    })
-    .reverse()
-    .find((event) => event.attachments?.length > 0)
-}
 
 export function TicketDetailsPage() {
   const { ticketId } = useParams()
@@ -62,6 +52,10 @@ export function TicketDetailsPage() {
   const [reopenError, setReopenError] = useState('')
   const [notice, setNotice] = useState('')
   const [events, setEvents] = useState([])
+  const [eventPage, setEventPage] = useState(1)
+  const [eventsHasMore, setEventsHasMore] = useState(false)
+  const [eventsLoadingMore, setEventsLoadingMore] = useState(false)
+  const [ticketAttachments, setTicketAttachments] = useState(null)
   const [timelineOpen, setTimelineOpen] = useState(true)
   const [timelineLoading, setTimelineLoading] = useState(true)
   const [timelineError, setTimelineError] = useState('')
@@ -98,54 +92,46 @@ export function TicketDetailsPage() {
     }
   }, [ticketId])
 
-  const loadTicketEvents = useCallback(async ({ silent = false } = {}) => {
+  const loadTicketEvents = useCallback(async ({ silent = false, page = 1, append = false } = {}) => {
     if (!silent) {
-      setTimelineLoading(true)
+      if (append) setEventsLoadingMore(true)
+      else setTimelineLoading(true)
       setTimelineError('')
     }
     try {
-      const result = await getTicketEvents(ticketId)
-      setEvents(Array.isArray(result) ? result : [])
+      const result = await getTicketEvents(ticketId, { page, pageSize: 50 })
+      const summaries = result?.items ?? (Array.isArray(result) ? result : [])
+      setEvents((current) => (append ? [...summaries, ...current] : summaries))
+      setEventPage(page)
+      setEventsHasMore(result?.hasMore ?? summaries.length === 50)
+
     } catch (loadError) {
       setTimelineError(
         loadError.message ||
           'Unable to load the ticket timeline. Please try again.',
       )
     } finally {
-      if (!silent) setTimelineLoading(false)
+      if (!silent) {
+        if (append) setEventsLoadingMore(false)
+        else setTimelineLoading(false)
+      }
+    }
+  }, [ticketId])
+
+  const loadTicketAttachments = useCallback(async () => {
+    try {
+      setTicketAttachments(await getTicketAttachments(ticketId))
+    } catch {
+      setTicketAttachments(null)
     }
   }, [ticketId])
 
   useEffect(() => {
-    let active = true
-
-    async function loadInitialTicket() {
-      try {
-        const result = await getTicket(ticketId)
-        if (active) {
-          setTicket(result)
-        }
-      } catch (loadError) {
-        if (active) {
-          setTicket(null)
-          setError(
-            loadError.message ||
-              'Unable to load this ticket. Please try again.',
-          )
-        }
-      } finally {
-        if (active) {
-          setLoading(false)
-        }
-      }
-    }
-
-    void loadInitialTicket()
-
-    return () => {
-      active = false
-    }
-  }, [ticketId])
+    // The ticket loader owns the initial resource synchronization for this page.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadTicket()
+    void loadTicketAttachments()
+  }, [loadTicket, loadTicketAttachments])
 
   useEffect(() => {
     // The timeline loader synchronizes the page with the event API response.
@@ -188,8 +174,9 @@ export function TicketDetailsPage() {
         )
         void loadTicket({ silent: true })
         void loadTicketEvents({ silent: true })
+        void loadTicketAttachments()
       }),
-    [loadTicket, loadTicketEvents, subscribeToTicket, ticketId],
+    [loadTicket, loadTicketAttachments, loadTicketEvents, subscribeToTicket, ticketId],
   )
 
   async function handleSelectEvent(event) {
@@ -247,6 +234,7 @@ export function TicketDetailsPage() {
       setEditing(false)
       setNotice('Ticket updated.')
       void loadTicketEvents()
+      void loadTicketAttachments()
     } catch (updateError) {
       setFormError(
         updateError.message ||
@@ -266,6 +254,7 @@ export function TicketDetailsPage() {
       setConfirmingCancel(false)
       setNotice('This ticket has been cancelled.')
       void loadTicketEvents()
+      void loadTicketAttachments()
     } catch (cancelError) {
       setFormError(
         cancelError.message ||
@@ -285,6 +274,7 @@ export function TicketDetailsPage() {
       setConfirmingClaim(false)
       setNotice('Ticket claimed.')
       void loadTicketEvents()
+      void loadTicketAttachments()
     } catch (claimError) {
       setFormError(
         claimError.message ||
@@ -304,6 +294,7 @@ export function TicketDetailsPage() {
       setShowingCloseDialog(false)
       setNotice('Ticket closed.')
       void loadTicketEvents()
+      void loadTicketAttachments()
     } catch (closeTicketError) {
       setCloseError(
         closeTicketError.message ||
@@ -323,6 +314,7 @@ export function TicketDetailsPage() {
       setShowingReopenDialog(false)
       setNotice('Ticket reopened.')
       void loadTicketEvents()
+      void loadTicketAttachments()
     } catch (reopenTicketError) {
       setReopenError(
         reopenTicketError.message ||
@@ -373,7 +365,6 @@ export function TicketDetailsPage() {
       ticket.agent.userId !== user.userId,
   )
   const showTicketActions = !editing
-  const latestAttachmentEvent = latestEventWithAttachments(events)
   const backPath = location.state?.from ?? '/tickets'
   const backLabel = backPath.startsWith('/admin/logs')
     ? 'Logs'
@@ -491,7 +482,7 @@ export function TicketDetailsPage() {
                   error={formError}
                   fieldErrors={fieldErrors}
                   includeAttachments
-                  existingAttachments={latestAttachmentEvent?.attachments}
+                  existingAttachments={ticketAttachments?.attachments}
                   onSubmit={handleUpdate}
                   onCancel={() => {
                     setEditing(false)
@@ -505,18 +496,18 @@ export function TicketDetailsPage() {
                 ticket={ticket}
                 departments={departments}
                 timelineOpen={timelineOpen}
-                attachments={latestAttachmentEvent?.attachments}
+                attachments={ticketAttachments?.attachments}
                 downloadingAttachmentId={downloadingAttachmentId}
                 onOpenAttachment={(attachment) =>
                   handleOpenAttachment(
                     attachment,
-                    latestAttachmentEvent.ticketEventId,
+                    ticketAttachments?.ticketEventId,
                   )
                 }
                 onDownloadAttachment={(attachment) =>
                   handleDownloadAttachment(
                     attachment,
-                    latestAttachmentEvent.ticketEventId,
+                    ticketAttachments?.ticketEventId,
                   )
                 }
                 onToggleTimeline={() => setTimelineOpen((open) => !open)}
@@ -553,6 +544,9 @@ export function TicketDetailsPage() {
               departments={departments}
               onSelect={handleSelectEvent}
               onRetry={loadTicketEvents}
+              hasMore={eventsHasMore}
+              loadingMore={eventsLoadingMore}
+              onLoadMore={() => void loadTicketEvents({ page: eventPage + 1, append: true })}
               onOpenAttachment={handleOpenAttachment}
               onDownloadAttachment={handleDownloadAttachment}
             />

@@ -1,5 +1,4 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { HandoffStatus } from '@prisma/client';
 import type { AuthenticatedRequestUser } from '../../authentication/request-user';
 import { DepartmentsRepository } from '../../departments/repositories/departments.repository';
 import { ViewTicketPolicy } from '../policies/view-ticket.policy';
@@ -9,7 +8,7 @@ import { HandoffPolicy } from './handoff.policy';
 import { HandoffResponseMapper } from './handoff-response.mapper';
 import { HandoffsRepository } from './handoffs.repository';
 import type {
-  HandoffResponse,
+  HandoffListPageResponse,
   HandoffUserSummary,
 } from './handoff-response.mapper';
 
@@ -28,22 +27,36 @@ export class HandoffQueryService {
     actor: AuthenticatedRequestUser,
     direction: 'incoming' | 'outgoing' | 'all',
     query: HandoffQueryDto,
-  ): Promise<HandoffResponse[]> {
-    const handoffs = await this.handoffsRepository.findForActor(
-      actor.userId,
+  ): Promise<HandoffListPageResponse> {
+    const result = await this.handoffsRepository.findList({
+      ...query,
+      userId: actor.userId,
       direction,
-      query,
+    });
+    return {
+      ...result,
+      items: result.items.map((handoff) =>
+        this.handoffResponseMapper.toListResponse(handoff),
+      ),
+    };
+  }
+
+  async listParticipants(
+    actor: AuthenticatedRequestUser,
+  ): Promise<HandoffUserSummary[]> {
+    const participants = await this.handoffsRepository.findParticipantsForActor(
+      actor.userId,
     );
-    return handoffs.map((handoff) =>
-      this.handoffResponseMapper.toResponse(handoff),
+    return participants.map((participant) =>
+      this.handoffResponseMapper.toUserSummary(participant),
     );
   }
 
   async listForTicket(
     ticketId: string,
     actor: AuthenticatedRequestUser,
-    status?: HandoffStatus,
-  ): Promise<HandoffResponse[]> {
+    query: HandoffQueryDto = {},
+  ): Promise<HandoffListPageResponse> {
     const ticket = await this.ticketsRepository.findById(ticketId);
     if (!ticket || !ticket.active) {
       throw new NotFoundException('Ticket was not found');
@@ -55,13 +68,16 @@ export class HandoffQueryService {
       );
     this.viewTicketPolicy.assert(actor, ticket, departmentIds);
 
-    const handoffs = await this.handoffsRepository.findByTicketId(
+    const result = await this.handoffsRepository.findList({
+      ...query,
       ticketId,
-      status,
-    );
-    return handoffs.map((handoff) =>
-      this.handoffResponseMapper.toResponse(handoff),
-    );
+    });
+    return {
+      ...result,
+      items: result.items.map((handoff) =>
+        this.handoffResponseMapper.toListResponse(handoff),
+      ),
+    };
   }
 
   async listEligibleAgents(

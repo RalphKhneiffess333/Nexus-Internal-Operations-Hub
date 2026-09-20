@@ -6,7 +6,7 @@ import type { AuthenticatedRequestUser } from '../../authentication/request-user
 export class ViewTicketPolicy {
   canView(
     actor: AuthenticatedRequestUser,
-    ticket: Ticket,
+    ticket: Pick<Ticket, 'submittedBy' | 'departmentId'>,
     actorDepartmentIds: string[],
   ): boolean {
     if (actor.role === UserRole.Admin) {
@@ -25,7 +25,7 @@ export class ViewTicketPolicy {
 
   assert(
     actor: AuthenticatedRequestUser,
-    ticket: Ticket,
+    ticket: Pick<Ticket, 'submittedBy' | 'departmentId'>,
     actorDepartmentIds: string[],
   ): void {
     if (!this.canView(actor, ticket, actorDepartmentIds)) {

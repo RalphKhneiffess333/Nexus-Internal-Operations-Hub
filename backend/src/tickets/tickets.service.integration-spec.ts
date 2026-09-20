@@ -49,7 +49,7 @@ describe('TicketsService integration', () => {
   it('retrieves submitted tickets', async () => {
     const created = await submitOpenTicket(service);
 
-    expect(await service.findAll(requestUser())).toHaveLength(1);
+    expect(await service.list(requestUser())).toHaveLength(1);
     expect(
       (await service.findOne(created.ticketId, requestUser())).ticketId,
     ).toBe(created.ticketId);
@@ -82,7 +82,7 @@ describe('TicketsService integration', () => {
     const cancelled = await service.cancel(created.ticketId, requestUser());
 
     expect(cancelled.active).toBe(false);
-    expect(await service.findAll(requestUser())).toHaveLength(0);
+    expect(await service.list(requestUser())).toHaveLength(0);
     await expect(
       service.findOne(created.ticketId, requestUser()),
     ).rejects.toThrow(NotFoundException);
@@ -103,7 +103,7 @@ describe('TicketsService integration', () => {
       NotFoundException,
     );
     await expect(
-      service.findAll(adminUser(), { includeInactive: true }),
+      service.list(adminUser(), { includeInactive: true }),
     ).resolves.toHaveLength(1);
   });
 
@@ -143,10 +143,10 @@ describe('TicketsService integration', () => {
       }),
     );
 
-    expect(await service.findAll(requestUser())).toHaveLength(1);
-    expect(await service.findAll(agentUser(AGENT_ID))).toHaveLength(1);
-    expect(await service.findAll(agentUser(AGENT_2_ID))).toHaveLength(1);
-    expect(await service.findAll(adminUser())).toHaveLength(2);
+    expect(await service.list(requestUser())).toHaveLength(1);
+    expect(await service.list(agentUser(AGENT_ID))).toHaveLength(1);
+    expect(await service.list(agentUser(AGENT_2_ID))).toHaveLength(1);
+    expect(await service.list(adminUser())).toHaveLength(2);
     await expect(
       service.findOne(otherTicket.ticketId, requestUser()),
     ).rejects.toThrow(ForbiddenException);
@@ -164,15 +164,15 @@ describe('TicketsService integration', () => {
 
     expect(request.departmentId).toBe(ADMINISTRATION_DEPARTMENT_ID);
     expect(
-      (await service.findPool(agentUser(AGENT_ID))).map(
+      (await service.list(agentUser(AGENT_ID), { scope: 'pool' })).map(
         (ticket) => ticket.ticketId,
       ),
     ).not.toContain(request.ticketId);
     expect(
-      (await service.findPool(adminUser())).map((ticket) => ticket.ticketId),
+      (await service.list(adminUser(), { scope: 'pool' })).map((ticket) => ticket.ticketId),
     ).toContain(request.ticketId);
     expect(
-      (await service.findPool(adminUser())).find(
+      (await service.list(adminUser(), { scope: 'pool' })).find(
         (ticket) => ticket.ticketId === request.ticketId,
       )?.permissions.canClaim,
     ).toBe(true);
@@ -190,7 +190,7 @@ describe('TicketsService integration', () => {
     const itTicket = await submitOpenTicket(service);
     await submitOpenTicket(service, { departmentId: HR_DEPARTMENT_ID });
 
-    const departmentTickets = await service.findDepartmentTickets(adminUser());
+    const departmentTickets = await service.list(adminUser(), { scope: 'department' });
 
     expect(departmentTickets.map((ticket) => ticket.ticketId)).toEqual([
       itTicket.ticketId,
@@ -284,25 +284,29 @@ describe('TicketsService integration', () => {
       }),
     );
 
-    const submittedTickets = await service.findSubmitted(requestUser());
+    const submittedTickets = await service.list(requestUser(), { scope: 'submitted' });
     expect(submittedTickets).toHaveLength(1);
     expect(submittedTickets[0].ticketId).toBe(employeeTicket.ticketId);
     expect(submittedTickets[0].permissions.canModify).toBe(true);
     expect(submittedTickets[0].permissions.canCancel).toBe(true);
 
-    const agentDepartmentTickets = await service.findDepartmentTickets(
-      agentUser(AGENT_ID),
-    );
+    const agentDepartmentTickets = await service.list(agentUser(AGENT_ID), {
+      scope: 'department',
+    });
     expect(agentDepartmentTickets).toHaveLength(1);
     expect(agentDepartmentTickets[0].ticketId).toBe(employeeTicket.ticketId);
     expect(agentDepartmentTickets[0].permissions.canClaim).toBe(true);
     expect(agentDepartmentTickets[0].permissions.canModify).toBe(false);
 
-    const agentPoolTickets = await service.findPool(agentUser(AGENT_ID));
+    const agentPoolTickets = await service.list(agentUser(AGENT_ID), {
+      scope: 'pool',
+    });
     expect(agentPoolTickets).toHaveLength(1);
     expect(agentPoolTickets[0].ticketId).toBe(employeeTicket.ticketId);
 
-    const adminPoolTickets = await service.findPool(adminUser());
+    const adminPoolTickets = await service.list(adminUser(), {
+      scope: 'pool',
+    });
     expect(adminPoolTickets.map((ticket) => ticket.ticketId)).toEqual([
       employeeTicket.ticketId,
     ]);
@@ -316,7 +320,9 @@ describe('TicketsService integration', () => {
     expect(adminClaimPermissions.has(hrTicket.ticketId)).toBe(false);
 
     await service.claim(employeeTicket.ticketId, agentUser(AGENT_ID));
-    const claimedTickets = await service.findClaimed(agentUser(AGENT_ID));
+    const claimedTickets = await service.list(agentUser(AGENT_ID), {
+      scope: 'claimed',
+    });
     expect(claimedTickets).toHaveLength(1);
     expect(claimedTickets[0].ticketId).toBe(employeeTicket.ticketId);
     expect(claimedTickets[0].agent?.userId).toBe(AGENT_ID);
@@ -326,7 +332,9 @@ describe('TicketsService integration', () => {
       { completionNotes: 'Completed by the assigned agent' },
       agentUser(AGENT_ID),
     );
-    const resolvedTickets = await service.findResolved(agentUser(AGENT_ID));
+    const resolvedTickets = await service.list(agentUser(AGENT_ID), {
+      scope: 'resolved',
+    });
     expect(resolvedTickets).toHaveLength(1);
     expect(resolvedTickets[0].ticketId).toBe(employeeTicket.ticketId);
 
@@ -337,9 +345,9 @@ describe('TicketsService integration', () => {
     );
     await service.claim(employeeTicket.ticketId, agentUser(IT_AGENT_2_ID));
 
-    const resolvedAfterReassignment = await service.findResolved(
-      agentUser(AGENT_ID),
-    );
+    const resolvedAfterReassignment = await service.list(agentUser(AGENT_ID), {
+      scope: 'resolved',
+    });
     expect(resolvedAfterReassignment).toHaveLength(1);
     expect(resolvedAfterReassignment[0].ticketId).toBe(employeeTicket.ticketId);
     expect(resolvedAfterReassignment[0].agent?.userId).toBe(IT_AGENT_2_ID);

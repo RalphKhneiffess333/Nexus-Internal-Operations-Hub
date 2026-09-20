@@ -12,16 +12,24 @@ const departmentListInclude = {
   _count: { select: { members: true, tickets: true } },
 } satisfies Prisma.DepartmentInclude;
 
-const departmentMemberInclude = {
-  user: true,
-} satisfies Prisma.DepartmentMemberInclude;
+const departmentMemberListSelect = {
+  user: {
+    select: {
+      userId: true,
+      email: true,
+      fullName: true,
+      role: true,
+      isActive: true,
+    },
+  },
+} satisfies Prisma.DepartmentMemberSelect;
 
 export type DepartmentListRecord = Prisma.DepartmentGetPayload<{
   include: typeof departmentListInclude;
 }>;
 
-export type DepartmentMemberRecord = Prisma.DepartmentMemberGetPayload<{
-  include: typeof departmentMemberInclude;
+export type DepartmentMemberListRecord = Prisma.DepartmentMemberGetPayload<{
+  select: typeof departmentMemberListSelect;
 }>;
 
 export type ConfigurationRecord = Prisma.SystemConfigurationGetPayload<{
@@ -170,13 +178,38 @@ export class AdministrationRepository {
     }
   }
 
-  async listMembers(departmentId: string): Promise<DepartmentMemberRecord[]> {
+  async listMembers(
+    departmentId: string,
+    search: string | undefined,
+    skip: number,
+    take: number,
+  ): Promise<{ items: DepartmentMemberListRecord[]; total: number }> {
+    const trimmedSearch = search?.trim();
+    const where: Prisma.DepartmentMemberWhereInput = {
+      departmentId,
+      ...(trimmedSearch
+        ? {
+            user: {
+              OR: [
+                { fullName: { contains: trimmedSearch, mode: 'insensitive' } },
+                { email: { contains: trimmedSearch, mode: 'insensitive' } },
+              ],
+            },
+          }
+        : {}),
+    };
     try {
-      return await this.prisma.departmentMember.findMany({
-        where: { departmentId },
-        include: departmentMemberInclude,
-        orderBy: { user: { fullName: 'asc' } },
-      });
+      const [items, total] = await this.prisma.$transaction([
+        this.prisma.departmentMember.findMany({
+          where,
+          select: departmentMemberListSelect,
+          orderBy: { user: { fullName: 'asc' } },
+          skip,
+          take,
+        }),
+        this.prisma.departmentMember.count({ where }),
+      ]);
+      return { items, total };
     } catch (error) {
       mapPrismaError(error);
     }

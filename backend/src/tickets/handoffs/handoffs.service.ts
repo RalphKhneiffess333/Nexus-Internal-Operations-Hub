@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { HandoffStatus, Prisma } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 import type { AuthenticatedRequestUser } from '../../authentication/request-user';
 import { CreateHandoffDto, HandoffQueryDto } from './handoff.dto';
 import { HandoffCancellationService } from './handoff-cancellation.service';
@@ -7,10 +7,13 @@ import { HandoffLifecycleService } from './handoff-lifecycle.service';
 import { HandoffQueryService } from './handoff-query.service';
 
 export type {
+  HandoffListPageResponse,
+  HandoffListResponse,
   HandoffResponse,
   HandoffUserSummary,
 } from './handoff-response.mapper';
 import type {
+  HandoffListPageResponse,
   HandoffResponse,
   HandoffUserSummary,
 } from './handoff-response.mapper';
@@ -27,16 +30,22 @@ export class HandoffsService {
     actor: AuthenticatedRequestUser,
     direction: 'incoming' | 'outgoing' | 'all',
     query: HandoffQueryDto,
-  ): Promise<HandoffResponse[]> {
+  ): Promise<HandoffListPageResponse> {
     return this.handoffQueryService.list(actor, direction, query);
   }
 
   listForTicket(
     ticketId: string,
     actor: AuthenticatedRequestUser,
-    status?: HandoffStatus,
-  ): Promise<HandoffResponse[]> {
-    return this.handoffQueryService.listForTicket(ticketId, actor, status);
+    query: HandoffQueryDto = {},
+  ): Promise<HandoffListPageResponse> {
+    return this.handoffQueryService.listForTicket(ticketId, actor, query);
+  }
+
+  listParticipants(
+    actor: AuthenticatedRequestUser,
+  ): Promise<HandoffUserSummary[]> {
+    return this.handoffQueryService.listParticipants(actor);
   }
 
   listEligibleAgents(

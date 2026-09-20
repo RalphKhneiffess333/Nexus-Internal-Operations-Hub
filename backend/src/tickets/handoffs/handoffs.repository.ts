@@ -21,6 +21,11 @@ const handoffUserSelect = {
   isActive: true,
 } satisfies Prisma.UserSelect;
 
+const handoffListUserSelect = {
+  userId: true,
+  fullName: true,
+} satisfies Prisma.UserSelect;
+
 const handoffInclude = {
   requester: { select: handoffUserSelect },
   requestedAgent: { select: handoffUserSelect },
@@ -39,13 +44,56 @@ const handoffInclude = {
   },
 } satisfies Prisma.HandoffRequestInclude;
 
+const handoffListInclude = {
+  requester: { select: handoffListUserSelect },
+  requestedAgent: { select: handoffListUserSelect },
+  ticket: {
+    select: {
+      ticketId: true,
+      ticketCode: true,
+      title: true,
+      status: true,
+      active: true,
+      agentId: true,
+      departmentId: true,
+      department: { select: { departmentId: true, code: true, name: true } },
+      agent: { select: handoffListUserSelect },
+    },
+  },
+} satisfies Prisma.HandoffRequestInclude;
+
 export type HandoffRecord = Prisma.HandoffRequestGetPayload<{
   include: typeof handoffInclude;
+}>;
+
+export type HandoffListRecord = Prisma.HandoffRequestGetPayload<{
+  include: typeof handoffListInclude;
 }>;
 
 export type HandoffUserRecord = Prisma.UserGetPayload<{
   select: typeof handoffUserSelect;
 }>;
+
+export interface HandoffListQuery {
+  userId?: string;
+  direction?: 'incoming' | 'outgoing' | 'all';
+  ticketId?: string;
+  status?: HandoffStatus;
+  search?: string;
+  departmentId?: string;
+  requesterId?: string;
+  requestedAgentId?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface HandoffListPage {
+  items: HandoffListRecord[];
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+  pendingCount: number;
+}
 
 @Injectable()
 export class HandoffsRepository {
@@ -131,70 +179,98 @@ export class HandoffsRepository {
     }
   }
 
-  async findByTicketId(
-    ticketId: string,
-    status?: HandoffStatus,
-  ): Promise<HandoffRecord[]> {
+  async findList(query: HandoffListQuery): Promise<HandoffListPage> {
+    const page = Math.max(query.page ?? 1, 1);
+    const pageSize = Math.min(Math.max(query.pageSize ?? 25, 1), 100);
+    const where = this.listWhere(query);
+    const pendingWhere = this.listWhere(query, false);
     try {
-      return await this.prisma.handoffRequest.findMany({
-        where: { ticketId, ...(status ? { status } : {}) },
-        orderBy: [{ createdAt: 'desc' }, { handoffId: 'desc' }],
-        include: handoffInclude,
-      });
+      const [records, pendingCount] = await this.prisma.$transaction([
+        this.prisma.handoffRequest.findMany({
+          where,
+          orderBy: [{ createdAt: 'desc' }, { handoffId: 'desc' }],
+          skip: (page - 1) * pageSize,
+          take: pageSize + 1,
+          include: handoffListInclude,
+        }),
+        this.prisma.handoffRequest.count({
+          where: { ...pendingWhere, status: HandoffStatus.PENDING },
+        }),
+      ]);
+      return {
+        items: records.slice(0, pageSize),
+        page,
+        pageSize,
+        hasMore: records.length > pageSize,
+        pendingCount:
+          query.status && query.status !== HandoffStatus.PENDING
+            ? 0
+            : pendingCount,
+      };
     } catch (error) {
       mapPrismaError(error);
     }
   }
 
-  async findForActor(
+  private listWhere(
+    query: HandoffListQuery,
+    includeStatus = true,
+  ): Prisma.HandoffRequestWhereInput {
+    const identityWhere = query.userId
+      ? query.direction === 'incoming'
+        ? { requestedAgentId: query.userId }
+        : query.direction === 'outgoing'
+          ? { requesterId: query.userId }
+          : {
+              OR: [
+                { requesterId: query.userId },
+                { requestedAgentId: query.userId },
+              ],
+            }
+      : {};
+    const search = query.search?.trim();
+
+    return {
+      ...identityWhere,
+      ...(includeStatus && query.status ? { status: query.status } : {}),
+      ...(query.ticketId ? { ticketId: query.ticketId } : {}),
+      ...(query.requesterId ? { requesterId: query.requesterId } : {}),
+      ...(query.requestedAgentId
+        ? { requestedAgentId: query.requestedAgentId }
+        : {}),
+      ...(query.departmentId || search
+        ? {
+            ticket: {
+              ...(query.departmentId
+                ? { departmentId: query.departmentId }
+                : {}),
+              ...(search
+                ? {
+                    OR: [
+                      { ticketCode: { contains: search, mode: 'insensitive' } },
+                      { title: { contains: search, mode: 'insensitive' } },
+                    ],
+                  }
+                : {}),
+            },
+          }
+        : {}),
+    };
+  }
+
+  async findParticipantsForActor(
     userId: string,
-    direction: 'incoming' | 'outgoing' | 'all',
-    query: {
-      status?: HandoffStatus;
-      ticketId?: string;
-      search?: string;
-      departmentId?: string;
-      requesterId?: string;
-      requestedAgentId?: string;
-    } = {},
-  ): Promise<HandoffRecord[]> {
-    const identityWhere =
-      direction === 'incoming'
-        ? { requestedAgentId: userId }
-        : direction === 'outgoing'
-          ? { requesterId: userId }
-          : { OR: [{ requesterId: userId }, { requestedAgentId: userId }] };
+  ): Promise<HandoffUserRecord[]> {
     try {
-      const search = query.search?.trim();
-      return await this.prisma.handoffRequest.findMany({
+      return await this.prisma.user.findMany({
         where: {
-          ...identityWhere,
-          ...(query.status ? { status: query.status } : {}),
-          ...(query.ticketId ? { ticketId: query.ticketId } : {}),
-          ...(query.requesterId ? { requesterId: query.requesterId } : {}),
-          ...(query.requestedAgentId
-            ? { requestedAgentId: query.requestedAgentId }
-            : {}),
-          ...(query.departmentId || search
-            ? {
-                ticket: {
-                  ...(query.departmentId
-                    ? { departmentId: query.departmentId }
-                    : {}),
-                  ...(search
-                    ? {
-                        OR: [
-                          { ticketCode: { contains: search, mode: 'insensitive' } },
-                          { title: { contains: search, mode: 'insensitive' } },
-                        ],
-                      }
-                    : {}),
-                },
-              }
-            : {}),
+          OR: [
+            { handoffsRequested: { some: { requestedAgentId: userId } } },
+            { handoffsReceived: { some: { requesterId: userId } } },
+          ],
         },
-        orderBy: [{ createdAt: 'desc' }, { handoffId: 'desc' }],
-        include: handoffInclude,
+        orderBy: { fullName: 'asc' },
+        select: handoffUserSelect,
       });
     } catch (error) {
       mapPrismaError(error);

@@ -6,13 +6,22 @@ import { ModifyTicketDto } from './dto/modify-ticket.dto';
 import { ReopenTicketDto } from './dto/reopen-ticket.dto';
 import { SubmitTicketDto } from './dto/submit-ticket.dto';
 import { TicketQueryDto } from './dto/ticket-query.dto';
+import { TicketEventQueryDto } from './dto/ticket-event-query.dto';
 import type { TicketEventRecord } from './events/ticket-event.types';
 import { TicketLifecycleService } from './ticket-lifecycle.service';
 import { TicketQueryService } from './ticket-query.service';
-import { TicketWithPermissions } from './ticket-response.mapper';
+import type {
+  TicketChatContextResponse,
+  TicketListWithPermissions,
+  TicketUserReference,
+  TicketWithPermissions,
+} from './ticket-response.mapper';
 
 export type {
   TicketActionPermissions,
+  TicketChatContextResponse,
+  TicketListWithPermissions,
+  TicketUserReference,
   TicketUserProfile,
   TicketWithPermissions,
 } from './ticket-response.mapper';
@@ -25,46 +34,19 @@ export class TicketsService {
     private readonly ticketLifecycleService: TicketLifecycleService,
   ) {}
 
-  findAll(
+  list(
     actor: AuthenticatedRequestUser,
     filters: TicketQueryDto = {},
-  ): Promise<TicketWithPermissions[]> {
-    return this.ticketQueryService.findAll(actor, filters);
+  ): Promise<TicketListWithPermissions[]> {
+    return this.ticketQueryService.list(actor, filters);
   }
 
-  findSubmitted(
-    actor: AuthenticatedRequestUser,
-    filters: TicketQueryDto = {},
-  ): Promise<TicketWithPermissions[]> {
-    return this.ticketQueryService.findSubmitted(actor, filters);
+  listPage(actor: AuthenticatedRequestUser, filters: TicketQueryDto = {}) {
+    return this.ticketQueryService.listPage(actor, filters);
   }
 
-  findClaimed(
-    actor: AuthenticatedRequestUser,
-    filters: TicketQueryDto = {},
-  ): Promise<TicketWithPermissions[]> {
-    return this.ticketQueryService.findClaimed(actor, filters);
-  }
-
-  findResolved(
-    actor: AuthenticatedRequestUser,
-    filters: TicketQueryDto = {},
-  ): Promise<TicketWithPermissions[]> {
-    return this.ticketQueryService.findResolved(actor, filters);
-  }
-
-  findDepartmentTickets(
-    actor: AuthenticatedRequestUser,
-    filters: TicketQueryDto = {},
-  ): Promise<TicketWithPermissions[]> {
-    return this.ticketQueryService.findDepartmentTickets(actor, filters);
-  }
-
-  findPool(
-    actor: AuthenticatedRequestUser,
-    filters: TicketQueryDto = {},
-  ): Promise<TicketWithPermissions[]> {
-    return this.ticketQueryService.findPool(actor, filters);
+  countPool(actor: AuthenticatedRequestUser): Promise<{ count: number }> {
+    return this.ticketQueryService.countPool(actor);
   }
 
   findOne(
@@ -74,11 +56,30 @@ export class TicketsService {
     return this.ticketQueryService.findOne(ticketId, actor);
   }
 
+  findChatContext(
+    ticketId: string,
+    actor: AuthenticatedRequestUser,
+  ): Promise<TicketChatContextResponse> {
+    return this.ticketQueryService.findChatContext(ticketId, actor);
+  }
+
   findEvents(
     ticketId: string,
     actor: AuthenticatedRequestUser,
   ): Promise<TicketEventRecord[]> {
     return this.ticketQueryService.findEvents(ticketId, actor);
+  }
+
+  findEventSummaries(
+    ticketId: string,
+    actor: AuthenticatedRequestUser,
+    query?: TicketEventQueryDto,
+  ) {
+    return this.ticketQueryService.findEventSummaries(ticketId, actor, query);
+  }
+
+  findAttachments(ticketId: string, actor: AuthenticatedRequestUser) {
+    return this.ticketQueryService.findAttachments(ticketId, actor);
   }
 
   findEvent(

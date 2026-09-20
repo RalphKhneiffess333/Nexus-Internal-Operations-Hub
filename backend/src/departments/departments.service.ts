@@ -8,17 +8,20 @@ export interface DepartmentResponse {
   departmentId: string;
   code: string;
   name: string;
-  desc: string;
   active: boolean;
-  createdAt: Date;
-  updatedAt: Date;
 }
 
 @Injectable()
 export class DepartmentsService {
   constructor(private readonly departmentsRepository: DepartmentsRepository) {}
 
-  async findAll(actor?: AuthenticatedRequestUser): Promise<DepartmentResponse[]> {
+  async findAll(
+    actor?: AuthenticatedRequestUser,
+    scope: 'all' | 'mine' = 'all',
+  ): Promise<DepartmentResponse[]> {
+    if (scope === 'mine' && actor) {
+      return this.findMine(actor.userId);
+    }
     const departments = await this.departmentsRepository.findAllActive(
       !actor || actor.role === UserRole.Employee
         ? ADMINISTRATION_DEPARTMENT_CODE
@@ -37,19 +40,13 @@ export class DepartmentsService {
     departmentId: string;
     code: string;
     name: string;
-    desc: string;
     active: boolean;
-    createdAt: Date;
-    updatedAt: Date;
   }): DepartmentResponse {
     return {
       departmentId: department.departmentId,
       code: department.code,
       name: department.name,
-      desc: department.desc,
       active: department.active,
-      createdAt: department.createdAt,
-      updatedAt: department.updatedAt,
     };
   }
 }

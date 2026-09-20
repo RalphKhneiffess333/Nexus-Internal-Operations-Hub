@@ -37,12 +37,6 @@ export class UsersController {
     return this.usersService.preProvision(dto, req.user!);
   }
 
-  @Get(':userId')
-  @Roles(UserRole.Admin)
-  findOne(@Param('userId', IdentifierValidationPipe) userId: string) {
-    return this.usersService.findForAdministration(userId);
-  }
-
   @Patch(':userId/role')
   @Roles(UserRole.Admin)
   changeRole(
