@@ -2656,6 +2656,10 @@ h3 {
 .admin-table tbody tr.is-selected {
   background: var(--primary-soft);
 }
+.admin-table tbody tr:focus-visible {
+  outline: 3px solid rgba(73, 103, 217, .35);
+  outline-offset: -3px;
+}
 .admin-table tbody tr:last-child td {
   border-bottom: 0;
 }

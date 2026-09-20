@@ -1,3 +1,7 @@
+export const MAX_TICKET_TITLE_LENGTH = 200
+export const MAX_TICKET_TEXT_LENGTH = 10000
+export const MAX_CHAT_MESSAGE_LENGTH = 4000
+
 export function validateTicketFields(values, { requireSubmittedBy = false } = {}) {
   const fieldErrors = {}
 
@@ -6,6 +10,8 @@ export function validateTicketFields(values, { requireSubmittedBy = false } = {}
   }
   if (!values.description) {
     fieldErrors.description = 'Description is required.'
+  } else if (values.description.length > MAX_TICKET_TEXT_LENGTH) {
+    fieldErrors.description = `Description must be ${MAX_TICKET_TEXT_LENGTH} characters or fewer.`
   }
   if (!values.priority) {
     fieldErrors.priority = 'Priority is required.'

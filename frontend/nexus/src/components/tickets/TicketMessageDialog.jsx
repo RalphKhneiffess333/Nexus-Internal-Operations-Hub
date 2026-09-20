@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { FilePicker } from './FilePicker'
 import { Dialog } from '../ui/Dialog'
+import { MAX_TICKET_TEXT_LENGTH } from './ticket-validation'
 
 export function TicketMessageDialog({
   title,
@@ -27,6 +28,10 @@ export function TicketMessageDialog({
       setFieldError('Please add a message before continuing.')
       return
     }
+    if (trimmed.length > MAX_TICKET_TEXT_LENGTH) {
+      setFieldError(`Message must be ${MAX_TICKET_TEXT_LENGTH} characters or fewer.`)
+      return
+    }
 
     setFieldError('')
     onConfirm(trimmed, files)
@@ -43,6 +48,7 @@ export function TicketMessageDialog({
             value={value}
             placeholder={placeholder}
             onChange={(event) => setValue(event.target.value)}
+            maxLength={MAX_TICKET_TEXT_LENGTH}
             disabled={busy}
           />
           {fieldError ? <em className="field-error">{fieldError}</em> : null}

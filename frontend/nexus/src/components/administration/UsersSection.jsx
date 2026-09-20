@@ -129,7 +129,19 @@ function UserRow({ user, selected, onSelect, onRequestAction }) {
   }
 
   return (
-    <tr className={selected ? 'is-selected' : ''} onClick={onSelect}>
+    <tr
+      className={selected ? 'is-selected' : ''}
+      tabIndex={0}
+      aria-selected={selected}
+      onClick={onSelect}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onSelect()
+        }
+      }}
+    >
       <td><UserLink user={user} /><span className="admin-subtext">{user.email}</span></td>
       <td>
         <select aria-label={`Role for ${user.fullName}`} value={user.role} onChange={changeRole} onClick={(event) => event.stopPropagation()}>

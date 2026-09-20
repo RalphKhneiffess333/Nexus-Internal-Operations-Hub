@@ -1,4 +1,9 @@
 import { useRef, useState } from 'react'
+import {
+  ACCEPTED_FILE_TYPES,
+  attachmentCountError,
+  validateFile,
+} from './file-validation'
 
 function isSameFile(left, right) {
   return (
@@ -11,28 +16,36 @@ function isSameFile(left, right) {
 export function FilePicker({ onChange, maxFiles = 5, disabled = false }) {
   const inputRef = useRef(null)
   const [files, setFiles] = useState([])
+  const [errors, setErrors] = useState([])
 
   function handleChange(event) {
     const selectedFiles = Array.from(event.target.files ?? [])
     event.target.value = ''
 
     const nextFiles = [...files]
+    const nextErrors = []
     selectedFiles.forEach((file) => {
-      if (
-        nextFiles.length < maxFiles &&
-        !nextFiles.some((existingFile) => isSameFile(existingFile, file))
-      ) {
+      if (nextFiles.some((existingFile) => isSameFile(existingFile, file))) return
+
+      const validationError = validateFile(file)
+      if (validationError) {
+        nextErrors.push(validationError)
+      } else if (nextFiles.length >= maxFiles) {
+        nextErrors.push(attachmentCountError(nextFiles.length + 1, maxFiles))
+      } else {
         nextFiles.push(file)
       }
     })
 
     setFiles(nextFiles)
+    setErrors([...new Set(nextErrors.filter(Boolean))])
     onChange(nextFiles)
   }
 
   function removeFile(fileToRemove) {
     const nextFiles = files.filter((file) => file !== fileToRemove)
     setFiles(nextFiles)
+    setErrors([])
     onChange(nextFiles)
   }
 
@@ -43,6 +56,7 @@ export function FilePicker({ onChange, maxFiles = 5, disabled = false }) {
         className="file-picker-input"
         type="file"
         multiple
+        accept={ACCEPTED_FILE_TYPES}
         onChange={handleChange}
         disabled={disabled}
         tabIndex={-1}
@@ -60,8 +74,13 @@ export function FilePicker({ onChange, maxFiles = 5, disabled = false }) {
       <span className="file-picker-hint">
         {files.length > 0
           ? `${files.length} of ${maxFiles} files selected`
-          : `Up to ${maxFiles} files, 10 MB each`}
+          : maxFiles > 0 ? `Up to ${maxFiles} files, 10 MB each` : 'No additional files can be attached'}
       </span>
+      {errors.length > 0 ? (
+        <div className="field-error" role="alert">
+          {errors.map((error) => <div key={error}>{error}</div>)}
+        </div>
+      ) : null}
 
       {files.length > 0 ? (
         <ul className="file-list">
