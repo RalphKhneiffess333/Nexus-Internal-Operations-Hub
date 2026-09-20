@@ -12,11 +12,16 @@ import { LogsPage } from './pages/administration/LogsPage'
 import { DashboardPage } from './pages/dashboard/DashboardPage'
 import { ChatsPage } from './pages/chats/ChatsPage'
 import { TicketChatPage } from './pages/chats/TicketChatPage'
-import { UserRole } from './features/tickets/ticket-types'
+import { canWorkTickets, UserRole } from './features/tickets/ticket-types'
 
 function AdminRoute({ children }) {
   const { user } = useAuthentication()
   return user?.role === UserRole.ADMIN ? children : <Navigate to="/tickets" replace />
+}
+
+function WorkQueueRoute({ children }) {
+  const { user } = useAuthentication()
+  return canWorkTickets(user) ? children : <Navigate to="/tickets" replace />
 }
 
 export default function App() {
@@ -49,10 +54,28 @@ export default function App() {
           <Route path="/tickets" element={<TicketsPage view="submitted" />} />
           <Route
             path="/tickets/department"
-            element={<Navigate to="/tickets/pool?view=all" replace />}
+            element={
+              <WorkQueueRoute>
+                <Navigate to="/tickets/pool?view=all" replace />
+              </WorkQueueRoute>
+            }
           />
-          <Route path="/tickets/pool" element={<TicketsPage view="pool" />} />
-          <Route path="/tickets/handoffs" element={<HandoffsPage />} />
+          <Route
+            path="/tickets/pool"
+            element={
+              <WorkQueueRoute>
+                <TicketsPage view="pool" />
+              </WorkQueueRoute>
+            }
+          />
+          <Route
+            path="/tickets/handoffs"
+            element={
+              <WorkQueueRoute>
+                <HandoffsPage />
+              </WorkQueueRoute>
+            }
+          />
           <Route path="/tickets/all" element={<AdminRoute><Navigate to="/tickets/pool?view=system" replace /></AdminRoute>} />
           <Route path="/admin/management" element={<AdminRoute><ManagementPage /></AdminRoute>} />
           <Route path="/admin/logs" element={<AdminRoute><LogsPage /></AdminRoute>} />
