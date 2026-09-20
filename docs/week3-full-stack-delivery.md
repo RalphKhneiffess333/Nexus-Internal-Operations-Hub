@@ -1,4 +1,11 @@
+---
+title: "Agentic Workflow Ticket Lifecycle - Nexus"
+author: "Ralph Khneiffess"
+---
+
 # Week 3 - Full-Stack Delivery
+
+NOTICE: This file is best treated as a historical archive for Eurisko Academy instructors as it may contain stale file references since major application updates have been implemented since the creation of this file. To properly follow its implementation, it is recommended to revert to commit a9d9b11cdfd889dd881342f3ad7a0474b9701c81 on Sep 17, 2026.
 
 ## Overview
 

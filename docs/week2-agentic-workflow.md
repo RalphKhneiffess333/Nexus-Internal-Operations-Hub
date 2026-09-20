@@ -4,6 +4,8 @@ author: "Ralph Khneiffess"
 ---
 
 # Agentic Workflow - Nexus
+NOTICE: This file is best treated as a historical archive for Eurisko Academy instructors as it may contain stale file references since major application updates have been implemented since the creation of this file. To properly follow its implementation, it is recommended to revert to commit 9e46642f1a39b8984802a7d3597b73e2b4431ad2 on Sep 8, 2026.
+
 ## Objective
 - The implementation must remain intentionally small and modular. Do not implement future architecture or features unless explicitly requested.
 - Implement a set of features of Nexus in an API that revolves around ticket lifecycle operations.
