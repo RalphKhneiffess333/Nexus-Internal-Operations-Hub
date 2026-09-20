@@ -1,0 +1,399 @@
+@media (max-width: 800px) {
+  :global(.sidebar) {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: min(286px, 86vw);
+    transform: translateX(-105%);
+    transition: transform 180ms ease;
+  }
+  :global(.sidebar).is-open {
+    transform: translateX(0);
+  }
+  :global(.sidebar-backdrop),
+  :global(.menu-button),
+  :global(.mobile-bar) {
+    display: flex;
+  }
+  :global(.mobile-bar) {
+    align-items: center;
+    gap: 12px;
+    padding: 16px 18px 0;
+  }
+  :global(.mobile-title) {
+    color: var(--ink);
+    font-family: var(--display);
+    font-size: 18px;
+    font-weight: 800;
+  }
+  :global(.menu-button) {
+    position: relative;
+    overflow: hidden;
+    width: 42px;
+    height: 42px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    color: var(--ink);
+    background: var(--card);
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+    font-size: 20px;
+    transition: 160ms ease;
+  }
+  :global(.menu-button):active {
+    transform: scale(0.95);
+  }
+  :global(.sidebar-backdrop) {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    border: 0;
+    background: rgba(12, 20, 39, 0.44);
+    z-index: 15;
+  }
+  :global(.page-frame) {
+    padding: 28px 18px 48px;
+  }
+  :global(.page-frame-chat) {
+    padding: 0;
+  }
+  :global(.page-header) {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 18px;
+    margin-bottom: 24px;
+  }
+  :global(.page-header) :global(.btn) {
+    width: 100%;
+  }
+  :global(.pool-switcher) {
+    display: grid;
+    width: 100%;
+    margin-top: -4px;
+  }
+  :global(.pool-switcher) button {
+    width: 100%;
+  }
+  :global(.header-actions) {
+    width: 100%;
+  }
+  :global(.header-actions) :global(.btn) {
+    flex: 1 1 auto;
+  }
+  :global(.chats-page-header) :global(.chats-count) {
+    align-self: flex-start;
+  }
+  :global(.chat-inbox-item) {
+    gap: 12px;
+    padding: 15px;
+  }
+  :global(.chat-inbox-item) h2 {
+    font-size: 14px;
+  }
+  :global(.chat-inbox-meta) time {
+    max-width: 82px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  :global(.ticket-chat-page) {
+    min-height: 0;
+  }
+  :global(.ticket-chat-page-header) {
+    align-items: center;
+    flex-direction: row;
+    min-height: 52px;
+    padding: 6px 14px;
+    gap: 10px;
+  }
+  :global(.ticket-chat-page-header) :global(.btn) {
+    width: auto;
+    padding: 8px 10px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+  :global(.ticket-chat-full) {
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    border-radius: 0;
+  }
+  :global(.ticket-chat-full) :global(.ticket-chat-list) {
+    padding: 20px 14px;
+  }
+  :global(.ticket-chat-full) :global(.ticket-chat-message) {
+    max-width: 82%;
+  }
+  :global(.ticket-chat-full) :global(.ticket-chat-composer) {
+    padding: 8px 14px 10px;
+  }
+  :global(.landing-image) {
+    width: 100%;
+    height: 46%;
+    top: 35%;
+    opacity: 0.82;
+  }
+  :global(.landing-overlay) {
+    background:
+      linear-gradient(
+        180deg,
+        var(--navy-950) 0%,
+        rgba(12, 20, 39, 0.96) 44%,
+        rgba(12, 20, 39, 0.56) 75%,
+        var(--navy-950) 100%
+      ),
+      radial-gradient(
+        circle at 50% 65%,
+        rgba(78, 107, 217, 0.34),
+        transparent 34%
+      );
+  }
+  :global(.landing-content) {
+    min-height: 100svh;
+    justify-content: flex-start;
+    padding: 28px 22px 44px;
+  }
+  :global(.landing-brand) {
+    position: static;
+  }
+  :global(.landing-copy) {
+    margin-top: auto;
+    padding-top: 80px;
+  }
+  :global(.landing-copy) h1 {
+    font-size: 62px;
+  }
+  :global(.landing-copy) p:not(:global(.eyebrow)):not(:global(.landing-error)):not(:global(.test-login-error)) {
+    font-size: 16px;
+  }
+  :global(.microsoft-login),
+  :global(.landing-retry) {
+    width: 100%;
+  }
+  :global(.test-login-panel) {
+    grid-template-columns: 1fr;
+  }
+  :global(.test-login-heading),
+  :global(.landing-copy) :global(.test-login-error) {
+    grid-column: 1;
+  }
+  :global(.test-login-button) {
+    width: 100%;
+  }
+  :global(.ticket-details),
+  :global(.ticket-form),
+  :global(.ticket-timeline) {
+    padding: 22px 18px;
+  }
+  :global(.ticket-row) {
+    padding: 18px 16px 17px 19px;
+  }
+  :global(.ticket-row-meta),
+  :global(.detail-grid) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px 12px;
+  }
+  :global(.banner) {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  :global(.banner) :global(.btn) {
+    width: 100%;
+  }
+  :global(.ticket-filters) {
+    display: grid;
+    width: 100%;
+  }
+  :global(.ticket-filter),
+  :global(.admin-search) {
+    width: 100%;
+  }
+  :global(.admin-filter-group) {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    flex: none;
+  }
+  :global(.admin-filter) {
+    min-width: 0;
+    width: auto;
+    flex: none;
+    gap: 5px;
+    font-size: 11px;
+  }
+  :global(.admin-filter) select {
+    width: 100%;
+    min-width: 0;
+    padding: 7px 8px;
+    font-size: 11px;
+  }
+  :global(.admin-toolbar) {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  :global(.handoff-panel) {
+    padding: 18px;
+  }
+  :global(.handoff-panel-heading) {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  :global(.handoff-panel-heading) :global(.btn) {
+    width: 100%;
+  }
+  :global(.handoff-card-heading) {
+    flex-direction: column;
+    gap: 6px;
+  }
+  :global(.handoff-card-details) {
+    grid-template-columns: 1fr;
+    gap: 9px;
+  }
+  :global(.handoff-card-actions) {
+    justify-content: stretch;
+  }
+  :global(.handoff-card-actions) :global(.btn) {
+    flex: 1 1 auto;
+  }
+  :global(.form-actions) {
+    flex-direction: column-reverse;
+  }
+  :global(.form-actions) :global(.btn) {
+    width: 100%;
+  }
+  :global(.log-entry-button) {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 12px;
+  }
+  :global(.log-entry-row) {
+    grid-template-columns: 1fr;
+  }
+  :global(.log-entry-actions) {
+    justify-content: flex-start;
+    padding: 0 16px 14px;
+  }
+  :global(.log-entry-source),
+  :global(.log-entry-action) {
+    grid-column: 1;
+  }
+  :global(.log-entry-actor),
+  :global(.log-entry-button) time {
+    grid-column: 1 / -1;
+  }
+  :global(.log-entry-button) time {
+    grid-row: 1;
+    grid-column: 2;
+  }
+  :global(.log-detail-row) {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  :global(.user-details-grid) {
+    grid-template-columns: 1fr;
+  }
+  :global(.user-detail-field-wide) {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 1120px) {
+  :global(.ticket-workspace) {
+    grid-template-columns: 1fr;
+  }
+  :global(.ticket-timeline) {
+    position: static;
+  }
+}
+
+@media (max-width: 460px) {
+  :global(.timeline-trigger) {
+    grid-template-columns: 1fr;
+  }
+  :global(.timeline-entry-meta) {
+    grid-template-columns: 1fr auto;
+  }
+  :global(.timeline-entry-meta) time {
+    max-width: none;
+    text-align: left;
+  }
+  :global(.timeline-change-list) :global(.timeline-detail-row) dd {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+  :global(.timeline-change-arrow) {
+    transform: rotate(90deg);
+    transform-origin: left center;
+  }
+}
+
+@media (max-width: 800px) {
+  :global(.dashboard-hero) {
+    align-items: flex-start;
+    flex-direction: column;
+    min-height: 0;
+    padding: 24px 22px;
+  }
+
+  :global(.dashboard-hero-side) {
+    justify-items: start;
+    text-align: left;
+  }
+
+  :global(.dashboard-actions) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  :global(.dashboard-actions) :global(.btn) {
+    width: 100%;
+  }
+
+  :global(.dashboard-metric-grid),
+  :global(.dashboard-admin-metrics) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  :global(.dashboard-content-grid),
+  :global(.dashboard-utility-grid) {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 460px) {
+  :global(.dashboard-actions) {
+    grid-template-columns: 1fr;
+  }
+
+  :global(.dashboard-metric) {
+    min-height: 96px;
+    padding: 15px;
+  }
+
+  :global(.dashboard-metric) strong {
+    font-size: 26px;
+  }
+
+  :global(.dashboard-panel) {
+    padding: 17px 15px;
+  }
+
+  :global(.dashboard-section-heading),
+  :global(.dashboard-panel-heading) {
+    align-items: flex-start;
+  }
+
+  :global(.dashboard-activity-row) {
+    grid-template-columns: auto minmax(0, 1fr);
+    padding: 10px 0;
+  }
+
+  :global(.dashboard-activity-row) time {
+    grid-column: 2;
+  }
+}
+
+.moduleAnchor {
+  display: contents;
+}
+

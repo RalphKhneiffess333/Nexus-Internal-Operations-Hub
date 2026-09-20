@@ -1,0 +1,28 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap");
+
+:root {
+  --navy-950: #0c1427;
+  --navy-900: #111c33;
+  --ink: #172238;
+  --ink-soft: #68758c;
+  --ink-faint: #95a0b2;
+  --paper: #f4f7fb;
+  --card: #ffffff;
+  --line: #e5eaf2;
+  --primary: #4967d9;
+  --primary-dark: #3854c0;
+  --primary-soft: #eef1ff;
+  --mint: #daf6e8;
+  --sky: #e3f2fb;
+  --peach: #fff0df;
+  --rose: #ffe5ea;
+  --danger: #d84f68;
+  --shadow-sm: 0 2px 8px rgba(21, 37, 67, 0.05);
+  --shadow-md: 0 14px 32px rgba(21, 37, 67, 0.08);
+  --shadow-lg: 0 24px 60px rgba(12, 20, 39, 0.16);
+  --radius-lg: 18px;
+  --radius-md: 12px;
+  --sans: "DM Sans", "Segoe UI", system-ui, sans-serif;
+  --display: "Plus Jakarta Sans", "DM Sans", "Segoe UI", system-ui, sans-serif;
+}
+
