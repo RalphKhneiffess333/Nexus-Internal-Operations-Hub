@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { LoadingState } from '../../components/ui/LoadingState'
+import { IllustratedEmptyState } from '../../components/ui/IllustratedEmptyState'
+import noChatsImage from '../../assets/NoChats.png'
 import { DebouncedSearchInput } from '../../components/ui/DebouncedSearchInput'
 import { TicketStatusBadge } from '../../components/tickets/TicketStatusBadge'
 import { getChatConversations } from '../../features/tickets/ticket-api'
@@ -116,10 +118,11 @@ export function ChatsPage() {
       ) : null}
 
       {!loading && !error && conversations.length === 0 ? (
-        <div className="empty-state clay-card">
-          <h2>No ticket chats yet</h2>
-          <p>When a ticket conversation starts, it will appear here.</p>
-        </div>
+        <IllustratedEmptyState
+          image={noChatsImage}
+          title="No ticket chats yet"
+          message="When a ticket conversation starts, it will appear here."
+        />
       ) : null}
 
       {!loading && !error && conversations.length > 0 ? (

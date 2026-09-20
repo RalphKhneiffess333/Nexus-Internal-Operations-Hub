@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { UserLink } from '../../../components/users/UserLink/UserLink'
 import { LoadingState } from '../../../components/ui/LoadingState/LoadingState'
+import welcomeImage from '../../../assets/Welcome.png'
 import { getDashboardSummary } from '../../../features/dashboard/dashboard-api'
 import {
   formatDateTime,
@@ -108,6 +109,7 @@ export function DashboardPage() {
                 : 'Track your requests and get help from the right department.'}
           </p>
         </div>
+        <img className="dashboard-welcome-image" src={welcomeImage} alt="" aria-hidden="true" />
         <div className="dashboard-hero-side">
           <span className="dashboard-role">{roleLabel(role)}</span>
           {summary?.departments?.length ? (
@@ -342,5 +344,4 @@ function AdminActivity({ activity }) {
     </section>
   )
 }
-
 

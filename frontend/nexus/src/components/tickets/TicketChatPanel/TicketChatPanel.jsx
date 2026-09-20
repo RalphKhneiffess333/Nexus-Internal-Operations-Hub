@@ -13,6 +13,8 @@ import { sanitizePlainText } from '../../../lib/content/sanitize'
 import { useLatestRequest } from '../../../lib/api/use-latest-request'
 import { MAX_CHAT_MESSAGE_LENGTH } from '../ticket-validation'
 import ticketStyles from '../TicketStyles.module.css'
+import noChatsImage from '../../../assets/NoChats.png'
+import { IllustratedEmptyState } from '../../ui/IllustratedEmptyState'
 
 function sortMessages(messages) {
   return [...messages].sort((left, right) => {
@@ -204,7 +206,14 @@ export function TicketChatPanel({
       {connectionNote ? <p className="ticket-chat-connection">{connectionNote}</p> : null}
       {loading ? <p className="ticket-chat-state">Loading conversation…</p> : null}
       {!loading && error ? <div className="ticket-chat-state ticket-chat-error"><p>{error}</p><button type="button" className="btn ghost" onClick={() => void loadMessages()}>Try again</button></div> : null}
-      {!loading && !error && messages.length === 0 ? <p className="ticket-chat-state">No messages yet. {writable ? 'Start the conversation.' : 'This conversation is read-only.'}</p> : null}
+      {!loading && !error && messages.length === 0 ? (
+        <IllustratedEmptyState
+          className="ticket-chat-empty-state"
+          image={noChatsImage}
+          title="No messages yet"
+          message={writable ? 'Start the conversation.' : 'This conversation is read-only.'}
+        />
+      ) : null}
 
       {!loading && messages.length > 0 ? (
         <ol
@@ -247,4 +256,3 @@ export function TicketChatPanel({
     </section>
   )
 }
-

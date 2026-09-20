@@ -3,6 +3,8 @@ import { useSearchParams } from 'react-router-dom'
 import { HandoffFilters } from '../../components/tickets/HandoffFilters'
 import { HandoffRequestCard } from '../../components/tickets/HandoffRequestCard'
 import { LoadingState } from '../../components/ui/LoadingState'
+import { IllustratedEmptyState } from '../../components/ui/IllustratedEmptyState'
+import noHandoffImage from '../../assets/NoHandoff.png'
 import { useAuthentication } from '../../features/authentication/use-authentication'
 import { useDepartments } from '../../features/departments/use-departments'
 import {
@@ -194,10 +196,11 @@ export function HandoffsPage() {
       {actionError ? <p className="banner error">{actionError}</p> : null}
       {loading ? <LoadingState>Loading handoff requests…</LoadingState> : null}
       {!loading && !error && requests.length === 0 ? (
-        <div className="empty-state clay-card">
-          <h2>No {view} handoffs</h2>
-          <p>{view === 'incoming' ? 'Requests from other agents will appear here.' : 'Handoffs you send will appear here.'}</p>
-        </div>
+        <IllustratedEmptyState
+          image={noHandoffImage}
+          title={`No ${view} handoffs`}
+          message={view === 'incoming' ? 'Requests from other agents will appear here.' : 'Handoffs you send will appear here.'}
+        />
       ) : null}
       {!loading && !error && requests.length > 0 ? (
         <div className="handoff-page-list">

@@ -3,6 +3,8 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { TicketList } from '../../components/tickets/TicketList'
 import { TicketFilters } from '../../components/tickets/TicketFilters'
 import { LoadingState } from '../../components/ui/LoadingState'
+import { IllustratedEmptyState } from '../../components/ui/IllustratedEmptyState'
+import noTicketImage from '../../assets/NoTicket.png'
 import { useAuthentication } from '../../features/authentication/use-authentication'
 import { useDepartments } from '../../features/departments/use-departments'
 import { usePriorities } from '../../features/priorities/use-priorities'
@@ -293,15 +295,17 @@ export function TicketsPage({ view = 'submitted' }) {
       ) : null}
 
       {!isLoading && !error && tickets.length === 0 ? (
-        <div className="empty-state clay-card content-reveal">
-          <h2>{config.emptyTitle}</h2>
-          <p>{config.emptyText}</p>
-          {config.showEmptyAction ? (
+        <IllustratedEmptyState
+          image={noTicketImage}
+          className="content-reveal"
+          title={config.emptyTitle}
+          message={config.emptyText}
+          action={config.showEmptyAction ? (
             <Link to="/tickets/new" className="btn primary">
               Submit a ticket
             </Link>
           ) : null}
-        </div>
+        />
       ) : null}
 
       {!isLoading && !error && tickets.length > 0 ? (

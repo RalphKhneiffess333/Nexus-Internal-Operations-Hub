@@ -13,6 +13,7 @@ import { DashboardPage } from '../pages/dashboard/DashboardPage/DashboardPage'
 import { ChatsPage } from '../pages/chats/ChatsPage/ChatsPage'
 import { TicketChatPage } from '../pages/chats/TicketChatPage/TicketChatPage'
 import { canWorkTickets, UserRole } from '../features/tickets/ticket-types'
+import { NotFoundPage } from '../pages/NotFoundPage'
 
 function AdminRoute({ children }) {
   const { user } = useAuthentication()
@@ -40,7 +41,7 @@ export default function App() {
     content = (
       <Routes>
         <Route path="/" element={<LandingPage />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     )
   } else {
@@ -81,6 +82,7 @@ export default function App() {
           <Route path="/admin/logs" element={<AdminRoute><LogsPage /></AdminRoute>} />
           <Route path="/tickets/new" element={<NewTicketPage />} />
           <Route path="/tickets/:ticketId" element={<TicketDetailsPage />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>
     )
@@ -93,5 +95,4 @@ export default function App() {
     </>
   )
 }
-
 
