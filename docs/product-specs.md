@@ -151,10 +151,10 @@ If the ticket is still in the "Open" stage, Nexus must allow the employee to del
 If the ticket is closed, Nexus must allow the employee to reopen his request.
 
 #### History Tracking
-Nexus must maintain an accurate log of every single action recorded (ticket submission, assignment, modification, closing, chats, etc...)
+Nexus must maintain an accurate log of every ticket and system action recorded (ticket submission, assignment, modification, closing, handoffs, etc...). Chat messages are retained in their ticket-specific chat and are not included in the unified history logs.
 
 #### Ticket Specific Chat
-Nexus must allow employees who have a claimed ticket be able to chat with their agent through independant chats for each ticket
+Nexus must allow employees who have a claimed ticket to chat with their agent through independent chats for each ticket. The ticket submitter, all agents belonging to the ticket's department, and administrators may view the chat. Only the ticket submitter and the currently assigned agent may send messages.
 
 #### Event Notification
 Nexus must send notifications to the concerned party for every meaningful event. Nexus sends notifications as emails. Example: 
@@ -168,7 +168,7 @@ Nexus must allow an agent to attempt delegation of a claimed ticket to another a
 A handoff request can have multiple states:
 - Pending: Waiting for an accept or a reject
 - Accepted: The request was accepted, the new agent has claimed the ticket
-- Rejected: The request was denied
+- Rejected: The request was rejected
 - Cancelled: The requester agent has cancelled the handoff request
 ### Non-Functional Requirements
 #### Security
@@ -276,6 +276,8 @@ Unwanted Behavior Scenarios:
 #### Ticket Specific Chat
 - An employee can send messages in "Claimed" tickets chats to their agent
 - An agent can send messages in "Claimed" tickets chat to the employee
+- The ticket submitter, all agents belonging to the ticket's department, and administrators can view the chat and its files
+- Only the ticket submitter and currently assigned agent can send messages
 - File attachments are supported
 - Each ticket should maintain its own isolated chat
 - Chat messages should show the sender identity, timestamp and content
@@ -324,7 +326,7 @@ Unwanted Behavior Scenarios:
 
 
 #### History Tracking
-- Nexus records actions performed and logs them, including submission, claiming, opening, modification, handoffs, status changes, and chat messages.
+- Nexus records actions performed and logs them, including submission, claiming, opening, modification, handoffs, and status changes. Chat messages are stored and displayed in their ticket-specific chat but are not included in the unified history logs.
 - Each history entry records the action that occurred
 - Each history entry records the user who performed the action
 - Each history entry records the date and time at which the action occurred.
@@ -349,7 +351,7 @@ Unwanted Behavior Scenarios:
 - An agent can propose delegating a ticket assigned to them to another agent in the same department
 - The requester agent can cancel the handoff request
 - The destination agent is notified of the event
-- The destination agent can either accept or deny the proposal
+- The destination agent can either accept or reject the proposal
 - If a ticket is closed with a pending handoff request, the request is cancelled.
 - If either requester or requested agent leave the department with a pending request, it is cancelled
 - If the destination agent refuses the proposal, the ticket will stay assigned to the initiator agent

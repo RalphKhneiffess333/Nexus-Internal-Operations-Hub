@@ -52,7 +52,7 @@ Example: An IT (Department) agent (Role) can close a ticket if he claimed it (Re
 - Ticket Management Module: Core module responsible for request submission, automatic routing to department ticket pool, ticket claiming, status tracking (open, claimed, closed, reopened), modifications, deletions, closings with completion notes, reopenings, and ticket handoffs. This module enforces lifecycle validation rules for tickets, modifications and deletions for tickets are rejected if the ticket is anything other "Open".
 The authorization module provides the check for roles but not resources as resources are specific to their specialized modules.
 
-- Chat Module: Main module for ticket specific chats between employees and agents, including managing file and message chats and locking on ticket closure.
+- Chat Module: Main module for ticket-specific chats between employees and agents, including managing file and message chats and locking on ticket closure. Chat viewing is authorized for the ticket submitter, all agents belonging to the ticket's department, and administrators; sending is limited to the ticket submitter and current assigned agent.
 
 - Notification Module: Responsible for sending email notifications on ticket submissions, status updates, chat messages, and reminder alerts for tickets unclaimed for durations past their configured time. 
 
@@ -95,7 +95,7 @@ Clients do not access files using URLs directly, Nexus backend performs authoriz
 
 Nexus should properly handle file storage errors such as :
 - File upload errors: Due to network errors, insufficient storage, file size limits, or invalid file type, uploads may fail, affecting reliability and user experience, the user should be notified in these cases of that failure
-- Malicious Files: Harmful files and executables may be uploaded, a major security risk, Nexus should perform a quick check of the MIME type, file size, extension, and more.
+- File validation: Uploaded files should be checked for MIME type, file size, and extension, with executable uploads rejected.
 - Orphaned Files: If a file successfully uploads on the system storage but its corresponding database record linking it failed or vice versa, then there will be orphaned files or records, a simple periodical background worker that checks inconsistencies and cleans up the database and files solves this issue
 - Unauthorized File Access: Users should only be able to see the files they have access to linked to their tickets and accounts, authorization should be robust, failure to ensure this introduces major privacy risks.
 - Server failure: As with the database, a complete failure will make both Nexus and its currently stored files unavailable, backups should be stored outside the current backend server so that they are easily recoverable.
@@ -118,8 +118,8 @@ While deciding how emails will be sent from the Nexus backend, two options were 
 - Use a third party email provider using an API (Sendgrid, Amazon SES, etc...), Nexus isn't expected to send more than 1000 emails/month which makes costs negligible, making this the better choice.
 
 Nexus should correctly handle errors related to the Email Provider API:
-- Network timeout or connection reset: Nexus should retry the request up to 3 times. If the retry fails, store the email as pending, the failure should be logged.
-- Email provider unavailable: Nexus will temporarily be unable to send email notifications. The failure should not affect the main server functions (Ticket management, chats, etc...), if a notification wasn't sent due to some error, resending attempts are not required due to the scope of the app.
+- Network timeout or connection reset: Nexus should retry the request up to 3 times. If all attempts fail, the failure should be logged and the email should be dropped.
+- Email provider unavailable: Nexus will temporarily be unable to send email notifications. The failure should not affect the main server functions (Ticket management, chats, etc...). Failed notifications are dropped and are not persisted or resent.
 - Email rejected by provider: The provider may reject an email because of an invalid recipient address, invalid request, exceeded limits, or other ... Nexus should record the failure and should not retry requests that are known to be invalid.
 
 ### Security Architecture and Trust Boundaries
@@ -129,7 +129,7 @@ This boundary seperates the web application from the backend, users are untruste
 - Authenticating users with a third party identity provider and initiating a server session with the user receiving a cookie (Due to the app scope, sessions will be managed in memory and won't require database involvement)
 - Role and resource based access control on the server to determine the user's role (Employee, Agent, Admin) and what he can access
 - Sanitizing user input in ticket submission forms and chats to prevent injection attacks
-- File validation (Size limit, MIME type, extension, Scanning)
+- File validation (Size limit, MIME type, and extension)
 
 #### Backend to external services
 Seperates the backend from third party services, in this case, the identity provider and email provider.
@@ -206,6 +206,5 @@ Some additional features are proposed if resources are not too limiting:
 - Analytics system to monitor employee productivity
 - Automatic tickets assignment using advanced algorithms or AI
 - Employee schedule tracking and features for better ticket assignment decision making
-- Increased Security like malware scanning for files, ...
 - Ticket Searching for employees to find solutions for past requests if they already occured or implement an AI that can troubleshoot their requests
 - Add more identity providers or in-app authentication

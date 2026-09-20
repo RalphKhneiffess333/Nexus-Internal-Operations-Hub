@@ -68,7 +68,7 @@ This table manages handoff request states, every request has:
 
 #### Ticket Events table
 Stores history logs about events related to tickets, history logs are divided between ticket related events (Submission, Modification, Claiming, etc...) stored in the ticket events table for business-domain timeline, and system events (New department added, agent was added to department, system logs...) stored in the Audit Logs table for security and administration activity. 
-When an admin wants to see all history logs, all records are pulled from both ticket events and audit logs tables.
+When an admin wants to see the unified history logs, records are pulled from both the ticket events and audit logs tables. Chat messages are stored separately in the Chat table and are not included in the unified history logs.
 
 Ticket events are particularly useful for fetching ticket opening and completion notes since each events stores its details independently.
 
@@ -178,7 +178,7 @@ The following are the available ticket events stored in the "actions" attribute 
 #### HANDOFF
 - requester ID (linked to Users table)
 - requested ID (linked to Users table)
-- action: REQUESTED, ACCEPTED, DENIED, CANCELLED
+- action: REQUESTED, ACCEPTED, REJECTED, CANCELLED
 - message (optional)
 - timestamp
 
@@ -245,10 +245,10 @@ The following are system and user log types stored in the "actions" attribute of
 
 ### Chat Invariants
 - Every message belongs to exactly one ticket and one user
-- Only authorized users can create messages for the tickets
+- The ticket submitter, all agents belonging to the ticket's department, and administrators can view the chat and its files
+- Only the ticket submitter and the current assigned agent can create messages for the ticket
 - Messages cannot be sent for OPEN, REOPENED OR CLOSED tickets
 - Chats for any ticket that isn't CLAIMED are read only
-- Authorized users for ticket chats are either the employee who submitted the ticket, or the agent who claimed it
 
 ### File Invariants
 - A file attached to a resource must inherit its authorization permissions
