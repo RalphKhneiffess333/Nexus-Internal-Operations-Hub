@@ -9,6 +9,7 @@ import {
 } from '../../features/administration/administration-api'
 import { getUser } from '../../features/users/users-api'
 import { formatDateTime } from '../../features/tickets/ticket-types'
+import { useLatestRequest } from '../../lib/api/use-latest-request'
 
 const logSections = [
   { id: 'all', label: 'All system events' },
@@ -50,26 +51,33 @@ export function LogsPage() {
   const [hasMore, setHasMore] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const { beginRequest } = useLatestRequest()
 
   const loadLogs = useCallback(async () => {
+    const request = beginRequest()
     setLoading(true)
     setError('')
     try {
-      const result = await getAdminActivity({
-        page,
-        pageSize: 25,
-        source: section === 'all' ? 'all' : section === 'audit' ? 'audit' : 'ticket',
-        auditAction: action,
-        ticketAction,
-      })
+      const result = await getAdminActivity(
+        {
+          page,
+          pageSize: 25,
+          source: section === 'all' ? 'all' : section === 'audit' ? 'audit' : 'ticket',
+          auditAction: action,
+          ticketAction,
+        },
+        { signal: request.controller.signal },
+      )
+      if (!request.isCurrent()) return
       setEntries(result?.items ?? [])
       setHasMore(Boolean(result?.hasMore))
     } catch (loadError) {
+      if (!request.isCurrent()) return
       setError(loadError.message || 'Unable to load system history.')
     } finally {
-      setLoading(false)
+      if (request.isCurrent()) setLoading(false)
     }
-  }, [action, page, section, ticketAction])
+  }, [action, beginRequest, page, section, ticketAction])
 
   useEffect(() => {
     // This effect owns the async history synchronization for the selected filters.
@@ -112,18 +120,26 @@ function LogEntry({ entry }) {
   const [userDetails, setUserDetails] = useState(null)
   const [userLoading, setUserLoading] = useState(false)
   const [userError, setUserError] = useState('')
+  const { beginRequest: beginUserRequest } = useLatestRequest()
+  const { beginRequest: beginDetailsRequest } = useLatestRequest()
 
   async function openUserDetails() {
     if (!entry.actor?.userId || userLoading) return
+    const request = beginUserRequest()
     setUserLoading(true)
     setUserError('')
     try {
-      setUserDetails(await getUser(entry.actor.userId))
+      const result = await getUser(entry.actor.userId, {
+        signal: request.controller.signal,
+      })
+      if (!request.isCurrent()) return
+      setUserDetails(result)
     } catch (loadError) {
+      if (!request.isCurrent()) return
       setUserDetails(entry.actor)
       setUserError(loadError.message || 'Unable to load the complete user profile.')
     } finally {
-      setUserLoading(false)
+      if (request.isCurrent()) setUserLoading(false)
     }
   }
 
@@ -132,18 +148,21 @@ function LogEntry({ entry }) {
     setExpanded(nextExpanded)
     if (!nextExpanded || detailsLoaded || detailsLoading) return
 
+    const request = beginDetailsRequest()
     setDetailsLoading(true)
     setDetailsError('')
     try {
       const result = entry.source === 'audit'
-        ? await getAuditLog(entry.id)
-        : await getAdminTicketEvent(entry.ticketId, entry.id)
+        ? await getAuditLog(entry.id, { signal: request.controller.signal })
+        : await getAdminTicketEvent(entry.ticketId, entry.id, { signal: request.controller.signal })
+      if (!request.isCurrent()) return
       setDetails(result?.details ?? null)
       setDetailsLoaded(true)
     } catch (loadError) {
+      if (!request.isCurrent()) return
       setDetailsError(loadError.message || 'Unable to load event details.')
     } finally {
-      setDetailsLoading(false)
+      if (request.isCurrent()) setDetailsLoading(false)
     }
   }
 

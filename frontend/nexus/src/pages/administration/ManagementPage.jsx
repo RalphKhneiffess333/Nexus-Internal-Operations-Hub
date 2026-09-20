@@ -22,6 +22,7 @@ import {
   updateAdminUserRole,
   updateAdminUserStatus,
 } from '../../features/administration/administration-api'
+import { useLatestRequest } from '../../lib/api/use-latest-request'
 
 const sections = [
   { id: 'users', label: 'Users' },
@@ -58,18 +59,21 @@ export function ManagementPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const { beginRequest } = useLatestRequest()
 
   const loadData = useCallback(async () => {
+    const request = beginRequest()
     setLoading(true)
     setError('')
     try {
       if (section === 'users') {
         const [userResult, departmentResult] = await Promise.all([
-          getAdminUsers({ page: userPage, pageSize: 25, search: userSearch, status: userStatus, departmentId: userDepartmentId, hasLogged: userHasLogged }),
+          getAdminUsers({ page: userPage, pageSize: 25, search: userSearch, status: userStatus, departmentId: userDepartmentId, hasLogged: userHasLogged }, { signal: request.controller.signal }),
           departmentOptionsLoaded.current
             ? Promise.resolve(null)
-            : getAdminDepartments({ page: 1, pageSize: 100 }),
+            : getAdminDepartments({ page: 1, pageSize: 100 }, { signal: request.controller.signal }),
         ])
+        if (!request.isCurrent()) return
         setUsers(userResult?.items ?? [])
         setUserTotal(userResult?.total ?? 0)
         if (departmentResult) {
@@ -77,19 +81,22 @@ export function ManagementPage() {
           departmentOptionsLoaded.current = true
         }
       } else if (section === 'departments') {
-        const departmentResult = await getAdminDepartments({ page: departmentPage, pageSize: 25, search: departmentSearch })
+        const departmentResult = await getAdminDepartments({ page: departmentPage, pageSize: 25, search: departmentSearch }, { signal: request.controller.signal })
+        if (!request.isCurrent()) return
         setDepartments(departmentResult?.items ?? [])
         setDepartmentTotal(departmentResult?.total ?? 0)
       } else {
-        const priorityResult = await getAdminPriorities()
+        const priorityResult = await getAdminPriorities({ signal: request.controller.signal })
+        if (!request.isCurrent()) return
         setPriorities(priorityResult ?? [])
       }
     } catch (loadError) {
+      if (!request.isCurrent()) return
       setError(messageFor(loadError, 'Unable to load management data.'))
     } finally {
-      setLoading(false)
+      if (request.isCurrent()) setLoading(false)
     }
-  }, [departmentPage, departmentSearch, section, userDepartmentId, userHasLogged, userPage, userSearch, userStatus])
+  }, [beginRequest, departmentPage, departmentSearch, section, userDepartmentId, userHasLogged, userPage, userSearch, userStatus])
 
   useEffect(() => {
     // This effect owns the async data synchronization for the selected search.

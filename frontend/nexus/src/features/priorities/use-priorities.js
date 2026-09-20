@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { getPriorities } from './priority-api'
+import { useLatestRequest } from '../../lib/api/use-latest-request'
 
 function normalizePriorities(result) {
   return Array.isArray(result) ? result : []
@@ -9,35 +10,40 @@ export function usePriorities() {
   const [priorities, setPriorities] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const { beginRequest } = useLatestRequest()
 
   const reload = useCallback(async () => {
+    const request = beginRequest()
     setLoading(true)
     setError('')
     try {
-      setPriorities(normalizePriorities(await getPriorities()))
+      const result = normalizePriorities(await getPriorities({ signal: request.controller.signal }))
+      if (!request.isCurrent()) return
+      setPriorities(result)
     } catch (loadError) {
+      if (!request.isCurrent()) return
       setPriorities([])
       setError(loadError.message || 'Unable to load priorities. Please try again.')
     } finally {
-      setLoading(false)
+      if (request.isCurrent()) setLoading(false)
     }
-  }, [])
+  }, [beginRequest])
 
   useEffect(() => {
-    let active = true
     const load = async () => {
+      const request = beginRequest()
       setLoading(true)
       setError('')
       try {
-        const result = normalizePriorities(await getPriorities())
-        if (active) setPriorities(result)
+        const result = normalizePriorities(await getPriorities({ signal: request.controller.signal }))
+        if (request.isCurrent()) setPriorities(result)
       } catch (loadError) {
-        if (active) {
+        if (request.isCurrent()) {
           setPriorities([])
           setError(loadError.message || 'Unable to load priorities. Please try again.')
         }
       } finally {
-        if (active) setLoading(false)
+        if (request.isCurrent()) setLoading(false)
       }
     }
 
@@ -50,11 +56,10 @@ export function usePriorities() {
     document.addEventListener('visibilitychange', refreshWhenActive)
 
     return () => {
-      active = false
       window.removeEventListener('focus', refreshWhenActive)
       document.removeEventListener('visibilitychange', refreshWhenActive)
     }
-  }, [])
+  }, [beginRequest])
 
   return { priorities, loading, error, reload }
 }

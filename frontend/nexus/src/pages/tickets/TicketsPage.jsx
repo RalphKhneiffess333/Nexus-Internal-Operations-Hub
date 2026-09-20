@@ -11,6 +11,7 @@ import {
 } from '../../features/tickets/ticket-api'
 import { canWorkTickets } from '../../features/tickets/ticket-types'
 import { useNotifications } from '../../features/notifications/use-notifications'
+import { useLatestRequest } from '../../lib/api/use-latest-request'
 
 const TICKET_VIEWS = {
   admin: {
@@ -129,6 +130,7 @@ export function TicketsPage({ view = 'submitted' }) {
   const [loading, setLoading] = useState(true)
   const [loadedRequestKey, setLoadedRequestKey] = useState(null)
   const [error, setError] = useState('')
+  const { beginRequest } = useLatestRequest()
   const { departments } = useDepartments(isAgentDepartmentView ? 'mine' : 'all')
   const { priorities } = usePriorities()
   const isLoading = loading || loadedRequestKey !== loadKey
@@ -159,6 +161,7 @@ export function TicketsPage({ view = 'submitted' }) {
   }
 
   const loadTickets = useCallback(async () => {
+    const request = beginRequest()
     setLoading(true)
     setError('')
     try {
@@ -170,18 +173,22 @@ export function TicketsPage({ view = 'submitted' }) {
         priority: priorityFilter,
         page,
         pageSize: 50,
-      })
+      }, { signal: request.controller.signal })
+      if (!request.isCurrent()) return
       setTickets(result?.items ?? [])
       setHasMore(Boolean(result?.hasMore))
     } catch (loadError) {
+      if (!request.isCurrent()) return
       setError(loadError.message || config.error)
       setTickets([])
       setHasMore(false)
     } finally {
-      setLoadedRequestKey(loadKey)
-      setLoading(false)
+      if (request.isCurrent()) {
+        setLoadedRequestKey(loadKey)
+        setLoading(false)
+      }
     }
-  }, [config, loadKey, searchFilter, appliedStatusFilter, departmentFilter, priorityFilter, page])
+  }, [beginRequest, config, loadKey, searchFilter, appliedStatusFilter, departmentFilter, priorityFilter, page])
 
   useEffect(() => {
     // One server-backed loader handles every ticket scope and filter combination.

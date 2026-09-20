@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { getDepartments } from './department-api'
+import { useLatestRequest } from '../../lib/api/use-latest-request'
 
 const departmentCache = new Map()
 const departmentRequests = new Map()
@@ -29,31 +30,36 @@ export function useDepartments(scope = 'all') {
   const [departments, setDepartments] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const { beginRequest } = useLatestRequest()
 
   const loadDepartments = useCallback(async () => {
+    const request = beginRequest()
     setLoading(true)
     setError('')
     try {
-      setDepartments(await loadDepartmentReference(scope, true))
+      const result = await loadDepartmentReference(scope, true)
+      if (!request.isCurrent()) return
+      setDepartments(result)
     } catch (loadError) {
+      if (!request.isCurrent()) return
       setError(loadError.message || 'Unable to load departments. Please try again.')
       setDepartments([])
     } finally {
-      setLoading(false)
+      if (request.isCurrent()) setLoading(false)
     }
-  }, [scope])
+  }, [beginRequest, scope])
 
   useEffect(() => {
-    let active = true
+    const request = beginRequest()
 
     async function loadInitialDepartments() {
       try {
         const result = await loadDepartmentReference(scope)
-        if (active) {
+        if (request.isCurrent()) {
           setDepartments(result)
         }
       } catch (loadError) {
-        if (active) {
+        if (request.isCurrent()) {
           setError(
             loadError.message ||
               'Unable to load departments. Please try again.',
@@ -61,18 +67,14 @@ export function useDepartments(scope = 'all') {
           setDepartments([])
         }
       } finally {
-        if (active) {
+        if (request.isCurrent()) {
           setLoading(false)
         }
       }
     }
 
     void loadInitialDepartments()
-
-    return () => {
-      active = false
-    }
-  }, [scope])
+  }, [beginRequest, scope])
 
   return { departments, loading, error, reload: loadDepartments }
 }

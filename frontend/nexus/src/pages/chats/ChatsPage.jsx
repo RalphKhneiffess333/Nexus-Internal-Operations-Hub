@@ -6,6 +6,7 @@ import { TicketStatusBadge } from '../../components/tickets/TicketStatusBadge'
 import { useNotifications } from '../../features/notifications/use-notifications'
 import { getChatConversations } from '../../features/tickets/ticket-api'
 import { formatDateTime } from '../../features/tickets/ticket-types'
+import { useLatestRequest } from '../../lib/api/use-latest-request'
 
 function messagePreview(conversation) {
   const message = conversation.lastMessage
@@ -24,26 +25,33 @@ export function ChatsPage() {
   const [hasMore, setHasMore] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const { beginRequest } = useLatestRequest()
 
   const loadConversations = useCallback(async ({ silent = false } = {}) => {
+    const request = beginRequest()
     markAllChatsRead()
     if (!silent) {
       setLoading(true)
       setError('')
     }
     try {
-      const result = await getChatConversations({ page, pageSize: 50, search })
+      const result = await getChatConversations(
+        { page, pageSize: 50, search },
+        { signal: request.controller.signal },
+      )
+      if (!request.isCurrent()) return
       setConversations(result?.items ?? [])
       setHasMore(Boolean(result?.hasMore))
     } catch (loadError) {
+      if (!request.isCurrent()) return
       if (!silent) {
         setError(loadError.message || 'Unable to load your conversations.')
         setHasMore(false)
       }
     } finally {
-      if (!silent) setLoading(false)
+      if (request.isCurrent()) setLoading(false)
     }
-  }, [markAllChatsRead, page, search])
+  }, [beginRequest, markAllChatsRead, page, search])
 
   useEffect(() => {
     // The inbox is synchronized from the server when this route is mounted.

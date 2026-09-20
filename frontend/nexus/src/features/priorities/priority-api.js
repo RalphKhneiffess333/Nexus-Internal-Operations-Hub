@@ -1,5 +1,5 @@
 import { apiRequest } from '../../lib/api/client'
 
-export function getPriorities() {
-  return apiRequest('/priorities')
+export function getPriorities(requestOptions = {}) {
+  return apiRequest('/priorities', requestOptions)
 }

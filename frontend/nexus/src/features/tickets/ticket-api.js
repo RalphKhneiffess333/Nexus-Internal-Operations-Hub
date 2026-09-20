@@ -19,36 +19,36 @@ function withQuery(path, params = {}) {
   return `${path}${query.toString() ? `?${query}` : ''}`
 }
 
-export function getTickets(params = {}) {
-  return apiRequest(withQuery('/tickets', params))
+export function getTickets(params = {}, requestOptions = {}) {
+  return apiRequest(withQuery('/tickets', params), requestOptions)
 }
 
-export function getTicketPoolCount() {
-  return apiRequest('/tickets/pool/count')
+export function getTicketPoolCount(requestOptions = {}) {
+  return apiRequest('/tickets/pool/count', requestOptions)
 }
 
-export function getTicket(ticketId) {
-  return apiRequest(`/tickets/${ticketId}`)
+export function getTicket(ticketId, requestOptions = {}) {
+  return apiRequest(`/tickets/${ticketId}`, requestOptions)
 }
 
-export function getTicketChatContext(ticketId) {
-  return apiRequest(withQuery(`/tickets/${ticketId}`, { view: 'chat' }))
+export function getTicketChatContext(ticketId, requestOptions = {}) {
+  return apiRequest(withQuery(`/tickets/${ticketId}`, { view: 'chat' }), requestOptions)
 }
 
-export function getTicketEvents(ticketId, params = {}) {
-  return apiRequest(withQuery(`/tickets/${ticketId}/events`, params))
+export function getTicketEvents(ticketId, params = {}, requestOptions = {}) {
+  return apiRequest(withQuery(`/tickets/${ticketId}/events`, params), requestOptions)
 }
 
-export function getTicketAttachments(ticketId) {
-  return apiRequest(`/tickets/${ticketId}/attachments`)
+export function getTicketAttachments(ticketId, requestOptions = {}) {
+  return apiRequest(`/tickets/${ticketId}/attachments`, requestOptions)
 }
 
-export function getChatMessages(ticketId, params = {}) {
-  return apiRequest(withQuery(`/tickets/${ticketId}/chat/messages`, params))
+export function getChatMessages(ticketId, params = {}, requestOptions = {}) {
+  return apiRequest(withQuery(`/tickets/${ticketId}/chat/messages`, params), requestOptions)
 }
 
-export function getChatConversations(params = {}) {
-  return apiRequest(withQuery('/chats', params))
+export function getChatConversations(params = {}, requestOptions = {}) {
+  return apiRequest(withQuery('/chats', params), requestOptions)
 }
 
 export function markChatConversationRead(ticketId) {
@@ -69,16 +69,16 @@ export function createChatMessage(ticketId, content, files = []) {
   })
 }
 
-export function getTicketEvent(ticketId, eventId) {
-  return apiRequest(`/tickets/${ticketId}/events/${eventId}`)
+export function getTicketEvent(ticketId, eventId, requestOptions = {}) {
+  return apiRequest(`/tickets/${ticketId}/events/${eventId}`, requestOptions)
 }
 
-export function getTicketHandoffs(ticketId, params = {}) {
-  return apiRequest(withQuery(`/tickets/${ticketId}/handoffs`, params))
+export function getTicketHandoffs(ticketId, params = {}, requestOptions = {}) {
+  return apiRequest(withQuery(`/tickets/${ticketId}/handoffs`, params), requestOptions)
 }
 
-export function getEligibleHandoffAgents(ticketId) {
-  return apiRequest(`/tickets/${ticketId}/handoffs/eligible-agents`)
+export function getEligibleHandoffAgents(ticketId, requestOptions = {}) {
+  return apiRequest(`/tickets/${ticketId}/handoffs/eligible-agents`, requestOptions)
 }
 
 export function createHandoff(ticketId, data) {
@@ -100,12 +100,12 @@ export function cancelHandoff(handoffId) {
   return apiRequest(`/handoffs/${handoffId}/cancel`, { method: 'POST' })
 }
 
-export function getHandoffs(params = {}) {
-  return apiRequest(withQuery('/handoffs', params))
+export function getHandoffs(params = {}, requestOptions = {}) {
+  return apiRequest(withQuery('/handoffs', params), requestOptions)
 }
 
-export function getHandoffParticipants() {
-  return apiRequest('/handoffs/participants')
+export function getHandoffParticipants(requestOptions = {}) {
+  return apiRequest('/handoffs/participants', requestOptions)
 }
 
 export function createTicket(data, files = []) {
@@ -178,15 +178,17 @@ function saveBlob(result) {
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
-async function fetchChatAttachment(ticketId, messageId, attachmentId) {
+async function fetchChatAttachment(ticketId, messageId, attachmentId, requestOptions = {}) {
   return downloadApiFile(
     `/tickets/${ticketId}/chat/messages/${messageId}/attachments/${attachmentId}`,
+    requestOptions,
   )
 }
 
-async function fetchTicketAttachment(ticketId, eventId, attachmentId) {
+async function fetchTicketAttachment(ticketId, eventId, attachmentId, requestOptions = {}) {
   return downloadApiFile(
     `/tickets/${ticketId}/events/${eventId}/attachments/${attachmentId}`,
+    requestOptions,
   )
 }
 

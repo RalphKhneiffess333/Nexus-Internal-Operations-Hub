@@ -12,6 +12,7 @@ import {
   getHandoffs,
   rejectHandoff,
 } from '../../features/tickets/ticket-api'
+import { useLatestRequest } from '../../lib/api/use-latest-request'
 
 export function HandoffsPage() {
   const { user } = useAuthentication()
@@ -34,43 +35,54 @@ export function HandoffsPage() {
   const { departments } = useDepartments()
   const [hasMore, setHasMore] = useState(false)
   const [pendingCount, setPendingCount] = useState(0)
+  const { beginRequest: beginHandoffsRequest } = useLatestRequest()
+  const { beginRequest: beginParticipantsRequest } = useLatestRequest()
 
   const filters = { requestedAgentId, requesterId, departmentId, status }
 
   const loadHandoffs = useCallback(async () => {
+    const request = beginHandoffsRequest()
     setLoading(true)
     setError('')
     try {
-      const result = await getHandoffs({
-        departmentId,
-        status,
-        direction: view,
-        requestedAgentId: view === 'incoming' ? '' : requestedAgentId,
-        requesterId: view === 'outgoing' ? '' : requesterId,
-        search,
-        page,
-        pageSize: 25,
-      })
+      const result = await getHandoffs(
+        {
+          departmentId,
+          status,
+          direction: view,
+          requestedAgentId: view === 'incoming' ? '' : requestedAgentId,
+          requesterId: view === 'outgoing' ? '' : requesterId,
+          search,
+          page,
+          pageSize: 25,
+        },
+        { signal: request.controller.signal },
+      )
+      if (!request.isCurrent()) return
       const requests = result?.items ?? []
       if (view === 'incoming') setIncoming(requests)
       else setOutgoing(requests)
       setHasMore(Boolean(result?.hasMore))
       setPendingCount(result?.pendingCount ?? 0)
     } catch (loadError) {
+      if (!request.isCurrent()) return
       setError(loadError.message || 'Unable to load handoff requests.')
     } finally {
-      setLoading(false)
+      if (request.isCurrent()) setLoading(false)
     }
-  }, [departmentId, page, requestedAgentId, requesterId, search, status, view])
+  }, [beginHandoffsRequest, departmentId, page, requestedAgentId, requesterId, search, status, view])
 
   const loadParticipantOptions = useCallback(async () => {
+    const request = beginParticipantsRequest()
     try {
-      const result = await getHandoffParticipants()
+      const result = await getHandoffParticipants({ signal: request.controller.signal })
+      if (!request.isCurrent()) return
       setParticipantOptions(Array.isArray(result) ? result : [])
     } catch {
+      if (!request.isCurrent()) return
       setParticipantOptions([])
     }
-  }, [])
+  }, [beginParticipantsRequest])
 
   useEffect(() => {
     // Initial data load synchronizes this page with the handoff API.

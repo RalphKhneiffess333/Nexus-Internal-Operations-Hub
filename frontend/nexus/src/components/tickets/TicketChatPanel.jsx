@@ -10,6 +10,7 @@ import {
 } from '../../features/tickets/ticket-api'
 import { useOperationsSocket } from '../../features/realtime/use-operations-socket'
 import { sanitizePlainText } from '../../lib/content/sanitize'
+import { useLatestRequest } from '../../lib/api/use-latest-request'
 
 function sortMessages(messages) {
   return [...messages].sort((left, right) => {
@@ -47,18 +48,25 @@ export function TicketChatPanel({
   const messagePageRef = useRef(1)
   const shouldFollowLatestRef = useRef(true)
   const ticketId = ticket?.ticketId
+  const { beginRequest } = useLatestRequest()
 
   const writable = ticket?.active !== false && ticket?.status === 'CLAIMED' &&
     (ticket?.submittedBy?.userId === currentUser?.userId || ticket?.agent?.userId === currentUser?.userId)
 
   const loadMessages = useCallback(async ({ silent = false, append = false, nextPage = 1 } = {}) => {
+    const request = beginRequest()
     if (!silent) {
       if (append) setLoadingMoreMessages(true)
       else setLoading(true)
       setError('')
     }
     try {
-      const result = await getChatMessages(ticketId, { page: nextPage, pageSize: 50 })
+      const result = await getChatMessages(
+        ticketId,
+        { page: nextPage, pageSize: 50 },
+        { signal: request.controller.signal },
+      )
+      if (!request.isCurrent()) return
       const incoming = result?.items ?? (Array.isArray(result) ? result : [])
       setMessages((current) => (append || silent ? mergeMessages(current, incoming) : incoming))
       const highestPage = Math.max(messagePageRef.current, nextPage)
@@ -66,14 +74,20 @@ export function TicketChatPanel({
       setMessagePage(highestPage)
       if (nextPage === highestPage) setHasMoreMessages(Boolean(result?.hasMore))
     } catch (loadError) {
-      if (!silent) setError(loadError.message || 'Unable to load the conversation.')
+      if (request.isCurrent() && !silent) {
+        setError(loadError.message || 'Unable to load the conversation.')
+      }
     } finally {
-      if (!silent) {
-        if (append) setLoadingMoreMessages(false)
-        else setLoading(false)
+      if (request.isCurrent()) {
+        if (append) {
+          setLoadingMoreMessages(false)
+        } else {
+          setLoading(false)
+          setLoadingMoreMessages(false)
+        }
       }
     }
-  }, [ticketId])
+  }, [beginRequest, ticketId])
 
   useEffect(() => {
     // Reset paginated history when the selected ticket changes.

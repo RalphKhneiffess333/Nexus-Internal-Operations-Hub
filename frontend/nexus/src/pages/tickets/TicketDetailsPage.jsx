@@ -28,6 +28,7 @@ import {
   reopenTicket,
   updateTicket,
 } from '../../features/tickets/ticket-api'
+import { useLatestRequest } from '../../lib/api/use-latest-request'
 
 export function TicketDetailsPage() {
   const { ticketId } = useParams()
@@ -66,6 +67,10 @@ export function TicketDetailsPage() {
   const [eventDetailError, setEventDetailError] = useState('')
   const [downloadingAttachmentId, setDownloadingAttachmentId] = useState('')
   const eventDetailRequestId = useRef(0)
+  const { beginRequest: beginTicketRequest } = useLatestRequest()
+  const { beginRequest: beginEventsRequest } = useLatestRequest()
+  const { beginRequest: beginAttachmentsRequest } = useLatestRequest()
+  const { beginRequest: beginEventDetailRequest } = useLatestRequest()
   const {
     departments,
     loading: loadingDepartments,
@@ -80,14 +85,19 @@ export function TicketDetailsPage() {
   } = usePriorities()
 
   const loadTicket = useCallback(async ({ silent = false } = {}) => {
+    const request = beginTicketRequest()
     if (!silent) {
       setLoading(true)
       setError('')
     }
     try {
-      const result = await getTicket(ticketId)
+      const result = await getTicket(ticketId, {
+        signal: request.controller.signal,
+      })
+      if (!request.isCurrent()) return
       setTicket(result)
     } catch (loadError) {
+      if (!request.isCurrent()) return
       if (!silent) {
         setTicket(null)
         setError(
@@ -95,43 +105,55 @@ export function TicketDetailsPage() {
         )
       }
     } finally {
-      if (!silent) setLoading(false)
+      if (request.isCurrent()) setLoading(false)
     }
-  }, [ticketId])
+  }, [beginTicketRequest, ticketId])
 
   const loadTicketEvents = useCallback(async ({ silent = false, page = 1, append = false } = {}) => {
+    const request = beginEventsRequest()
     if (!silent) {
       if (append) setEventsLoadingMore(true)
       else setTimelineLoading(true)
       setTimelineError('')
     }
     try {
-      const result = await getTicketEvents(ticketId, { page, pageSize: 50 })
+      const result = await getTicketEvents(
+        ticketId,
+        { page, pageSize: 50 },
+        { signal: request.controller.signal },
+      )
+      if (!request.isCurrent()) return
       const summaries = result?.items ?? (Array.isArray(result) ? result : [])
       setEvents((current) => (append ? [...summaries, ...current] : summaries))
       setEventPage(page)
       setEventsHasMore(result?.hasMore ?? summaries.length === 50)
 
     } catch (loadError) {
+      if (!request.isCurrent()) return
       setTimelineError(
         loadError.message ||
           'Unable to load the ticket timeline. Please try again.',
       )
     } finally {
-      if (!silent) {
+      if (request.isCurrent()) {
         if (append) setEventsLoadingMore(false)
         else setTimelineLoading(false)
       }
     }
-  }, [ticketId])
+  }, [beginEventsRequest, ticketId])
 
   const loadTicketAttachments = useCallback(async () => {
+    const request = beginAttachmentsRequest()
     try {
-      setTicketAttachments(await getTicketAttachments(ticketId))
+      const result = await getTicketAttachments(ticketId, {
+        signal: request.controller.signal,
+      })
+      if (!request.isCurrent()) return
+      setTicketAttachments(result)
     } catch {
-      setTicketAttachments(null)
+      if (request.isCurrent()) setTicketAttachments(null)
     }
-  }, [ticketId])
+  }, [beginAttachmentsRequest, ticketId])
 
   useEffect(() => {
     // The ticket loader owns the initial resource synchronization for this page.
@@ -189,6 +211,7 @@ export function TicketDetailsPage() {
   async function handleSelectEvent(event) {
     const requestId = eventDetailRequestId.current + 1
     eventDetailRequestId.current = requestId
+    const request = beginEventDetailRequest()
 
     if (selectedEventId === event.ticketEventId) {
       setSelectedEventId('')
@@ -204,18 +227,20 @@ export function TicketDetailsPage() {
     setEventDetailLoading(true)
 
     try {
-      const result = await getTicketEvent(ticketId, event.ticketEventId)
-      if (eventDetailRequestId.current === requestId) {
+      const result = await getTicketEvent(ticketId, event.ticketEventId, {
+        signal: request.controller.signal,
+      })
+      if (request.isCurrent() && eventDetailRequestId.current === requestId) {
         setSelectedEvent(result)
       }
     } catch (detailError) {
-      if (eventDetailRequestId.current === requestId) {
+      if (request.isCurrent() && eventDetailRequestId.current === requestId) {
         setEventDetailError(
           detailError.message || 'Unable to load this event. Please try again.',
         )
       }
     } finally {
-      if (eventDetailRequestId.current === requestId) {
+      if (request.isCurrent() && eventDetailRequestId.current === requestId) {
         setEventDetailLoading(false)
       }
     }

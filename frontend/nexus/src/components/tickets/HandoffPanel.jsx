@@ -11,6 +11,7 @@ import {
 import { HandoffDialog } from './HandoffDialog'
 import { HandoffRequestCard } from './HandoffRequestCard'
 import { LoadingState } from '../ui/LoadingState'
+import { useLatestRequest } from '../../lib/api/use-latest-request'
 
 export function HandoffPanel({ ticket, onTicketChanged }) {
   const { user } = useAuthentication()
@@ -26,28 +27,39 @@ export function HandoffPanel({ ticket, onTicketChanged }) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [pendingCount, setPendingCount] = useState(0)
+  const { beginRequest: beginHandoffsRequest } = useLatestRequest()
+  const { beginRequest: beginAgentsRequest } = useLatestRequest()
 
   const loadHandoffs = useCallback(async ({ append = false, nextPage = 1 } = {}) => {
+    const request = beginHandoffsRequest()
     if (append) setLoadingMore(true)
     else setLoading(true)
     setError('')
     try {
-      const result = await getTicketHandoffs(ticket.ticketId, {
-        page: nextPage,
-        pageSize: 25,
-      })
+      const result = await getTicketHandoffs(
+        ticket.ticketId,
+        {
+          page: nextPage,
+          pageSize: 25,
+        },
+        { signal: request.controller.signal },
+      )
+      if (!request.isCurrent()) return
       const requests = result?.items ?? []
       setHandoffs((current) => (append ? [...current, ...requests] : requests))
       setPage(nextPage)
       setHasMore(Boolean(result?.hasMore))
       setPendingCount(result?.pendingCount ?? 0)
     } catch (loadError) {
+      if (!request.isCurrent()) return
       setError(loadError.message || 'Unable to load handoff requests.')
     } finally {
-      if (append) setLoadingMore(false)
-      else setLoading(false)
+      if (request.isCurrent()) {
+        if (append) setLoadingMore(false)
+        else setLoading(false)
+      }
     }
-  }, [ticket.ticketId])
+  }, [beginHandoffsRequest, ticket.ticketId])
 
   useEffect(() => {
     // Initial data load synchronizes this panel with the handoff API.
@@ -56,17 +68,22 @@ export function HandoffPanel({ ticket, onTicketChanged }) {
   }, [loadHandoffs])
 
   async function openDialog() {
+    const request = beginAgentsRequest()
     setDialogOpen(true)
     setActionError('')
     setLoadingAgents(true)
     try {
-      const result = await getEligibleHandoffAgents(ticket.ticketId)
+      const result = await getEligibleHandoffAgents(ticket.ticketId, {
+        signal: request.controller.signal,
+      })
+      if (!request.isCurrent()) return
       setAgents(Array.isArray(result) ? result : [])
     } catch (loadError) {
+      if (!request.isCurrent()) return
       setActionError(loadError.message || 'Unable to load eligible agents.')
       setAgents([])
     } finally {
-      setLoadingAgents(false)
+      if (request.isCurrent()) setLoadingAgents(false)
     }
   }
 

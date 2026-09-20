@@ -11,6 +11,7 @@ import {
 import { TicketStatusBadge } from '../../components/tickets/TicketStatusBadge'
 import { useAuthentication } from '../../features/authentication/use-authentication'
 import { usePriorities, priorityLabel } from '../../features/priorities/use-priorities'
+import { useLatestRequest } from '../../lib/api/use-latest-request'
 
 const ACTIVITY_LABELS = {
   SUBMISSION: 'Ticket submitted',
@@ -53,18 +54,23 @@ export function DashboardPage() {
   const [summary, setSummary] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const { beginRequest } = useLatestRequest()
 
   const loadSummary = useCallback(async () => {
+    const request = beginRequest()
     setLoading(true)
     setError('')
     try {
-      setSummary(await getDashboardSummary())
+      const result = await getDashboardSummary({ signal: request.controller.signal })
+      if (!request.isCurrent()) return
+      setSummary(result)
     } catch (loadError) {
+      if (!request.isCurrent()) return
       setError(loadError.message || 'Unable to load your dashboard.')
     } finally {
-      setLoading(false)
+      if (request.isCurrent()) setLoading(false)
     }
-  }, [])
+  }, [beginRequest])
 
   useEffect(() => {
     // The dashboard effect synchronizes this page with the authenticated API session.

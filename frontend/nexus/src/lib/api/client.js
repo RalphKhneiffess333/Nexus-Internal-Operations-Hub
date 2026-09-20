@@ -34,7 +34,7 @@ function userFacingMessage(status, payload) {
 }
 
 export async function apiRequest(path, options = {}) {
-  const { method = 'GET', body } = options
+  const { method = 'GET', body, signal } = options
   const headers = { Accept: 'application/json' }
   const isFormData = typeof FormData !== 'undefined' && body instanceof FormData
 
@@ -48,12 +48,17 @@ export async function apiRequest(path, options = {}) {
       method,
       headers,
       credentials: 'include',
+      signal,
       body:
         body === undefined || isFormData
           ? body
           : JSON.stringify(body),
     })
-  } catch {
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw error
+    }
+
     throw new ApiError(
       'Unable to reach Nexus. Check your connection and try again.',
       0,
@@ -83,14 +88,19 @@ export async function apiRequest(path, options = {}) {
   return payload
 }
 
-export async function downloadApiFile(path) {
+export async function downloadApiFile(path, { signal } = {}) {
   let response
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
       method: 'GET',
       credentials: 'include',
+      signal,
     })
-  } catch {
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw error
+    }
+
     throw new ApiError(
       'Unable to reach Nexus. Check your connection and try again.',
       0,
