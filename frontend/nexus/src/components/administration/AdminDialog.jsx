@@ -1,29 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { Dialog } from '../ui/Dialog'
 
 export function AdminDialog({ title, description, children, onClose, wide = false }) {
-  useEffect(() => {
-    function closeOnEscape(event) {
-      if (event.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', closeOnEscape)
-    return () => document.removeEventListener('keydown', closeOnEscape)
-  }, [onClose])
-
   return (
-    <div
-      className="dialog-backdrop"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose()
-      }}
-    >
-      <section
-        className={`dialog clay-card ${wide ? 'dialog-wide' : ''}`}
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        onMouseDown={(event) => event.stopPropagation()}
-      >
+    <Dialog wide={wide} ariaLabel={title} onClose={onClose}>
         <div className="dialog-heading">
           <div>
             <p className="eyebrow">Administration</p>
@@ -33,8 +13,7 @@ export function AdminDialog({ title, description, children, onClose, wide = fals
           <button type="button" className="dialog-close" aria-label="Close dialog" onClick={onClose}>×</button>
         </div>
         {children}
-      </section>
-    </div>
+    </Dialog>
   )
 }
 

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Dialog } from '../ui/Dialog'
 
 export function HandoffDialog({
   agents = [],
@@ -22,14 +23,7 @@ export function HandoffDialog({
   }
 
   return (
-    <div className="dialog-backdrop" role="presentation" onClick={onDismiss}>
-      <section
-        className="dialog dialog-wide clay-card"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="handoff-dialog-title"
-        onClick={(event) => event.stopPropagation()}
-      >
+    <Dialog wide ariaLabelledBy="handoff-dialog-title" onClose={onDismiss}>
         <div className="dialog-heading">
           <div>
             <p className="eyebrow">Ticket handoff</p>
@@ -86,7 +80,6 @@ export function HandoffDialog({
             {busy ? 'Sending…' : 'Send handoff'}
           </button>
         </div>
-      </section>
-    </div>
+    </Dialog>
   )
 }

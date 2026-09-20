@@ -6,6 +6,7 @@ import { useAuthentication } from '../authentication/use-authentication'
 import { getChatConversations, getTicketPoolCount } from '../tickets/ticket-api'
 import { UserRole } from '../tickets/ticket-types'
 import { useLatestRequest } from '../../lib/api/use-latest-request'
+import { Dialog } from '../../components/ui/Dialog'
 import { NotificationsContext } from './notifications-context'
 
 const TOAST_DURATION = 5000
@@ -254,14 +255,19 @@ export function NotificationProvider({ children }) {
         ))}
       </div>
       {blockingNotification ? (
-        <div className="notification-blocking-backdrop" role="alertdialog" aria-modal="true" aria-labelledby="account-update-title">
-          <section className="notification-blocking-dialog">
+        <Dialog
+          role="alertdialog"
+          ariaLabelledBy="account-update-title"
+          className="notification-blocking-dialog"
+          backdropClassName="notification-blocking-backdrop"
+          closeOnEscape={false}
+          closeOnBackdrop={false}
+        >
             <p className="eyebrow">Account update</p>
             <h1 id="account-update-title">Refresh required</h1>
             <p>{blockingNotification.message}</p>
             <button type="button" className="btn primary" onClick={() => window.location.reload()}>Refresh Page</button>
-          </section>
-        </div>
+        </Dialog>
       ) : null}
     </NotificationsContext.Provider>
   )

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { FilePicker } from './FilePicker'
+import { Dialog } from '../ui/Dialog'
 
 export function TicketMessageDialog({
   title,
@@ -32,14 +33,7 @@ export function TicketMessageDialog({
   }
 
   return (
-    <div className="dialog-backdrop" role="presentation" onClick={onDismiss}>
-      <div
-        className="dialog clay-card"
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="message-dialog-title"
-        onClick={(event) => event.stopPropagation()}
-      >
+    <Dialog role="alertdialog" ariaLabelledBy="message-dialog-title" onClose={onDismiss}>
         <h2 id="message-dialog-title">{title}</h2>
         <p>{message}</p>
         <label className="field">
@@ -68,7 +62,6 @@ export function TicketMessageDialog({
             {busy ? busyLabel : confirmLabel}
           </button>
         </div>
-      </div>
-    </div>
+    </Dialog>
   )
 }

@@ -1,3 +1,5 @@
+import { Dialog } from '../ui/Dialog'
+
 export function UserDetailsDialog({ user, error = '', loading = false, onClose }) {
   if (!user) return null
 
@@ -7,20 +9,7 @@ export function UserDetailsDialog({ user, error = '', loading = false, onClose }
   const departments = user.departments ?? []
 
   return (
-    <div
-      className="dialog-backdrop"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose()
-      }}
-    >
-      <section
-        className="dialog dialog-wide clay-card user-details-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Details for ${user.fullName}`}
-        onMouseDown={(event) => event.stopPropagation()}
-      >
+    <Dialog wide className="user-details-dialog" ariaLabel={`Details for ${user.fullName}`} onClose={onClose}>
         <div className="dialog-heading">
           <div>
             <p className="eyebrow">User profile</p>
@@ -76,8 +65,7 @@ export function UserDetailsDialog({ user, error = '', loading = false, onClose }
             Close
           </button>
         </div>
-      </section>
-    </div>
+    </Dialog>
   )
 }
 
