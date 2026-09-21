@@ -174,6 +174,11 @@ A handoff request can have multiple states:
 - Accepted: The request was accepted, the new agent has claimed the ticket
 - Rejected: The request was rejected
 - Cancelled: The requester agent has cancelled the handoff request
+
+#### AI Assistance
+Nexus should provide users a useful AI agent that can help them with most tasks like asking about a specific ticket info, submission advice and request formulation.
+AI capabilities should differ depending on the user's role, so the AI should not be able to access resources the user cannot access.
+
 ### Non-Functional Requirements
 #### Security
 - Nexus should handle authentication securely 
@@ -368,3 +373,21 @@ Unwanted Behavior Scenarios:
 - An agent can handoff a ticket to an agent in another department
 - An agent can handoff a ticket that isn't assigned to him
 - An agent can handoff a ticket that was "Open" or "Closed"
+
+#### AI Assistance
+- A user (employee, agent, admin) can interact with the AI assistant by:
+  - Asking about a general problem they are facing
+  - Asking about a specific ticket they own
+
+If it is a general problem, the agent should advise the user on which department the request belongs to, the priority and so on...
+The agent should also propose to the user pre-filling the submission form with data
+The agent should not have direct database access, everything should be controlled by the backend
+
+If it is a specific ticket request, the agent should ask the backend for permission to retrieve ticket information.
+For the scope of this project, large datasets reads may not be performed due to the need of RAG implementations which are outside this scope, so users can only request for specific tickets at a time and not for general information that includes all tickets in its request.
+
+Unwanted Behavior Scenarios:
+- The agent queries directly from the database
+- The agent gives unauthorized users forbidden data
+- The agent requests multiple ticket information at a time
+- The agent returns unexpected or uncontrolled responses
