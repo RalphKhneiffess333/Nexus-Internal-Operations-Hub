@@ -16,6 +16,8 @@ import { SESSION_COOKIE_NAME } from '../authentication/authentication.constants'
 import { parseCookieHeader } from '../authentication/cookies';
 import { TicketsService } from '../tickets/tickets.service';
 import { ChatService } from '../chat/chat.service';
+import { FilterOptionsService } from '../filters/filter-options.service';
+import type { AuthenticatedRequestUser } from '../authentication/request-user';
 import {
   OperationsClientEvent,
   OperationsServerEvent,
@@ -27,12 +29,14 @@ import type {
   TicketEventCreatedRealtimeEvent,
   TicketUpdatedRealtimeEvent,
   AppNotificationRealtimeEvent,
+  FilterOptionsChangedRealtimeEvent,
 } from './realtime-events';
 import { chatRoom, ticketRoom, userRoom } from './realtime-rooms';
 
 interface OperationsSocketData {
   sessionId?: string;
   userId?: string;
+  user?: AuthenticatedRequestUser;
   joinedTicketIds?: Set<string>;
 }
 
@@ -77,6 +81,7 @@ export class OperationsGateway
     private readonly authenticationService: AuthenticationService,
     private readonly ticketsService: TicketsService,
     private readonly chatService: ChatService,
+    private readonly filterOptionsService: FilterOptionsService,
   ) {}
 
   async handleConnection(client: Socket): Promise<void> {
@@ -99,6 +104,7 @@ export class OperationsGateway
     const data = client.data as OperationsSocketData;
     data.sessionId = sessionId;
     data.userId = user.userId;
+    data.user = user;
     data.joinedTicketIds = new Set<string>();
     this.trackSocket(client.id, user.userId, sessionId);
     await client.join(userRoom(user.userId));
@@ -238,6 +244,40 @@ export class OperationsGateway
         .to(userRoom(userId))
         .emit(OperationsServerEvent.AppNotification, event);
     }
+  }
+
+  @OnEvent(RealtimeInternalEvent.FilterOptionsChanged)
+  async handleFilterOptionsChanged(
+    event: FilterOptionsChangedRealtimeEvent,
+  ): Promise<void> {
+    const sockets = this.server?.sockets?.sockets;
+    if (!sockets) return;
+
+    await Promise.all(
+      [...this.socketIdsByUserId.entries()].map(async ([userId, socketIds]) => {
+        const socketId = [...socketIds][0];
+        const client = socketId ? sockets.get(socketId) : undefined;
+        const data = client?.data as OperationsSocketData | undefined;
+        if (!data?.sessionId) return;
+        try {
+          const user = await this.authenticationService.authenticateSession(
+            data.sessionId,
+          );
+          if (!user) return;
+          data.user = user;
+          const payload = await this.filterOptionsService.listForUser(user);
+          this.server.to(userRoom(userId)).emit(
+            OperationsServerEvent.FilterOptionsUpdated,
+            { ...event, payload },
+          );
+        } catch (error) {
+          this.logger.error(
+            `Unable to publish filter options for ${userId}`,
+            error instanceof Error ? error.message : String(error),
+          );
+        }
+      }),
+    );
   }
 
   @OnEvent(RealtimeInternalEvent.SessionInvalidated)

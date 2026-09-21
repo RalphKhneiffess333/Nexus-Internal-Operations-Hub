@@ -27,12 +27,10 @@ export function ChatsPage() {
   const [error, setError] = useState('')
   const { beginRequest } = useLatestRequest()
 
-  const loadConversations = useCallback(async ({ silent = false } = {}) => {
+  const loadConversations = useCallback(async () => {
     const request = beginRequest()
-    if (!silent) {
-      setLoading(true)
-      setError('')
-    }
+    setLoading(true)
+    setError('')
     try {
       const result = await getChatConversations(
         { page, pageSize: 50, search },
@@ -43,10 +41,8 @@ export function ChatsPage() {
       setHasMore(Boolean(result?.hasMore))
     } catch (loadError) {
       if (!request.isCurrent()) return
-      if (!silent) {
-        setError(loadError.message || 'Unable to load your conversations.')
-        setHasMore(false)
-      }
+      setError(loadError.message || 'Unable to load your conversations.')
+      setHasMore(false)
     } finally {
       if (request.isCurrent()) setLoading(false)
     }
@@ -72,12 +68,6 @@ export function ChatsPage() {
     else nextParams.delete('page')
     setSearchParams(nextParams)
   }
-
-  useEffect(() => {
-    const refreshWhenFocused = () => void loadConversations({ silent: true })
-    window.addEventListener('focus', refreshWhenFocused)
-    return () => window.removeEventListener('focus', refreshWhenFocused)
-  }, [loadConversations])
 
   return (
     <section className="page chats-page">

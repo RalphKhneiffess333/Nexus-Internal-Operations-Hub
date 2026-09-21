@@ -25,12 +25,25 @@ function isTicketEnvelope(value) {
   )
 }
 
+function isFilterOptionsEnvelope(value) {
+  return (
+    value &&
+    typeof value === 'object' &&
+    typeof value.eventId === 'string' &&
+    typeof value.occurredAt === 'string' &&
+    typeof value.version === 'number' &&
+    value.payload &&
+    typeof value.payload === 'object'
+  )
+}
+
 export function OperationsSocketProvider({ children }) {
   const { user, refreshAuthentication } = useAuthentication()
   const socketRef = useRef(null)
   const subscriptionsRef = useRef(new Map())
   const chatSubscriptionsRef = useRef(new Map())
   const notificationSubscriptionsRef = useRef(new Set())
+  const filterOptionsSubscriptionsRef = useRef(new Set())
   const seenEventIdsRef = useRef(new Set())
   const hasConnectedRef = useRef(false)
   const [connectionState, setConnectionState] = useState('disconnected')
@@ -122,6 +135,25 @@ export function OperationsSocketProvider({ children }) {
     return () => notificationSubscriptionsRef.current.delete(listener)
   }, [])
 
+  const subscribeToFilterOptions = useCallback((listener) => {
+    if (typeof listener !== 'function') return () => {}
+    filterOptionsSubscriptionsRef.current.add(listener)
+    return () => filterOptionsSubscriptionsRef.current.delete(listener)
+  }, [])
+
+  const dispatchFilterOptionsUpdate = useCallback((event) => {
+    if (!isFilterOptionsEnvelope(event)) return
+
+    const seenEventIds = seenEventIdsRef.current
+    if (seenEventIds.has(event.eventId)) return
+    seenEventIds.add(event.eventId)
+    if (seenEventIds.size > MAX_SEEN_EVENT_IDS) {
+      seenEventIds.delete(seenEventIds.values().next().value)
+    }
+
+    filterOptionsSubscriptionsRef.current.forEach((listener) => listener(event))
+  }, [])
+
   useEffect(() => {
     if (!user?.userId) {
       socketRef.current?.disconnect()
@@ -158,6 +190,11 @@ export function OperationsSocketProvider({ children }) {
           })
         }
       })
+      if (reconnected) {
+        filterOptionsSubscriptionsRef.current.forEach((listener) => {
+          listener({ type: 'reconnected' })
+        })
+      }
     })
     socket.on('disconnect', (reason) => {
       setConnectionState('reconnecting')
@@ -173,6 +210,7 @@ export function OperationsSocketProvider({ children }) {
     })
     socket.on('ticket.updated', dispatchTicketUpdate)
     socket.on('ticket.event.created', dispatchTicketUpdate)
+    socket.on('filter.options.updated', dispatchFilterOptionsUpdate)
     socket.on('chat.message.created', (event) => {
       if (!isTicketEnvelope(event) || !event.payload?.messageId) return
       const seenEventIds = seenEventIdsRef.current
@@ -203,7 +241,7 @@ export function OperationsSocketProvider({ children }) {
         socketRef.current = null
       }
     }
-  }, [dispatchTicketUpdate, joinChatRoom, joinTicketRoom, refreshAuthentication, user?.userId])
+  }, [dispatchFilterOptionsUpdate, dispatchTicketUpdate, joinChatRoom, joinTicketRoom, refreshAuthentication, user?.userId])
 
   const value = useMemo(
     () => ({
@@ -211,8 +249,9 @@ export function OperationsSocketProvider({ children }) {
       subscribeToTicket,
       subscribeToChat,
       subscribeToNotifications,
+      subscribeToFilterOptions,
     }),
-    [connectionState, subscribeToChat, subscribeToNotifications, subscribeToTicket],
+    [connectionState, subscribeToChat, subscribeToFilterOptions, subscribeToNotifications, subscribeToTicket],
   )
 
   return (
@@ -221,5 +260,4 @@ export function OperationsSocketProvider({ children }) {
     </OperationsSocketContext.Provider>
   )
 }
-
 

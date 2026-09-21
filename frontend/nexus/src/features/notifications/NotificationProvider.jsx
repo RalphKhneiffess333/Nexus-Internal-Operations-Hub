@@ -207,7 +207,6 @@ export function NotificationProvider({ children }) {
       focusedRef.current = true
       titleCountRef.current = 0
       applyTitle()
-      scheduleNotificationCountRefresh()
     }
     const handleVisibility = () => {
       focusedRef.current = !document.hidden
@@ -219,7 +218,7 @@ export function NotificationProvider({ children }) {
       window.removeEventListener('focus', reset)
       document.removeEventListener('visibilitychange', handleVisibility)
     }
-  }, [applyTitle, scheduleNotificationCountRefresh])
+  }, [applyTitle])
 
   useEffect(() => subscribeToNotifications((event) => {
     const notification = event.payload

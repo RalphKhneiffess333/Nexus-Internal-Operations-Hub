@@ -7,10 +7,10 @@ import { IllustratedEmptyState } from '../../components/ui/IllustratedEmptyState
 import noHandoffImage from '../../assets/NoHandoff.png'
 import { useAuthentication } from '../../features/authentication/use-authentication'
 import { useDepartments } from '../../features/departments/use-departments'
+import { useFilterOptions } from '../../features/filters/use-filter-options'
 import {
   acceptHandoff,
   cancelHandoff,
-  getHandoffParticipants,
   getHandoffs,
   rejectHandoff,
 } from '../../features/tickets/ticket-api'
@@ -29,16 +29,15 @@ export function HandoffsPage() {
   const page = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1
   const [incoming, setIncoming] = useState([])
   const [outgoing, setOutgoing] = useState([])
-  const [participantOptions, setParticipantOptions] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [actionError, setActionError] = useState('')
   const [busy, setBusy] = useState(false)
   const { departments } = useDepartments()
+  const { handoffParticipants: participantOptions, handoffStatuses } = useFilterOptions()
   const [hasMore, setHasMore] = useState(false)
   const [pendingCount, setPendingCount] = useState(0)
   const { beginRequest: beginHandoffsRequest } = useLatestRequest()
-  const { beginRequest: beginParticipantsRequest } = useLatestRequest()
 
   const filters = { requestedAgentId, requesterId, departmentId, status }
 
@@ -74,29 +73,11 @@ export function HandoffsPage() {
     }
   }, [beginHandoffsRequest, departmentId, page, requestedAgentId, requesterId, search, status, view])
 
-  const loadParticipantOptions = useCallback(async () => {
-    const request = beginParticipantsRequest()
-    try {
-      const result = await getHandoffParticipants({ signal: request.controller.signal })
-      if (!request.isCurrent()) return
-      setParticipantOptions(Array.isArray(result) ? result : [])
-    } catch {
-      if (!request.isCurrent()) return
-      setParticipantOptions([])
-    }
-  }, [beginParticipantsRequest])
-
   useEffect(() => {
     // Initial data load synchronizes this page with the handoff API.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadHandoffs()
   }, [loadHandoffs])
-
-  useEffect(() => {
-    // Participant options are loaded independently from the active filters.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadParticipantOptions()
-  }, [loadParticipantOptions])
 
   function updateFilter(name, value) {
     const nextParams = new URLSearchParams(searchParams)
@@ -179,6 +160,7 @@ export function HandoffsPage() {
       <HandoffFilters
         departments={departments}
         users={participantOptions}
+        statuses={handoffStatuses}
         view={view}
         filters={filters}
         searchInput={search}

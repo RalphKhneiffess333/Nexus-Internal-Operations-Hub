@@ -12,6 +12,7 @@ import { RealtimeModule } from './realtime/realtime.module';
 import { ChatModule } from './chat/chat.module';
 import { BackgroundWorkersModule } from './background-workers/background-workers.module';
 import { PrioritiesModule } from './priorities/priorities.module';
+import { FiltersModule } from './filters/filters.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { PrioritiesModule } from './priorities/priorities.module';
     RealtimeModule,
     BackgroundWorkersModule,
     PrioritiesModule,
+    FiltersModule,
   ],
 })
 export class AppModule {}

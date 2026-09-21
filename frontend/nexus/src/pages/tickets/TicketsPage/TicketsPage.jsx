@@ -7,6 +7,7 @@ import { IllustratedEmptyState } from '../../../components/ui/IllustratedEmptySt
 import noTicketImage from '../../../assets/NoTicket.png'
 import { useAuthentication } from '../../../features/authentication/use-authentication'
 import { useDepartments } from '../../../features/departments/use-departments'
+import { useFilterOptions } from '../../../features/filters/use-filter-options'
 import { usePriorities } from '../../../features/priorities/use-priorities'
 import {
   getTickets,
@@ -134,6 +135,7 @@ export function TicketsPage({ view = 'submitted' }) {
   const [error, setError] = useState('')
   const { beginRequest } = useLatestRequest()
   const { departments } = useDepartments(isAgentDepartmentView ? 'mine' : 'all')
+  const { ticketStatuses } = useFilterOptions()
   const { priorities } = usePriorities()
   const isLoading = loading || loadedRequestKey !== loadKey
   const filterDepartments = departments
@@ -278,6 +280,7 @@ export function TicketsPage({ view = 'submitted' }) {
       <TicketFilters
         departments={filterDepartments}
         priorities={priorities}
+        statuses={ticketStatuses}
         filters={{ search: searchFilter, status: appliedStatusFilter, departmentId: departmentFilter, priority: priorityFilter }}
         onChange={updateFilter}
         showStatus={!hideStatusFilter}
@@ -322,4 +325,3 @@ export function TicketsPage({ view = 'submitted' }) {
     </section>
   )
 }
-

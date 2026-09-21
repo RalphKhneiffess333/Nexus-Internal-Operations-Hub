@@ -12,6 +12,7 @@ const STATUS_LABELS = {
 export function HandoffFilters({
   departments = [],
   users = [],
+  statuses = [],
   filters,
   view,
   searchInput,
@@ -85,7 +86,10 @@ export function HandoffFilters({
           onChange={(value) => onChange('status', value)}
           options={[
             { value: '', label: 'All statuses' },
-            ...Object.entries(STATUS_LABELS).map(([optionValue, label]) => ({ value: optionValue, label })),
+            ...(statuses.length ? statuses : Object.keys(STATUS_LABELS)).map((status) => ({
+              value: status,
+              label: STATUS_LABELS[status] ?? status,
+            })),
           ]}
         />
       </label>

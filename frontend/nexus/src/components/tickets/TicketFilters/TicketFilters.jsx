@@ -9,7 +9,7 @@ const statusLabels = {
   [TicketStatus.REOPENED]: 'Reopened',
 }
 
-export function TicketFilters({ departments, priorities = [], filters, onChange, showStatus = true }) {
+export function TicketFilters({ departments, priorities = [], statuses = [], filters, onChange, showStatus = true }) {
   return (
     <div className="ticket-filters" aria-label="Ticket filters">
       <label className="field ticket-filter ticket-search-filter">
@@ -29,7 +29,10 @@ export function TicketFilters({ departments, priorities = [], filters, onChange,
             onChange={(value) => onChange('status', value)}
             options={[
               { value: '', label: 'All statuses' },
-              ...Object.entries(statusLabels).map(([value, label]) => ({ value, label })),
+              ...(statuses.length ? statuses : Object.keys(statusLabels)).map((status) => ({
+                value: status,
+                label: statusLabels[status] ?? status,
+              })),
             ]}
           />
         </label>

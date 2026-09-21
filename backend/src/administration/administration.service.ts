@@ -4,6 +4,7 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AuditAction } from '@prisma/client';
 import type { AuthenticatedRequestUser } from '../authentication/request-user';
 import { AuditService } from '../audit/audit.service';
@@ -20,6 +21,8 @@ import {
 } from './dto/admin.dto';
 import { CreatePriorityDto, UpdatePriorityDto } from './dto/priority.dto';
 import { PrioritiesRepository } from '../priorities/priorities.repository';
+import { filterOptionsChangedEvent } from '../filters/filter-options-events';
+import { RealtimeInternalEvent } from '../realtime/realtime-events';
 
 const supportedConfiguration = new Map<string, string>();
 
@@ -29,6 +32,7 @@ export class AdministrationService {
     private readonly administrationRepository: AdministrationRepository,
     private readonly auditService: AuditService,
     private readonly prioritiesRepository: PrioritiesRepository,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async listDepartments(query: PageQueryDto) {
@@ -50,7 +54,7 @@ export class AdministrationService {
     dto: CreateDepartmentDto,
     actor: AuthenticatedRequestUser,
   ) {
-    return this.administrationRepository
+    const result = await this.administrationRepository
       .transaction(async (tx) => {
         const code = dto.code.trim().toUpperCase();
         if (code === ADMINISTRATION_DEPARTMENT_CODE)
@@ -76,6 +80,8 @@ export class AdministrationService {
         return this.toDepartmentResponse(department);
       })
       .catch((error) => this.mapConflict(error));
+    this.publishFilterOptionsChanged(actor.userId);
+    return result;
   }
 
   async updateDepartment(
@@ -83,7 +89,7 @@ export class AdministrationService {
     dto: UpdateDepartmentDto,
     actor: AuthenticatedRequestUser,
   ) {
-    return this.administrationRepository
+    const result = await this.administrationRepository
       .transaction(async (tx) => {
         const before = await this.administrationRepository.findDepartment(
           departmentId,
@@ -128,6 +134,8 @@ export class AdministrationService {
         return this.toDepartmentResponse(after);
       })
       .catch((error) => this.mapConflict(error));
+    this.publishFilterOptionsChanged(actor.userId);
+    return result;
   }
 
   async setDepartmentActive(
@@ -135,7 +143,7 @@ export class AdministrationService {
     active: boolean,
     actor: AuthenticatedRequestUser,
   ) {
-    return this.administrationRepository.transaction(async (tx) => {
+    const result = await this.administrationRepository.transaction(async (tx) => {
       const department =
         await this.administrationRepository.findDepartmentWithActiveTicket(
           departmentId,
@@ -166,6 +174,8 @@ export class AdministrationService {
       );
       return this.toDepartmentResponse(updated);
     });
+    this.publishFilterOptionsChanged(actor.userId);
+    return result;
   }
 
   async listMembersPage(departmentId: string, query: PageQueryDto) {
@@ -209,7 +219,7 @@ export class AdministrationService {
     dto: CreatePriorityDto,
     actor: AuthenticatedRequestUser,
   ) {
-    return this.administrationRepository
+    const result = await this.administrationRepository
       .transaction(async (tx) => {
         const priority = await this.prioritiesRepository.create(
           {
@@ -233,6 +243,8 @@ export class AdministrationService {
         return priority;
       })
       .catch((error) => this.mapConflict(error));
+    this.publishFilterOptionsChanged(actor.userId);
+    return result;
   }
 
   async updatePriority(
@@ -240,7 +252,7 @@ export class AdministrationService {
     dto: UpdatePriorityDto,
     actor: AuthenticatedRequestUser,
   ) {
-    return this.administrationRepository.transaction(async (tx) => {
+    const result = await this.administrationRepository.transaction(async (tx) => {
       const before = await this.prioritiesRepository.findById(priorityId, tx);
       if (!before) throw new NotFoundException('Priority was not found');
       const after = await this.prioritiesRepository.update(
@@ -271,6 +283,8 @@ export class AdministrationService {
       );
       return after;
     });
+    this.publishFilterOptionsChanged(actor.userId);
+    return result;
   }
 
   async setPriorityActive(
@@ -278,7 +292,7 @@ export class AdministrationService {
     active: boolean,
     actor: AuthenticatedRequestUser,
   ) {
-    return this.administrationRepository.transaction(async (tx) => {
+    const result = await this.administrationRepository.transaction(async (tx) => {
       const before = await this.prioritiesRepository.findById(priorityId, tx);
       if (!before) throw new NotFoundException('Priority was not found');
       if (before.active === active) return before;
@@ -300,6 +314,8 @@ export class AdministrationService {
       );
       return after;
     });
+    this.publishFilterOptionsChanged(actor.userId);
+    return result;
   }
 
   async updateConfiguration(
@@ -356,6 +372,13 @@ export class AdministrationService {
       role: user.role,
       isActive: user.isActive,
     };
+  }
+
+  private publishFilterOptionsChanged(actorId: string): void {
+    this.eventEmitter.emit(
+      RealtimeInternalEvent.FilterOptionsChanged,
+      filterOptionsChangedEvent(actorId),
+    );
   }
 
   private toDepartmentResponse(
