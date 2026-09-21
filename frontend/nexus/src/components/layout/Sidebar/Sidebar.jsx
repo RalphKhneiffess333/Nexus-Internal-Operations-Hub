@@ -4,6 +4,14 @@ import { useOperationsSocket } from '../../../features/realtime/use-operations-s
 import { canWorkTickets, UserRole } from '../../../features/tickets/ticket-types'
 import { useNotifications } from '../../../features/notifications/use-notifications'
 import nexusLogo from '../../../assets/Nexus Logo.png'
+import dashboardIcon from '../../../assets/Dashboard.svg'
+import myTicketsIcon from '../../../assets/mytickets.svg'
+import ticketPoolIcon from '../../../assets/ticketspool.svg'
+import chatsIcon from '../../../assets/Chats.svg'
+import managementIcon from '../../../assets/management.svg'
+import logsIcon from '../../../assets/logs.svg'
+import handoffsIcon from '../../../assets/handoffs.svg'
+import { NavIcon } from '../NavIcon'
 
 export function Sidebar({ open, onNavigate }) {
   const { user, logoutCurrentSession } = useAuthentication()
@@ -28,6 +36,7 @@ export function Sidebar({ open, onNavigate }) {
           end
           onClick={onNavigate}
         >
+          <NavIcon src={dashboardIcon} crop="dashboard" />
           Dashboard
         </NavLink>
         <NavLink
@@ -38,6 +47,7 @@ export function Sidebar({ open, onNavigate }) {
           end
           onClick={onNavigate}
         >
+          <NavIcon src={myTicketsIcon} crop="mytickets" />
           My Tickets
         </NavLink>
         <NavLink
@@ -47,6 +57,7 @@ export function Sidebar({ open, onNavigate }) {
           }
           onClick={onNavigate}
         >
+          <NavIcon src={chatsIcon} crop="chats" />
           Chats {unreadChats > 0 ? <span className="nav-notification-badge">{unreadChats > 99 ? '99+' : unreadChats}</span> : null}
         </NavLink>
 
@@ -59,6 +70,7 @@ export function Sidebar({ open, onNavigate }) {
               }
               onClick={onNavigate}
             >
+              <NavIcon src={ticketPoolIcon} crop="ticketpool" />
               Ticket Pools {unclaimedTickets > 0 ? <span className="nav-notification-badge">{unclaimedTickets > 99 ? '99+' : unclaimedTickets}</span> : null}
             </NavLink>
             <NavLink
@@ -68,6 +80,7 @@ export function Sidebar({ open, onNavigate }) {
               }
               onClick={onNavigate}
             >
+              <NavIcon src={handoffsIcon} crop="handoffs" />
               Handoffs
             </NavLink>
           </>
@@ -76,9 +89,11 @@ export function Sidebar({ open, onNavigate }) {
         {showAdministration ? (
           <>
             <NavLink to="/admin/management" className={({ isActive }) => `nav-item ${isActive ? 'is-active' : ''}`} onClick={onNavigate}>
+              <NavIcon src={managementIcon} crop="management" />
               Management
             </NavLink>
             <NavLink to="/admin/logs" className={({ isActive }) => `nav-item ${isActive ? 'is-active' : ''}`} onClick={onNavigate}>
+              <NavIcon src={logsIcon} crop="logs" />
               Logs
             </NavLink>
           </>
