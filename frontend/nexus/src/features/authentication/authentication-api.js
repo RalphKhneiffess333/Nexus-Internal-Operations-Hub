@@ -1,7 +1,7 @@
 import { apiRequest, apiUrl } from '../../lib/api/client'
 
-export function getCurrentAuthentication() {
-  return apiRequest('/authentication/me')
+export function getCurrentAuthentication(requestOptions = {}) {
+  return apiRequest('/authentication/me', requestOptions)
 }
 
 export function getMicrosoftLoginUrl() {

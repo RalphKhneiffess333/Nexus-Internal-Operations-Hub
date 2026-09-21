@@ -3,6 +3,7 @@ export const RealtimeInternalEvent = {
   TicketEventCreated: 'realtime.ticket.event-created',
   ChatMessageCreated: 'realtime.chat.message-created',
   AppNotification: 'realtime.app-notification',
+  FilterOptionsChanged: 'realtime.filter-options.changed',
   SessionInvalidated: 'realtime.session.invalidated',
 } as const;
 
@@ -20,7 +21,15 @@ export const OperationsServerEvent = {
   TicketEventCreated: 'ticket.event.created',
   ChatMessageCreated: 'chat.message.created',
   AppNotification: 'app.notification',
+  FilterOptionsUpdated: 'filter.options.updated',
 } as const;
+
+export interface FilterOptionsChangedRealtimeEvent {
+  eventId: string;
+  occurredAt: string;
+  version: number;
+  actorId: string;
+}
 
 export interface RealtimeEnvelope<TPayload> {
   eventId: string;

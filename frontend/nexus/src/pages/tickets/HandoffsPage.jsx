@@ -3,15 +3,18 @@ import { useSearchParams } from 'react-router-dom'
 import { HandoffFilters } from '../../components/tickets/HandoffFilters'
 import { HandoffRequestCard } from '../../components/tickets/HandoffRequestCard'
 import { LoadingState } from '../../components/ui/LoadingState'
+import { IllustratedEmptyState } from '../../components/ui/IllustratedEmptyState'
+import noHandoffImage from '../../assets/NoHandoff.png'
 import { useAuthentication } from '../../features/authentication/use-authentication'
 import { useDepartments } from '../../features/departments/use-departments'
+import { useFilterOptions } from '../../features/filters/use-filter-options'
 import {
   acceptHandoff,
   cancelHandoff,
-  getHandoffParticipants,
   getHandoffs,
   rejectHandoff,
 } from '../../features/tickets/ticket-api'
+import { useLatestRequest } from '../../lib/api/use-latest-request'
 
 export function HandoffsPage() {
   const { user } = useAuthentication()
@@ -26,63 +29,55 @@ export function HandoffsPage() {
   const page = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1
   const [incoming, setIncoming] = useState([])
   const [outgoing, setOutgoing] = useState([])
-  const [participantOptions, setParticipantOptions] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [actionError, setActionError] = useState('')
   const [busy, setBusy] = useState(false)
   const { departments } = useDepartments()
+  const { handoffParticipants: participantOptions, handoffStatuses } = useFilterOptions()
   const [hasMore, setHasMore] = useState(false)
   const [pendingCount, setPendingCount] = useState(0)
+  const { beginRequest: beginHandoffsRequest } = useLatestRequest()
 
   const filters = { requestedAgentId, requesterId, departmentId, status }
 
   const loadHandoffs = useCallback(async () => {
+    const request = beginHandoffsRequest()
     setLoading(true)
     setError('')
     try {
-      const result = await getHandoffs({
-        departmentId,
-        status,
-        direction: view,
-        requestedAgentId: view === 'incoming' ? '' : requestedAgentId,
-        requesterId: view === 'outgoing' ? '' : requesterId,
-        search,
-        page,
-        pageSize: 25,
-      })
+      const result = await getHandoffs(
+        {
+          departmentId,
+          status,
+          direction: view,
+          requestedAgentId: view === 'incoming' ? '' : requestedAgentId,
+          requesterId: view === 'outgoing' ? '' : requesterId,
+          search,
+          page,
+          pageSize: 25,
+        },
+        { signal: request.controller.signal },
+      )
+      if (!request.isCurrent()) return
       const requests = result?.items ?? []
       if (view === 'incoming') setIncoming(requests)
       else setOutgoing(requests)
       setHasMore(Boolean(result?.hasMore))
       setPendingCount(result?.pendingCount ?? 0)
     } catch (loadError) {
+      if (!request.isCurrent()) return
       setError(loadError.message || 'Unable to load handoff requests.')
     } finally {
-      setLoading(false)
+      if (request.isCurrent()) setLoading(false)
     }
-  }, [departmentId, page, requestedAgentId, requesterId, search, status, view])
-
-  const loadParticipantOptions = useCallback(async () => {
-    try {
-      const result = await getHandoffParticipants()
-      setParticipantOptions(Array.isArray(result) ? result : [])
-    } catch {
-      setParticipantOptions([])
-    }
-  }, [])
+  }, [beginHandoffsRequest, departmentId, page, requestedAgentId, requesterId, search, status, view])
 
   useEffect(() => {
     // Initial data load synchronizes this page with the handoff API.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadHandoffs()
   }, [loadHandoffs])
-
-  useEffect(() => {
-    // Participant options are loaded independently from the active filters.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadParticipantOptions()
-  }, [loadParticipantOptions])
 
   function updateFilter(name, value) {
     const nextParams = new URLSearchParams(searchParams)
@@ -165,6 +160,7 @@ export function HandoffsPage() {
       <HandoffFilters
         departments={departments}
         users={participantOptions}
+        statuses={handoffStatuses}
         view={view}
         filters={filters}
         searchInput={search}
@@ -182,10 +178,11 @@ export function HandoffsPage() {
       {actionError ? <p className="banner error">{actionError}</p> : null}
       {loading ? <LoadingState>Loading handoff requests…</LoadingState> : null}
       {!loading && !error && requests.length === 0 ? (
-        <div className="empty-state clay-card">
-          <h2>No {view} handoffs</h2>
-          <p>{view === 'incoming' ? 'Requests from other agents will appear here.' : 'Handoffs you send will appear here.'}</p>
-        </div>
+        <IllustratedEmptyState
+          image={noHandoffImage}
+          title={`No ${view} handoffs`}
+          message={view === 'incoming' ? 'Requests from other agents will appear here.' : 'Handoffs you send will appear here.'}
+        />
       ) : null}
       {!loading && !error && requests.length > 0 ? (
         <div className="handoff-page-list">

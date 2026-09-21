@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { UserLink } from '../users/UserLink'
 import { FilePicker } from './FilePicker'
+import noChatsImage from '../../assets/NoChats.png'
+import { IllustratedEmptyState } from '../ui/IllustratedEmptyState'
 import { formatDateTime } from '../../features/tickets/ticket-types'
 import {
   createChatMessage,
@@ -10,6 +12,8 @@ import {
 } from '../../features/tickets/ticket-api'
 import { useOperationsSocket } from '../../features/realtime/use-operations-socket'
 import { sanitizePlainText } from '../../lib/content/sanitize'
+import { useLatestRequest } from '../../lib/api/use-latest-request'
+import { MAX_CHAT_MESSAGE_LENGTH } from './ticket-validation'
 
 function sortMessages(messages) {
   return [...messages].sort((left, right) => {
@@ -47,18 +51,25 @@ export function TicketChatPanel({
   const messagePageRef = useRef(1)
   const shouldFollowLatestRef = useRef(true)
   const ticketId = ticket?.ticketId
+  const { beginRequest } = useLatestRequest()
 
   const writable = ticket?.active !== false && ticket?.status === 'CLAIMED' &&
     (ticket?.submittedBy?.userId === currentUser?.userId || ticket?.agent?.userId === currentUser?.userId)
 
   const loadMessages = useCallback(async ({ silent = false, append = false, nextPage = 1 } = {}) => {
+    const request = beginRequest()
     if (!silent) {
       if (append) setLoadingMoreMessages(true)
       else setLoading(true)
       setError('')
     }
     try {
-      const result = await getChatMessages(ticketId, { page: nextPage, pageSize: 50 })
+      const result = await getChatMessages(
+        ticketId,
+        { page: nextPage, pageSize: 50 },
+        { signal: request.controller.signal },
+      )
+      if (!request.isCurrent()) return
       const incoming = result?.items ?? (Array.isArray(result) ? result : [])
       setMessages((current) => (append || silent ? mergeMessages(current, incoming) : incoming))
       const highestPage = Math.max(messagePageRef.current, nextPage)
@@ -66,14 +77,20 @@ export function TicketChatPanel({
       setMessagePage(highestPage)
       if (nextPage === highestPage) setHasMoreMessages(Boolean(result?.hasMore))
     } catch (loadError) {
-      if (!silent) setError(loadError.message || 'Unable to load the conversation.')
+      if (request.isCurrent() && !silent) {
+        setError(loadError.message || 'Unable to load the conversation.')
+      }
     } finally {
-      if (!silent) {
-        if (append) setLoadingMoreMessages(false)
-        else setLoading(false)
+      if (request.isCurrent()) {
+        if (append) {
+          setLoadingMoreMessages(false)
+        } else {
+          setLoading(false)
+          setLoadingMoreMessages(false)
+        }
       }
     }
-  }, [ticketId])
+  }, [beginRequest, ticketId])
 
   useEffect(() => {
     // Reset paginated history when the selected ticket changes.
@@ -119,6 +136,10 @@ export function TicketChatPanel({
     event.preventDefault()
     const sanitizedContent = sanitizePlainText(content)
     if (sending || (!sanitizedContent && files.length === 0)) return
+    if (sanitizedContent.length > MAX_CHAT_MESSAGE_LENGTH) {
+      setSendError(`Message must be ${MAX_CHAT_MESSAGE_LENGTH} characters or fewer.`)
+      return
+    }
 
     setSending(true)
     setSendError('')
@@ -139,7 +160,10 @@ export function TicketChatPanel({
   async function handleOpen(messageId, attachment) {
     setDownloadingAttachmentId(attachment.attachmentId)
     try {
-      await openChatAttachment(ticket.ticketId, messageId, attachment.attachmentId)
+      await openChatAttachment(ticket.ticketId, messageId, attachment.attachmentId, {
+        mimeType: attachment.mimeType,
+        filename: attachment.originalName,
+      })
     } catch (openError) {
       setError(openError.message || 'Unable to open this attachment.')
     } finally {
@@ -182,9 +206,21 @@ export function TicketChatPanel({
       )}
 
       {connectionNote ? <p className="ticket-chat-connection">{connectionNote}</p> : null}
-      {loading ? <p className="ticket-chat-state">Loading conversation…</p> : null}
+      {loading ? (
+        <div className="ticket-chat-state ticket-chat-loading" role="status" aria-live="polite">
+          <span className="loading-spinner" aria-hidden="true" />
+          <span>Loading conversation…</span>
+        </div>
+      ) : null}
       {!loading && error ? <div className="ticket-chat-state ticket-chat-error"><p>{error}</p><button type="button" className="btn ghost" onClick={() => void loadMessages()}>Try again</button></div> : null}
-      {!loading && !error && messages.length === 0 ? <p className="ticket-chat-state">No messages yet. {writable ? 'Start the conversation.' : 'This conversation is read-only.'}</p> : null}
+      {!loading && !error && messages.length === 0 ? (
+        <IllustratedEmptyState
+          className="ticket-chat-empty-state"
+          image={noChatsImage}
+          title="No messages yet"
+          message={writable ? 'Start the conversation.' : 'This conversation is read-only.'}
+        />
+      ) : null}
 
       {!loading && messages.length > 0 ? (
         <ol
@@ -216,10 +252,10 @@ export function TicketChatPanel({
       {writable ? (
         <form className="ticket-chat-composer" onSubmit={handleSend}>
           <label htmlFor={`chat-message-${ticket.ticketId}`}>New message</label>
-          <textarea id={`chat-message-${ticket.ticketId}`} value={content} onChange={(event) => setContent(event.target.value)} maxLength={4000} rows="3" placeholder="Write a message…" disabled={sending} />
+          <textarea id={`chat-message-${ticket.ticketId}`} value={content} onChange={(event) => setContent(event.target.value)} maxLength={MAX_CHAT_MESSAGE_LENGTH} rows="3" placeholder="Write a message…" disabled={sending} />
           <FilePicker key={filePickerResetKey} onChange={setFiles} disabled={sending} />
           {sendError ? <p className="ticket-chat-send-error">{sendError}</p> : null}
-          <div className="ticket-chat-actions"><span>{content.length}/4000</span><button type="submit" className="btn primary" disabled={sending || (!content.trim() && files.length === 0)}>{sending ? 'Sending…' : 'Send message'}</button></div>
+          <div className="ticket-chat-actions"><span>{content.length}/{MAX_CHAT_MESSAGE_LENGTH}</span><button type="submit" className="btn primary" disabled={sending || (!content.trim() && files.length === 0)}>{sending ? 'Sending…' : 'Send message'}</button></div>
         </form>
       ) : (
         <p className="ticket-chat-read-only">This chat is read-only because the ticket is not currently claimed.</p>

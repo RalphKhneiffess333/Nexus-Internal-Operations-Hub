@@ -9,6 +9,8 @@ import {
 } from '../../features/administration/administration-api'
 import { getUser } from '../../features/users/users-api'
 import { formatDateTime } from '../../features/tickets/ticket-types'
+import { useLatestRequest } from '../../lib/api/use-latest-request'
+import { AppSelect } from '../../components/ui/AppSelect'
 
 const logSections = [
   { id: 'all', label: 'All system events' },
@@ -50,26 +52,33 @@ export function LogsPage() {
   const [hasMore, setHasMore] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const { beginRequest } = useLatestRequest()
 
   const loadLogs = useCallback(async () => {
+    const request = beginRequest()
     setLoading(true)
     setError('')
     try {
-      const result = await getAdminActivity({
-        page,
-        pageSize: 25,
-        source: section === 'all' ? 'all' : section === 'audit' ? 'audit' : 'ticket',
-        auditAction: action,
-        ticketAction,
-      })
+      const result = await getAdminActivity(
+        {
+          page,
+          pageSize: 25,
+          source: section === 'all' ? 'all' : section === 'audit' ? 'audit' : 'ticket',
+          auditAction: action,
+          ticketAction,
+        },
+        { signal: request.controller.signal },
+      )
+      if (!request.isCurrent()) return
       setEntries(result?.items ?? [])
       setHasMore(Boolean(result?.hasMore))
     } catch (loadError) {
+      if (!request.isCurrent()) return
       setError(loadError.message || 'Unable to load system history.')
     } finally {
-      setLoading(false)
+      if (request.isCurrent()) setLoading(false)
     }
-  }, [action, page, section, ticketAction])
+  }, [action, beginRequest, page, section, ticketAction])
 
   useEffect(() => {
     // This effect owns the async history synchronization for the selected filters.
@@ -100,7 +109,7 @@ export function LogsPage() {
     setSearchParams(nextParams)
   }
 
-  return <section className="page administration-page"><header className="page-header"><div><p className="eyebrow">History</p><h1>Logs</h1><p className="page-description">Read-only administrative and ticket-domain history.</p></div></header>{error ? <div className="banner error"><p>{error}</p><button type="button" className="btn ghost" onClick={loadLogs}>Try again</button></div> : null}<div className="pool-switcher" role="tablist" aria-label="Log sections">{logSections.map((item) => <button key={item.id} type="button" role="tab" aria-selected={section === item.id} className={section === item.id ? 'is-active' : ''} onClick={() => updateSection(item.id)}>{item.label}</button>)}</div><div className="log-filters">{section !== 'tickets' ? <label className="field admin-log-filter"><span>Audit action</span><select value={action} onChange={(event) => updateQuery('action', event.target.value)}><option value="">All audit actions</option>{auditActions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label> : null}{section !== 'audit' ? <label className="field admin-log-filter"><span>Ticket event</span><select value={ticketAction} onChange={(event) => updateQuery('ticketAction', event.target.value)}><option value="">All ticket events</option>{ticketActions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label> : null}</div>{loading ? <LoadingState>Loading history...</LoadingState> : null}{!loading && !error ? <div className="log-list">{entries.map((entry) => <LogEntry key={`${entry.source}-${entry.id}`} entry={entry} />)}{entries.length === 0 ? <div className="empty-state clay-card"><h2>No history found</h2><p>There are no events matching these filters.</p></div> : null}</div> : null}{!loading && !error && (page > 1 || hasMore) ? <div className="admin-pagination" aria-label="History pages"><button type="button" className="btn ghost" disabled={page === 1} onClick={() => updatePage(page - 1)}>Previous</button><span>Page {page}</span><button type="button" className="btn ghost" disabled={!hasMore} onClick={() => updatePage(page + 1)}>Next</button></div> : null}</section>
+  return <section className="page administration-page"><header className="page-header"><div><p className="eyebrow">History</p><h1>Logs</h1><p className="page-description">Read-only administrative and ticket-domain history.</p></div></header>{error ? <div className="banner error"><p>{error}</p><button type="button" className="btn ghost" onClick={loadLogs}>Try again</button></div> : null}<div className="pool-switcher" role="tablist" aria-label="Log sections">{logSections.map((item) => <button key={item.id} type="button" role="tab" aria-selected={section === item.id} className={section === item.id ? 'is-active' : ''} onClick={() => updateSection(item.id)}>{item.label}</button>)}</div><div className="log-filters">{section !== 'tickets' ? <label className="field admin-log-filter"><span>Audit action</span><AppSelect value={action} onChange={(value) => updateQuery('action', value)} options={[{ value: '', label: 'All audit actions' }, ...auditActions.map(([value, label]) => ({ value, label }))]} /></label> : null}{section !== 'audit' ? <label className="field admin-log-filter"><span>Ticket event</span><AppSelect value={ticketAction} onChange={(value) => updateQuery('ticketAction', value)} options={[{ value: '', label: 'All ticket events' }, ...ticketActions.map(([value, label]) => ({ value, label }))]} /></label> : null}</div>{loading ? <LoadingState>Loading history...</LoadingState> : null}{!loading && !error ? <div className="log-list">{entries.map((entry) => <LogEntry key={`${entry.source}-${entry.id}`} entry={entry} />)}{entries.length === 0 ? <div className="empty-state clay-card"><h2>No history found</h2><p>There are no events matching these filters.</p></div> : null}</div> : null}{!loading && !error && (page > 1 || hasMore) ? <div className="admin-pagination" aria-label="History pages"><button type="button" className="btn ghost" disabled={page === 1} onClick={() => updatePage(page - 1)}>Previous</button><span>Page {page}</span><button type="button" className="btn ghost" disabled={!hasMore} onClick={() => updatePage(page + 1)}>Next</button></div> : null}</section>
 }
 
 function LogEntry({ entry }) {
@@ -112,18 +121,26 @@ function LogEntry({ entry }) {
   const [userDetails, setUserDetails] = useState(null)
   const [userLoading, setUserLoading] = useState(false)
   const [userError, setUserError] = useState('')
+  const { beginRequest: beginUserRequest } = useLatestRequest()
+  const { beginRequest: beginDetailsRequest } = useLatestRequest()
 
   async function openUserDetails() {
     if (!entry.actor?.userId || userLoading) return
+    const request = beginUserRequest()
     setUserLoading(true)
     setUserError('')
     try {
-      setUserDetails(await getUser(entry.actor.userId))
+      const result = await getUser(entry.actor.userId, {
+        signal: request.controller.signal,
+      })
+      if (!request.isCurrent()) return
+      setUserDetails(result)
     } catch (loadError) {
+      if (!request.isCurrent()) return
       setUserDetails(entry.actor)
       setUserError(loadError.message || 'Unable to load the complete user profile.')
     } finally {
-      setUserLoading(false)
+      if (request.isCurrent()) setUserLoading(false)
     }
   }
 
@@ -132,18 +149,21 @@ function LogEntry({ entry }) {
     setExpanded(nextExpanded)
     if (!nextExpanded || detailsLoaded || detailsLoading) return
 
+    const request = beginDetailsRequest()
     setDetailsLoading(true)
     setDetailsError('')
     try {
       const result = entry.source === 'audit'
-        ? await getAuditLog(entry.id)
-        : await getAdminTicketEvent(entry.ticketId, entry.id)
+        ? await getAuditLog(entry.id, { signal: request.controller.signal })
+        : await getAdminTicketEvent(entry.ticketId, entry.id, { signal: request.controller.signal })
+      if (!request.isCurrent()) return
       setDetails(result?.details ?? null)
       setDetailsLoaded(true)
     } catch (loadError) {
+      if (!request.isCurrent()) return
       setDetailsError(loadError.message || 'Unable to load event details.')
     } finally {
-      setDetailsLoading(false)
+      if (request.isCurrent()) setDetailsLoading(false)
     }
   }
 

@@ -21,6 +21,8 @@ import { UserMembershipService } from './user-membership.service';
 import { UsersRepository } from './repositories/users.repository';
 import { SafeUserResponse, UserResponseMapper } from './user-response.mapper';
 import { randomUUID } from 'crypto';
+import { filterOptionsChangedEvent } from '../filters/filter-options-events';
+import { RealtimeInternalEvent } from '../realtime/realtime-events';
 
 @Injectable()
 export class UserAdministrationService {
@@ -299,6 +301,10 @@ export class UserAdministrationService {
   }
 
   private notifyAccountChanged(userId: string): void {
+    this.eventEmitter.emit(
+      RealtimeInternalEvent.FilterOptionsChanged,
+      filterOptionsChangedEvent(userId),
+    );
     this.notifications.notify({
       type: 'ACCOUNT_UPDATED',
       message:

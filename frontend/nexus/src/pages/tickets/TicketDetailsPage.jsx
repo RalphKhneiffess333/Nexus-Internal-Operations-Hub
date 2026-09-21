@@ -1,71 +1,36 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useLocation, useParams } from 'react-router-dom'
-import { ConfirmDialog } from '../../components/tickets/ConfirmDialog'
-import { TicketDetails } from '../../components/tickets/TicketDetails'
-import { TicketMessageDialog } from '../../components/tickets/TicketMessageDialog'
-import { TicketTimeline } from '../../components/tickets/TicketTimeline'
+import { useCallback, useEffect, useState } from 'react'
+import { useLocation, useParams } from 'react-router-dom'
 import { LoadingState } from '../../components/ui/LoadingState'
-import {
-  TicketForm,
-} from '../../components/tickets/TicketForm'
-import { validateTicketFields } from '../../components/tickets/ticket-validation'
-import { useDepartments } from '../../features/departments/use-departments'
-import { usePriorities } from '../../features/priorities/use-priorities'
+import { TicketDetailsHeader } from '../../components/tickets/TicketDetailsHeader'
+import { TicketDetailsWorkspace } from '../../components/tickets/TicketDetailsWorkspace'
 import { useAuthentication } from '../../features/authentication/use-authentication'
-import { useOperationsSocket } from '../../features/realtime/use-operations-socket'
-import { canWorkTickets } from '../../features/tickets/ticket-types'
-import { HandoffPanel } from '../../components/tickets/HandoffPanel'
-import {
-  cancelTicket,
-  claimTicket,
-  closeTicket,
-  getTicketAttachments,
-  getTicket,
-  getTicketEvent,
-  getTicketEvents,
-  downloadTicketAttachment,
-  openTicketAttachment,
-  reopenTicket,
-  updateTicket,
-} from '../../features/tickets/ticket-api'
+import { useDepartments } from '../../features/departments/use-departments'
+import { useNotifications } from '../../features/notifications/use-notifications'
+import { usePriorities } from '../../features/priorities/use-priorities'
+import { canWorkTickets, UserRole } from '../../features/tickets/ticket-types'
+import { formatTicketPageTitle } from '../../features/tickets/ticket-page-title'
+import { useTicketActions } from '../../features/tickets/use-ticket-actions'
+import { useTicketAttachments } from '../../features/tickets/use-ticket-attachments'
+import { useTicketDetails } from '../../features/tickets/use-ticket-details'
+import { useTicketTimeline } from '../../features/tickets/use-ticket-timeline'
 
 export function TicketDetailsPage() {
   const { ticketId } = useParams()
   const location = useLocation()
   const { user } = useAuthentication()
-  const { subscribeToTicket } = useOperationsSocket()
-  const [ticket, setTicket] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const { refreshNotificationCounts, setResourceTitle } = useNotifications()
   const [editing, setEditing] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [formError, setFormError] = useState('')
-  const [fieldErrors, setFieldErrors] = useState({})
-  const [confirmingCancel, setConfirmingCancel] = useState(false)
-  const [cancelling, setCancelling] = useState(false)
-  const [confirmingClaim, setConfirmingClaim] = useState(false)
-  const [claiming, setClaiming] = useState(false)
-  const [closing, setClosing] = useState(false)
-  const [showingCloseDialog, setShowingCloseDialog] = useState(false)
-  const [closeError, setCloseError] = useState('')
-  const [reopening, setReopening] = useState(false)
-  const [showingReopenDialog, setShowingReopenDialog] = useState(false)
-  const [reopenError, setReopenError] = useState('')
-  const [notice, setNotice] = useState('')
-  const [events, setEvents] = useState([])
-  const [eventPage, setEventPage] = useState(1)
-  const [eventsHasMore, setEventsHasMore] = useState(false)
-  const [eventsLoadingMore, setEventsLoadingMore] = useState(false)
-  const [ticketAttachments, setTicketAttachments] = useState(null)
   const [timelineOpen, setTimelineOpen] = useState(true)
-  const [timelineLoading, setTimelineLoading] = useState(true)
-  const [timelineError, setTimelineError] = useState('')
-  const [selectedEventId, setSelectedEventId] = useState('')
-  const [selectedEvent, setSelectedEvent] = useState(null)
-  const [eventDetailLoading, setEventDetailLoading] = useState(false)
-  const [eventDetailError, setEventDetailError] = useState('')
-  const [downloadingAttachmentId, setDownloadingAttachmentId] = useState('')
-  const eventDetailRequestId = useRef(0)
+  const timeline = useTicketTimeline(ticketId)
+  const attachments = useTicketAttachments(ticketId)
+  const { reload: reloadTimeline } = timeline
+  const { reload: reloadAttachments } = attachments
+  const handleRemoteUpdate = useCallback(() => {
+    void reloadTimeline({ silent: true })
+    void reloadAttachments()
+  }, [reloadAttachments, reloadTimeline])
+  const details = useTicketDetails(ticketId, handleRemoteUpdate)
+  const { reload: reloadDetails, updateTicket } = details
   const {
     departments,
     loading: loadingDepartments,
@@ -79,299 +44,35 @@ export function TicketDetailsPage() {
     reload: reloadPriorities,
   } = usePriorities()
 
-  const loadTicket = useCallback(async ({ silent = false } = {}) => {
-    if (!silent) {
-      setLoading(true)
-      setError('')
-    }
-    try {
-      const result = await getTicket(ticketId)
-      setTicket(result)
-    } catch (loadError) {
-      if (!silent) {
-        setTicket(null)
-        setError(
-          loadError.message || 'Unable to load this ticket. Please try again.',
-        )
-      }
-    } finally {
-      if (!silent) setLoading(false)
-    }
-  }, [ticketId])
-
-  const loadTicketEvents = useCallback(async ({ silent = false, page = 1, append = false } = {}) => {
-    if (!silent) {
-      if (append) setEventsLoadingMore(true)
-      else setTimelineLoading(true)
-      setTimelineError('')
-    }
-    try {
-      const result = await getTicketEvents(ticketId, { page, pageSize: 50 })
-      const summaries = result?.items ?? (Array.isArray(result) ? result : [])
-      setEvents((current) => (append ? [...summaries, ...current] : summaries))
-      setEventPage(page)
-      setEventsHasMore(result?.hasMore ?? summaries.length === 50)
-
-    } catch (loadError) {
-      setTimelineError(
-        loadError.message ||
-          'Unable to load the ticket timeline. Please try again.',
-      )
-    } finally {
-      if (!silent) {
-        if (append) setEventsLoadingMore(false)
-        else setTimelineLoading(false)
-      }
-    }
-  }, [ticketId])
-
-  const loadTicketAttachments = useCallback(async () => {
-    try {
-      setTicketAttachments(await getTicketAttachments(ticketId))
-    } catch {
-      setTicketAttachments(null)
-    }
-  }, [ticketId])
-
   useEffect(() => {
-    // The ticket loader owns the initial resource synchronization for this page.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadTicket()
-    void loadTicketAttachments()
-  }, [loadTicket, loadTicketAttachments])
+    const currentTicket = details.ticket?.ticketId === ticketId ? details.ticket : null
+    setResourceTitle(formatTicketPageTitle(currentTicket, 'Ticket Details'))
+  }, [details.ticket, setResourceTitle, ticketId])
 
-  useEffect(() => {
-    // The timeline loader synchronizes the page with the event API response.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadTicketEvents()
-  }, [loadTicketEvents])
-
-  useEffect(
-    () =>
-      subscribeToTicket(ticketId, (event) => {
-        if (event?.payload?.active === false) {
-          setTicket((currentTicket) =>
-            currentTicket
-              ? {
-                  ...currentTicket,
-                  active: false,
-                  status: event.payload.status ?? currentTicket.status,
-                  updatedAt: event.payload.updatedAt ?? currentTicket.updatedAt,
-                  permissions: {
-                    ...currentTicket.permissions,
-                    canModify: false,
-                    canCancel: false,
-                    canClaim: false,
-                    canClose: false,
-                    canReopen: false,
-                  },
-                }
-              : currentTicket,
-          )
-          return
-        }
-        setTicket((currentTicket) =>
-          currentTicket
-            ? {
-                ...currentTicket,
-                status: event?.payload?.status ?? currentTicket.status,
-                updatedAt: event?.payload?.updatedAt ?? currentTicket.updatedAt,
-              }
-            : currentTicket,
-        )
-        void loadTicket({ silent: true })
-        void loadTicketEvents({ silent: true })
-        void loadTicketAttachments()
-      }),
-    [loadTicket, loadTicketAttachments, loadTicketEvents, subscribeToTicket, ticketId],
-  )
-
-  async function handleSelectEvent(event) {
-    const requestId = eventDetailRequestId.current + 1
-    eventDetailRequestId.current = requestId
-
-    if (selectedEventId === event.ticketEventId) {
-      setSelectedEventId('')
-      setSelectedEvent(null)
-      setEventDetailError('')
-      setEventDetailLoading(false)
-      return
-    }
-
-    setSelectedEventId(event.ticketEventId)
-    setSelectedEvent(null)
-    setEventDetailError('')
-    setEventDetailLoading(true)
-
-    try {
-      const result = await getTicketEvent(ticketId, event.ticketEventId)
-      if (eventDetailRequestId.current === requestId) {
-        setSelectedEvent(result)
-      }
-    } catch (detailError) {
-      if (eventDetailRequestId.current === requestId) {
-        setEventDetailError(
-          detailError.message || 'Unable to load this event. Please try again.',
-        )
-      }
-    } finally {
-      if (eventDetailRequestId.current === requestId) {
-        setEventDetailLoading(false)
-      }
-    }
-  }
-
-  async function handleUpdate(values) {
-    const nextFieldErrors = validateTicketFields(values)
-    setFieldErrors(nextFieldErrors)
-    if (Object.keys(nextFieldErrors).length > 0) {
-      return
-    }
-
-    setSaving(true)
-    setFormError('')
-    try {
-      const updated = await updateTicket(ticketId, {
-        title: values.title,
-        description: values.description,
-        priority: values.priority,
-        departmentId: values.departmentId,
-      }, values.files, values.removedAttachmentIds)
-      setTicket(updated)
-      setEditing(false)
-      setNotice('Ticket updated.')
-      void loadTicketEvents()
-      void loadTicketAttachments()
-    } catch (updateError) {
-      setFormError(
-        updateError.message ||
-          'Unable to update this ticket. The ticket may have changed since you opened it.',
-      )
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  async function handleCancel() {
-    setCancelling(true)
-    setFormError('')
-    try {
-      const cancelled = await cancelTicket(ticketId)
-      setTicket(cancelled)
-      setConfirmingCancel(false)
-      setNotice('This ticket has been cancelled.')
-      void loadTicketEvents()
-      void loadTicketAttachments()
-    } catch (cancelError) {
-      setFormError(
-        cancelError.message ||
-          'Unable to cancel this ticket. The ticket may have changed since you opened it.',
-      )
-    } finally {
-      setCancelling(false)
-    }
-  }
-
-  async function handleClaim() {
-    setClaiming(true)
-    setFormError('')
-    try {
-      const claimed = await claimTicket(ticketId)
-      setTicket(claimed)
-      setConfirmingClaim(false)
-      setNotice('Ticket claimed.')
-      void loadTicketEvents()
-      void loadTicketAttachments()
-    } catch (claimError) {
-      setFormError(
-        claimError.message ||
-          'Unable to claim this ticket. It may have changed since you opened it.',
-      )
-    } finally {
-      setClaiming(false)
-    }
-  }
-
-  async function handleClose(completionNotes, files) {
-    setClosing(true)
-    setCloseError('')
-    try {
-      const closed = await closeTicket(ticketId, { completionNotes }, files)
-      setTicket(closed)
-      setShowingCloseDialog(false)
-      setNotice('Ticket closed.')
-      void loadTicketEvents()
-      void loadTicketAttachments()
-    } catch (closeTicketError) {
-      setCloseError(
-        closeTicketError.message ||
-          'Unable to close this ticket. It may have changed since you opened it.',
-      )
-    } finally {
-      setClosing(false)
-    }
-  }
-
-  async function handleReopen(description, files) {
-    setReopening(true)
-    setReopenError('')
-    try {
-      const reopened = await reopenTicket(ticketId, { description }, files)
-      setTicket(reopened)
-      setShowingReopenDialog(false)
-      setNotice('Ticket reopened.')
-      void loadTicketEvents()
-      void loadTicketAttachments()
-    } catch (reopenTicketError) {
-      setReopenError(
-        reopenTicketError.message ||
-          'Unable to reopen this ticket. It may have changed since you opened it.',
-      )
-    } finally {
-      setReopening(false)
-    }
-  }
-
-  async function handleDownloadAttachment(attachment, eventId) {
-    setDownloadingAttachmentId(attachment.attachmentId)
-    setEventDetailError('')
-    try {
-      await downloadTicketAttachment(ticketId, eventId, attachment.attachmentId)
-    } catch (downloadError) {
-      setEventDetailError(
-        downloadError.message || 'Unable to download this attachment. Please try again.',
-      )
-    } finally {
-      setDownloadingAttachmentId('')
-    }
-  }
-
-  async function handleOpenAttachment(attachment, eventId) {
-    setDownloadingAttachmentId(attachment.attachmentId)
-    setEventDetailError('')
-    try {
-      await openTicketAttachment(ticketId, eventId, attachment.attachmentId)
-    } catch (openError) {
-      setEventDetailError(
-        openError.message || 'Unable to open this attachment. Please try again.',
-      )
-    } finally {
-      setDownloadingAttachmentId('')
-    }
-  }
-
-  const permissions = ticket?.permissions ?? {}
-  const canEdit = Boolean(ticket?.active && permissions.canModify)
-  const canCancel = Boolean(ticket?.active && permissions.canCancel)
-  const canClaim = Boolean(ticket?.active && permissions.canClaim)
-  const canClose = Boolean(ticket?.active && permissions.canClose)
-  const canReopen = Boolean(ticket?.active && permissions.canReopen)
+  const handleTicketChanged = useCallback((updated, action) => {
+    updateTicket(updated)
+    if (action === 'update') setEditing(false)
+  }, [updateTicket])
+  const handleRefreshResources = useCallback(() => {
+    void reloadTimeline()
+    void reloadAttachments()
+  }, [reloadAttachments, reloadTimeline])
+  const handleHandoffChanged = useCallback(() => {
+    void reloadDetails()
+    void reloadTimeline()
+  }, [reloadDetails, reloadTimeline])
+  const actions = useTicketActions({
+    ticketId,
+    onTicketChanged: handleTicketChanged,
+    onRefreshResources: handleRefreshResources,
+    refreshNotificationCounts,
+  })
+  const permissions = details.ticket?.permissions ?? {}
   const adminClosingAnotherAgentTicket = Boolean(
-    user?.role === 'Admin' &&
-      ticket?.agent &&
-      ticket.agent.userId !== user.userId,
+    user?.role === UserRole.ADMIN &&
+      details.ticket?.agent &&
+      details.ticket.agent.userId !== user.userId,
   )
-  const showTicketActions = !editing
   const backPath = location.state?.from ?? '/tickets'
   const backLabel = backPath.startsWith('/admin/logs')
     ? 'Logs'
@@ -379,263 +80,67 @@ export function TicketDetailsPage() {
       ? 'Ticket pools'
       : 'All tickets'
 
+  const form = {
+    saving: actions.saving,
+    formError: actions.formError,
+    fieldErrors: actions.fieldErrors,
+  }
+  const actionModel = {
+    ...actions,
+    onEdit: () => setEditing(true),
+  }
+
   return (
     <section className="page">
-      <header className="page-header">
-        <div>
-          <Link to={backPath} className="back-link">
-            ← {backLabel}
-          </Link>
-          <h1>Ticket details</h1>
-          <p className="page-description">
-            Review the request, follow its progress, and take the next action.
-          </p>
-        </div>
-        {ticket ? (
-          <div className="header-actions ticket-details-header-actions">
-            <Link to={`/chats/${ticket.ticketId}`} className="btn primary ticket-open-chat">
-              Open chat
-            </Link>
-            {showTicketActions && canEdit ? (
-              <button type="button" className="btn ghost" onClick={() => setEditing(true)}>
-                Edit
-              </button>
-            ) : null}
-            {showTicketActions && canCancel ? (
-              <button
-                type="button"
-                className="btn danger"
-                onClick={() => setConfirmingCancel(true)}
-              >
-                Cancel ticket
-              </button>
-            ) : null}
-            {showTicketActions && canClaim ? (
-              <button
-                type="button"
-                className="btn primary"
-                onClick={() => setConfirmingClaim(true)}
-              >
-                Claim ticket
-              </button>
-            ) : null}
-            {showTicketActions && canClose ? (
-              <button
-                type="button"
-                className="btn primary"
-                onClick={() => {
-                  setCloseError('')
-                  setShowingCloseDialog(true)
-                }}
-              >
-                Close ticket
-              </button>
-            ) : null}
-            {showTicketActions && canReopen ? (
-              <button
-                type="button"
-                className="btn ghost"
-                onClick={() => {
-                  setReopenError('')
-                  setShowingReopenDialog(true)
-                }}
-              >
-                Reopen ticket
-              </button>
-            ) : null}
-          </div>
-        ) : null}
-      </header>
+      <TicketDetailsHeader
+        backPath={backPath}
+        backLabel={backLabel}
+        ticket={details.ticket}
+        editing={editing}
+        permissions={permissions}
+        adminClosingAnotherAgentTicket={adminClosingAnotherAgentTicket}
+        onEdit={() => setEditing(true)}
+        actions={actionModel}
+      />
 
-      {loading ? <LoadingState>Loading ticket...</LoadingState> : null}
-
-      {!loading && error ? (
+      {details.loading ? <LoadingState>Loading ticket...</LoadingState> : null}
+      {!details.loading && details.error ? (
         <div className="banner error">
-          <p>{error}</p>
-          <button type="button" className="btn ghost" onClick={() => void loadTicket()}>
-            Try again
-          </button>
+          <p>{details.error}</p>
+          <button type="button" className="btn ghost" onClick={() => void details.reload()}>Try again</button>
         </div>
       ) : null}
+      {actions.notice ? <p className="banner success">{actions.notice}</p> : null}
+      {actions.formError && !editing ? <p className="banner error">{actions.formError}</p> : null}
 
-      {notice ? <p className="banner success">{notice}</p> : null}
-      {formError && !editing ? <p className="banner error">{formError}</p> : null}
-
-      {!loading && ticket ? (
-        <div className={`ticket-workspace${timelineOpen ? '' : ' timeline-hidden'}`}>
-          <div className="ticket-workspace-main">
-            {editing ? (
-              loadingDepartments || loadingPriorities ? (
-                <LoadingState>Loading ticket options...</LoadingState>
-              ) : departmentsError || prioritiesError ? (
-                <div className="banner error">
-                  <p>{departmentsError || prioritiesError}</p>
-                  <div className="form-actions">
-                    {departmentsError ? <button type="button" className="btn ghost" onClick={reloadDepartments}>Retry departments</button> : null}
-                    {prioritiesError ? <button type="button" className="btn ghost" onClick={reloadPriorities}>Retry priorities</button> : null}
-                  </div>
-                </div>
-              ) : (
-                <TicketForm
-                  key={`${ticket.ticketId}-edit`}
-                  initialValues={ticket}
-                  departments={departments}
-                  priorities={priorities}
-                  submitLabel="Save changes"
-                  submittingLabel="Saving..."
-                  submitting={saving}
-                  error={formError}
-                  fieldErrors={fieldErrors}
-                  includeAttachments
-                  existingAttachments={ticketAttachments?.attachments}
-                  onSubmit={handleUpdate}
-                  onCancel={() => {
-                    setEditing(false)
-                    setFormError('')
-                    setFieldErrors({})
-                  }}
-                />
-              )
-            ) : (
-              <TicketDetails
-                ticket={ticket}
-                departments={departments}
-                priorities={priorities}
-                timelineOpen={timelineOpen}
-                attachments={ticketAttachments?.attachments}
-                downloadingAttachmentId={downloadingAttachmentId}
-                onOpenAttachment={(attachment) =>
-                  handleOpenAttachment(
-                    attachment,
-                    ticketAttachments?.ticketEventId,
-                  )
-                }
-                onDownloadAttachment={(attachment) =>
-                  handleDownloadAttachment(
-                    attachment,
-                    ticketAttachments?.ticketEventId,
-                  )
-                }
-                onToggleTimeline={() => setTimelineOpen((open) => !open)}
-              />
-            )}
-
-            {canWorkTickets(user) ? (
-              <HandoffPanel
-                ticket={ticket}
-                onTicketChanged={() => {
-                  void loadTicket()
-                  void loadTicketEvents()
-                }}
-              />
-            ) : null}
-
-            {ticket.active === false ? (
-              <p className="muted ticket-inactive-note">
-                This ticket can no longer be edited or cancelled.
-              </p>
-            ) : null}
-          </div>
-
-          {timelineOpen ? (
-            <TicketTimeline
-              events={events}
-              loading={timelineLoading}
-              error={timelineError}
-              selectedEvent={selectedEvent}
-              selectedEventId={selectedEventId}
-              detailLoading={eventDetailLoading}
-              detailError={eventDetailError}
-              downloadingAttachmentId={downloadingAttachmentId}
-              departments={departments}
-              onSelect={handleSelectEvent}
-              onRetry={loadTicketEvents}
-              hasMore={eventsHasMore}
-              loadingMore={eventsLoadingMore}
-              onLoadMore={() => void loadTicketEvents({ page: eventPage + 1, append: true })}
-              onOpenAttachment={handleOpenAttachment}
-              onDownloadAttachment={handleDownloadAttachment}
-            />
-          ) : null}
-        </div>
-      ) : null}
-
-      {confirmingCancel && ticket ? (
-        <ConfirmDialog
-          title="Cancel ticket?"
-          message={`Are you sure you want to cancel ${ticket.ticketCode}? This action cannot be undone.`}
-          confirmLabel="Cancel Ticket"
-          busyLabel="Cancelling..."
-          dismissLabel="Keep Ticket"
-          busy={cancelling}
-          onConfirm={handleCancel}
-          onDismiss={() => setConfirmingCancel(false)}
-        />
-      ) : null}
-
-      {confirmingClaim && ticket ? (
-        <ConfirmDialog
-          title="Claim ticket?"
-          message={`Claim ${ticket.ticketCode} and assign it to yourself?`}
-          confirmLabel="Claim Ticket"
-          busyLabel="Claiming..."
-          dismissLabel="Not now"
-          confirmClassName="btn primary"
-          busy={claiming}
-          onConfirm={handleClaim}
-          onDismiss={() => setConfirmingClaim(false)}
-        />
-      ) : null}
-
-      {showingCloseDialog && ticket ? (
-        <TicketMessageDialog
-          title="Close ticket"
-          message={
-            adminClosingAnotherAgentTicket
-              ? `This ticket is assigned to ${ticket.agent?.fullName ?? 'another agent'}, not you. As an administrator, you can close it. The completion notes will identify you as the administrator who closed the ticket.`
-              : `Add a closing message for ${ticket.ticketCode}.`
-          }
-          label="Closing message"
-          placeholder={
-            adminClosingAnotherAgentTicket
-              ? 'Add administrator notes if needed.'
-              : 'Summarize the resolution for the submitter.'
-          }
-          confirmLabel="Close Ticket"
-          busyLabel="Closing..."
-          dismissLabel="Keep open"
-          busy={closing}
-          includeAttachments
-          required={!adminClosingAnotherAgentTicket}
-          error={closeError}
-          onConfirm={handleClose}
-          onDismiss={() => {
-            setCloseError('')
-            setShowingCloseDialog(false)
+      {!details.loading && details.ticket ? (
+        <TicketDetailsWorkspace
+          ticket={details.ticket}
+          editing={editing}
+          departments={departments}
+          priorities={priorities}
+          loadingDepartments={loadingDepartments}
+          loadingPriorities={loadingPriorities}
+          departmentsError={departmentsError}
+          prioritiesError={prioritiesError}
+          reloadDepartments={reloadDepartments}
+          reloadPriorities={reloadPriorities}
+          form={form}
+          attachments={attachments.attachments}
+          attachmentState={attachments}
+          timeline={timeline}
+          timelineOpen={timelineOpen}
+          onToggleTimeline={() => setTimelineOpen((open) => !open)}
+          onSubmit={actions.handleUpdate}
+          onCancelEdit={() => {
+            setEditing(false)
+            actions.setFormError('')
+            actions.setFieldErrors({})
           }}
+          canWork={canWorkTickets(user)}
+          onTicketChanged={handleHandoffChanged}
         />
       ) : null}
-
-      {showingReopenDialog && ticket ? (
-        <TicketMessageDialog
-          title="Reopen ticket"
-          message={`Describe what still needs attention on ${ticket.ticketCode}.`}
-          label="Updated description"
-          placeholder="Add context for the next agent."
-          confirmLabel="Reopen Ticket"
-          busyLabel="Reopening..."
-          dismissLabel="Keep closed"
-          busy={reopening}
-          includeAttachments
-          error={reopenError}
-          onConfirm={handleReopen}
-          onDismiss={() => {
-            setReopenError('')
-            setShowingReopenDialog(false)
-          }}
-        />
-      ) : null}
-
     </section>
   )
 }

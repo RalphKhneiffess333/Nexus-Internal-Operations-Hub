@@ -1,6 +1,12 @@
 import { useState } from 'react'
 import { sanitizePlainText } from '../../lib/content/sanitize'
 import { FilePicker } from './FilePicker'
+import { AppSelect } from '../ui/AppSelect'
+import { MAX_FILES_PER_EVENT, attachmentCountError } from './file-validation'
+import {
+  MAX_TICKET_TEXT_LENGTH,
+  MAX_TICKET_TITLE_LENGTH,
+} from './ticket-validation'
 
 export function TicketForm({
   initialValues,
@@ -19,18 +25,38 @@ export function TicketForm({
 }) {
   const [files, setFiles] = useState([])
   const [removedAttachmentIds, setRemovedAttachmentIds] = useState([])
+  const [attachmentError, setAttachmentError] = useState('')
   const defaultDepartmentId =
     initialValues?.departmentId ?? departments[0]?.departmentId ?? ''
   const currentInactivePriority = initialValues?.priority &&
     !priorities.some((priority) => priority.code === initialValues.priority)
     ? { code: initialValues.priority, name: `${initialValues.priority} (inactive)` }
     : null
+  const remainingAttachmentCount = existingAttachments.filter(
+    (attachment) => !removedAttachmentIds.includes(attachment.attachmentId),
+  ).length
+  const maxNewFiles = Math.max(0, MAX_FILES_PER_EVENT - remainingAttachmentCount)
+
+  function handleFilesChange(nextFiles) {
+    setFiles(nextFiles)
+    setAttachmentError(
+      attachmentCountError(remainingAttachmentCount + nextFiles.length),
+    )
+  }
+
   return (
     <form
       className="ticket-form clay-card content-reveal"
       onSubmit={(event) => {
         event.preventDefault()
         const form = new FormData(event.currentTarget)
+        const totalAttachmentCount = remainingAttachmentCount + files.length
+        const nextAttachmentError = attachmentCountError(totalAttachmentCount)
+        if (nextAttachmentError) {
+          setAttachmentError(nextAttachmentError)
+          return
+        }
+        setAttachmentError('')
         onSubmit({
           title: sanitizePlainText(form.get('title')),
           description: sanitizePlainText(form.get('description')),
@@ -50,7 +76,7 @@ export function TicketForm({
           name="title"
           defaultValue={initialValues?.title ?? ''}
           required
-          maxLength={200}
+          maxLength={MAX_TICKET_TITLE_LENGTH}
         />
         {fieldErrors?.title ? (
           <em className="field-error">{fieldErrors.title}</em>
@@ -64,6 +90,7 @@ export function TicketForm({
           defaultValue={initialValues?.description ?? ''}
           required
           rows={5}
+          maxLength={MAX_TICKET_TEXT_LENGTH}
         />
         {fieldErrors?.description ? (
           <em className="field-error">{fieldErrors.description}</em>
@@ -72,23 +99,16 @@ export function TicketForm({
 
       <label className="field">
         <span>Priority</span>
-        <select
+        <AppSelect
           name="priority"
           defaultValue={initialValues?.priority ?? priorities[0]?.code ?? ''}
           required
-        >
-          {priorities.length === 0 ? <option value="">No priorities available</option> : null}
-          {currentInactivePriority ? (
-            <option value={currentInactivePriority.code}>
-              {currentInactivePriority.name}
-            </option>
-          ) : null}
-          {priorities.map((priority) => (
-            <option key={priority.code} value={priority.code}>
-              {priority.name}
-            </option>
-          ))}
-        </select>
+          options={[
+            ...(priorities.length === 0 ? [{ value: '', label: 'No priorities available' }] : []),
+            ...(currentInactivePriority ? [{ value: currentInactivePriority.code, label: currentInactivePriority.name }] : []),
+            ...priorities.map((priority) => ({ value: priority.code, label: priority.name })),
+          ]}
+        />
         {fieldErrors?.priority ? (
           <em className="field-error">{fieldErrors.priority}</em>
         ) : null}
@@ -96,21 +116,16 @@ export function TicketForm({
 
       <label className="field">
         <span>Department</span>
-        <select
+        <AppSelect
           name="departmentId"
           defaultValue={defaultDepartmentId}
           required
           disabled={departments.length === 0}
-        >
-          {departments.length === 0 ? (
-            <option value="">No departments available</option>
-          ) : null}
-          {departments.map((department) => (
-            <option key={department.departmentId} value={department.departmentId}>
-              {department.name}
-            </option>
-          ))}
-        </select>
+          options={[
+            ...(departments.length === 0 ? [{ value: '', label: 'No departments available' }] : []),
+            ...departments.map((department) => ({ value: department.departmentId, label: department.name })),
+          ]}
+        />
         {fieldErrors?.departmentId ? (
           <em className="field-error">{fieldErrors.departmentId}</em>
         ) : null}
@@ -125,7 +140,7 @@ export function TicketForm({
 
       {includeAttachments ? (
         <div className="field">
-          <span>Attachments <small>(optional, up to 5 files)</small></span>
+          <span>Attachments <small>(optional, up to 5 files total)</small></span>
           {existingAttachments.length > 0 ? (
             <div className="existing-file-list">
               <span className="file-picker-section-label">Current files</span>
@@ -159,7 +174,12 @@ export function TicketForm({
               </ul>
             </div>
           ) : null}
-          <FilePicker onChange={setFiles} disabled={submitting} />
+          <FilePicker
+            onChange={handleFilesChange}
+            maxFiles={maxNewFiles}
+            disabled={submitting}
+          />
+          {attachmentError ? <em className="field-error">{attachmentError}</em> : null}
         </div>
       ) : null}
 

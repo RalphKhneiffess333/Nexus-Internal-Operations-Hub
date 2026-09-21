@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { FilePicker } from './FilePicker'
+import { Dialog } from '../ui/Dialog'
+import { MAX_TICKET_TEXT_LENGTH } from './ticket-validation'
 
 export function TicketMessageDialog({
   title,
@@ -26,20 +28,17 @@ export function TicketMessageDialog({
       setFieldError('Please add a message before continuing.')
       return
     }
+    if (trimmed.length > MAX_TICKET_TEXT_LENGTH) {
+      setFieldError(`Message must be ${MAX_TICKET_TEXT_LENGTH} characters or fewer.`)
+      return
+    }
 
     setFieldError('')
     onConfirm(trimmed, files)
   }
 
   return (
-    <div className="dialog-backdrop" role="presentation" onClick={onDismiss}>
-      <div
-        className="dialog clay-card"
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="message-dialog-title"
-        onClick={(event) => event.stopPropagation()}
-      >
+    <Dialog role="alertdialog" ariaLabelledBy="message-dialog-title" onClose={onDismiss}>
         <h2 id="message-dialog-title">{title}</h2>
         <p>{message}</p>
         <label className="field">
@@ -49,6 +48,7 @@ export function TicketMessageDialog({
             value={value}
             placeholder={placeholder}
             onChange={(event) => setValue(event.target.value)}
+            maxLength={MAX_TICKET_TEXT_LENGTH}
             disabled={busy}
           />
           {fieldError ? <em className="field-error">{fieldError}</em> : null}
@@ -68,7 +68,6 @@ export function TicketMessageDialog({
             {busy ? busyLabel : confirmLabel}
           </button>
         </div>
-      </div>
-    </div>
+    </Dialog>
   )
 }

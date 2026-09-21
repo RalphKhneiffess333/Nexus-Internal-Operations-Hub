@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { LoadingState } from '../../components/ui/LoadingState'
+import { IllustratedEmptyState } from '../../components/ui/IllustratedEmptyState'
+import noChatsImage from '../../assets/NoChats.png'
 import { DebouncedSearchInput } from '../../components/ui/DebouncedSearchInput'
 import { TicketStatusBadge } from '../../components/tickets/TicketStatusBadge'
-import { useNotifications } from '../../features/notifications/use-notifications'
 import { getChatConversations } from '../../features/tickets/ticket-api'
 import { formatDateTime } from '../../features/tickets/ticket-types'
+import { useLatestRequest } from '../../lib/api/use-latest-request'
 
 function messagePreview(conversation) {
   const message = conversation.lastMessage
@@ -15,7 +17,6 @@ function messagePreview(conversation) {
 }
 
 export function ChatsPage() {
-  const { markAllChatsRead } = useNotifications()
   const [searchParams, setSearchParams] = useSearchParams()
   const search = searchParams.get('search') ?? ''
   const parsedPage = Number(searchParams.get('page') ?? '1')
@@ -24,26 +25,28 @@ export function ChatsPage() {
   const [hasMore, setHasMore] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const { beginRequest } = useLatestRequest()
 
-  const loadConversations = useCallback(async ({ silent = false } = {}) => {
-    markAllChatsRead()
-    if (!silent) {
-      setLoading(true)
-      setError('')
-    }
+  const loadConversations = useCallback(async () => {
+    const request = beginRequest()
+    setLoading(true)
+    setError('')
     try {
-      const result = await getChatConversations({ page, pageSize: 50, search })
+      const result = await getChatConversations(
+        { page, pageSize: 50, search },
+        { signal: request.controller.signal },
+      )
+      if (!request.isCurrent()) return
       setConversations(result?.items ?? [])
       setHasMore(Boolean(result?.hasMore))
     } catch (loadError) {
-      if (!silent) {
-        setError(loadError.message || 'Unable to load your conversations.')
-        setHasMore(false)
-      }
+      if (!request.isCurrent()) return
+      setError(loadError.message || 'Unable to load your conversations.')
+      setHasMore(false)
     } finally {
-      if (!silent) setLoading(false)
+      if (request.isCurrent()) setLoading(false)
     }
-  }, [markAllChatsRead, page, search])
+  }, [beginRequest, page, search])
 
   useEffect(() => {
     // The inbox is synchronized from the server when this route is mounted.
@@ -65,12 +68,6 @@ export function ChatsPage() {
     else nextParams.delete('page')
     setSearchParams(nextParams)
   }
-
-  useEffect(() => {
-    const refreshWhenFocused = () => void loadConversations({ silent: true })
-    window.addEventListener('focus', refreshWhenFocused)
-    return () => window.removeEventListener('focus', refreshWhenFocused)
-  }, [loadConversations])
 
   return (
     <section className="page chats-page">
@@ -111,10 +108,11 @@ export function ChatsPage() {
       ) : null}
 
       {!loading && !error && conversations.length === 0 ? (
-        <div className="empty-state clay-card">
-          <h2>No ticket chats yet</h2>
-          <p>When a ticket conversation starts, it will appear here.</p>
-        </div>
+        <IllustratedEmptyState
+          image={noChatsImage}
+          title="No ticket chats yet"
+          message="When a ticket conversation starts, it will appear here."
+        />
       ) : null}
 
       {!loading && !error && conversations.length > 0 ? (

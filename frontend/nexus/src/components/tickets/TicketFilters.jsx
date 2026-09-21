@@ -1,4 +1,5 @@
 import { TicketStatus } from '../../features/tickets/ticket-types'
+import { AppSelect } from '../ui/AppSelect'
 import { DebouncedSearchInput } from '../ui/DebouncedSearchInput'
 
 const statusLabels = {
@@ -8,7 +9,7 @@ const statusLabels = {
   [TicketStatus.REOPENED]: 'Reopened',
 }
 
-export function TicketFilters({ departments, priorities = [], filters, onChange, showStatus = true }) {
+export function TicketFilters({ departments, priorities = [], statuses = [], filters, onChange, showStatus = true }) {
   return (
     <div className="ticket-filters" aria-label="Ticket filters">
       <label className="field ticket-filter ticket-search-filter">
@@ -23,46 +24,40 @@ export function TicketFilters({ departments, priorities = [], filters, onChange,
       {showStatus ? (
         <label className="field ticket-filter">
           <span>Status</span>
-          <select
+          <AppSelect
             value={filters.status}
-            onChange={(event) => onChange('status', event.target.value)}
-          >
-            <option value="">All statuses</option>
-            {Object.entries(statusLabels).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
+            onChange={(value) => onChange('status', value)}
+            options={[
+              { value: '', label: 'All statuses' },
+              ...(statuses.length ? statuses : Object.keys(statusLabels)).map((status) => ({
+                value: status,
+                label: statusLabels[status] ?? status,
+              })),
+            ]}
+          />
         </label>
       ) : null}
       <label className="field ticket-filter">
         <span>Department</span>
-        <select
+        <AppSelect
           value={filters.departmentId}
-          onChange={(event) => onChange('departmentId', event.target.value)}
-        >
-          <option value="">All departments</option>
-          {departments.map((department) => (
-            <option key={department.departmentId} value={department.departmentId}>
-              {department.name}
-            </option>
-          ))}
-        </select>
+          onChange={(value) => onChange('departmentId', value)}
+          options={[
+            { value: '', label: 'All departments' },
+            ...departments.map((department) => ({ value: department.departmentId, label: department.name })),
+          ]}
+        />
       </label>
       <label className="field ticket-filter">
         <span>Priority</span>
-        <select
+        <AppSelect
           value={filters.priority}
-          onChange={(event) => onChange('priority', event.target.value)}
-        >
-          <option value="">All priorities</option>
-          {priorities.map((priority) => (
-            <option key={priority.code} value={priority.code}>
-              {priority.name}
-            </option>
-          ))}
-        </select>
+          onChange={(value) => onChange('priority', value)}
+          options={[
+            { value: '', label: 'All priorities' },
+            ...priorities.map((priority) => ({ value: priority.code, label: priority.name })),
+          ]}
+        />
       </label>
     </div>
   )

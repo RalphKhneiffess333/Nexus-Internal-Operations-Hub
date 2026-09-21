@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { Dialog } from '../ui/Dialog'
+import { AppSelect } from '../ui/AppSelect'
 
 export function HandoffDialog({
   agents = [],
@@ -22,14 +24,7 @@ export function HandoffDialog({
   }
 
   return (
-    <div className="dialog-backdrop" role="presentation" onClick={onDismiss}>
-      <section
-        className="dialog dialog-wide clay-card"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="handoff-dialog-title"
-        onClick={(event) => event.stopPropagation()}
-      >
+    <Dialog wide ariaLabelledBy="handoff-dialog-title" onClose={onDismiss}>
         <div className="dialog-heading">
           <div>
             <p className="eyebrow">Ticket handoff</p>
@@ -49,18 +44,18 @@ export function HandoffDialog({
 
         <label className="field">
           <span>Agent</span>
-          <select
+          <AppSelect
             value={requestedAgentId}
-            onChange={(event) => setRequestedAgentId(event.target.value)}
+            onChange={setRequestedAgentId}
             disabled={busy}
-          >
-            <option value="">Select an eligible agent</option>
-            {agents.map((agent) => (
-              <option key={agent.userId} value={agent.userId}>
-                {agent.fullName} · {agent.email}
-              </option>
-            ))}
-          </select>
+            options={[
+              { value: '', label: 'Select an eligible agent' },
+              ...agents.map((agent) => ({
+                value: agent.userId,
+                label: `${agent.fullName} · ${agent.email}`,
+              })),
+            ]}
+          />
           {fieldError ? <em className="field-error">{fieldError}</em> : null}
         </label>
 
@@ -86,7 +81,6 @@ export function HandoffDialog({
             {busy ? 'Sending…' : 'Send handoff'}
           </button>
         </div>
-      </section>
-    </div>
+    </Dialog>
   )
 }

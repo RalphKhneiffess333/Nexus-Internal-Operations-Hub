@@ -3,14 +3,18 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { TicketList } from '../../components/tickets/TicketList'
 import { TicketFilters } from '../../components/tickets/TicketFilters'
 import { LoadingState } from '../../components/ui/LoadingState'
+import { IllustratedEmptyState } from '../../components/ui/IllustratedEmptyState'
+import noTicketImage from '../../assets/NoTicket.png'
 import { useAuthentication } from '../../features/authentication/use-authentication'
 import { useDepartments } from '../../features/departments/use-departments'
+import { useFilterOptions } from '../../features/filters/use-filter-options'
 import { usePriorities } from '../../features/priorities/use-priorities'
 import {
   getTickets,
 } from '../../features/tickets/ticket-api'
-import { canWorkTickets } from '../../features/tickets/ticket-types'
+import { canWorkTickets, UserRole } from '../../features/tickets/ticket-types'
 import { useNotifications } from '../../features/notifications/use-notifications'
+import { useLatestRequest } from '../../lib/api/use-latest-request'
 
 const TICKET_VIEWS = {
   admin: {
@@ -93,7 +97,7 @@ export function TicketsPage({ view = 'submitted' }) {
   const priorityFilter = searchParams.get('priority') ?? ''
   const parsedPage = Number(searchParams.get('page') ?? '1')
   const page = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1
-  const isAdmin = user?.role === 'Admin'
+  const isAdmin = user?.role === UserRole.ADMIN
   const poolMode = requestedPoolMode === 'system' && isAdmin
     ? 'system'
     : requestedPoolMode === 'all'
@@ -103,7 +107,7 @@ export function TicketsPage({ view = 'submitted' }) {
   const isAgentDepartmentView =
     view === 'pool' &&
     (poolMode === 'all' || poolMode === 'unclaimed') &&
-    (user?.role === 'Agent' || user?.role === 'Admin')
+    (user?.role === UserRole.AGENT || user?.role === UserRole.ADMIN)
   const requestedMyTicketMode = searchParams.get('view')
   const myTicketMode =
     canWorkTickets(user) &&
@@ -129,7 +133,9 @@ export function TicketsPage({ view = 'submitted' }) {
   const [loading, setLoading] = useState(true)
   const [loadedRequestKey, setLoadedRequestKey] = useState(null)
   const [error, setError] = useState('')
+  const { beginRequest } = useLatestRequest()
   const { departments } = useDepartments(isAgentDepartmentView ? 'mine' : 'all')
+  const { ticketStatuses } = useFilterOptions()
   const { priorities } = usePriorities()
   const isLoading = loading || loadedRequestKey !== loadKey
   const filterDepartments = departments
@@ -159,6 +165,7 @@ export function TicketsPage({ view = 'submitted' }) {
   }
 
   const loadTickets = useCallback(async () => {
+    const request = beginRequest()
     setLoading(true)
     setError('')
     try {
@@ -170,18 +177,22 @@ export function TicketsPage({ view = 'submitted' }) {
         priority: priorityFilter,
         page,
         pageSize: 50,
-      })
+      }, { signal: request.controller.signal })
+      if (!request.isCurrent()) return
       setTickets(result?.items ?? [])
       setHasMore(Boolean(result?.hasMore))
     } catch (loadError) {
+      if (!request.isCurrent()) return
       setError(loadError.message || config.error)
       setTickets([])
       setHasMore(false)
     } finally {
-      setLoadedRequestKey(loadKey)
-      setLoading(false)
+      if (request.isCurrent()) {
+        setLoadedRequestKey(loadKey)
+        setLoading(false)
+      }
     }
-  }, [config, loadKey, searchFilter, appliedStatusFilter, departmentFilter, priorityFilter, page])
+  }, [beginRequest, config, loadKey, searchFilter, appliedStatusFilter, departmentFilter, priorityFilter, page])
 
   useEffect(() => {
     // One server-backed loader handles every ticket scope and filter combination.
@@ -269,6 +280,7 @@ export function TicketsPage({ view = 'submitted' }) {
       <TicketFilters
         departments={filterDepartments}
         priorities={priorities}
+        statuses={ticketStatuses}
         filters={{ search: searchFilter, status: appliedStatusFilter, departmentId: departmentFilter, priority: priorityFilter }}
         onChange={updateFilter}
         showStatus={!hideStatusFilter}
@@ -286,15 +298,17 @@ export function TicketsPage({ view = 'submitted' }) {
       ) : null}
 
       {!isLoading && !error && tickets.length === 0 ? (
-        <div className="empty-state clay-card content-reveal">
-          <h2>{config.emptyTitle}</h2>
-          <p>{config.emptyText}</p>
-          {config.showEmptyAction ? (
+        <IllustratedEmptyState
+          image={noTicketImage}
+          className="content-reveal"
+          title={config.emptyTitle}
+          message={config.emptyText}
+          action={config.showEmptyAction ? (
             <Link to="/tickets/new" className="btn primary">
               Submit a ticket
             </Link>
           ) : null}
-        </div>
+        />
       ) : null}
 
       {!isLoading && !error && tickets.length > 0 ? (

@@ -1,4 +1,5 @@
 import { HandoffStatus } from '../../features/tickets/ticket-types'
+import { AppSelect } from '../ui/AppSelect'
 import { DebouncedSearchInput } from '../ui/DebouncedSearchInput'
 
 const STATUS_LABELS = {
@@ -11,6 +12,7 @@ const STATUS_LABELS = {
 export function HandoffFilters({
   departments = [],
   users = [],
+  statuses = [],
   filters,
   view,
   searchInput,
@@ -42,63 +44,54 @@ export function HandoffFilters({
       {view === 'outgoing' ? (
         <label className="field ticket-filter">
           <span>Requested to</span>
-          <select
+          <AppSelect
             value={filters.requestedAgentId}
-            onChange={(event) => onChange('requestedAgentId', event.target.value)}
-          >
-            <option value="">Anyone</option>
-            {users.map((user) => (
-              <option key={user.userId} value={user.userId}>
-                {user.fullName}
-              </option>
-            ))}
-          </select>
+            onChange={(value) => onChange('requestedAgentId', value)}
+            options={[
+              { value: '', label: 'Anyone' },
+              ...users.map((user) => ({ value: user.userId, label: user.fullName })),
+            ]}
+          />
         </label>
       ) : (
         <label className="field ticket-filter">
           <span>Requested by</span>
-          <select
+          <AppSelect
             value={filters.requesterId}
-            onChange={(event) => onChange('requesterId', event.target.value)}
-          >
-            <option value="">Anyone</option>
-            {users.map((user) => (
-              <option key={user.userId} value={user.userId}>
-                {user.fullName}
-              </option>
-            ))}
-          </select>
+            onChange={(value) => onChange('requesterId', value)}
+            options={[
+              { value: '', label: 'Anyone' },
+              ...users.map((user) => ({ value: user.userId, label: user.fullName })),
+            ]}
+          />
         </label>
       )}
 
       <label className="field ticket-filter">
         <span>Department</span>
-        <select
+        <AppSelect
           value={filters.departmentId}
-          onChange={(event) => onChange('departmentId', event.target.value)}
-        >
-          <option value="">All departments</option>
-          {departments.map((department) => (
-            <option key={department.departmentId} value={department.departmentId}>
-              {department.name}
-            </option>
-          ))}
-        </select>
+          onChange={(value) => onChange('departmentId', value)}
+          options={[
+            { value: '', label: 'All departments' },
+            ...departments.map((department) => ({ value: department.departmentId, label: department.name })),
+          ]}
+        />
       </label>
 
       <label className="field ticket-filter">
         <span>Status</span>
-        <select
+        <AppSelect
           value={filters.status}
-          onChange={(event) => onChange('status', event.target.value)}
-        >
-          <option value="">All statuses</option>
-          {Object.entries(STATUS_LABELS).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
+          onChange={(value) => onChange('status', value)}
+          options={[
+            { value: '', label: 'All statuses' },
+            ...(statuses.length ? statuses : Object.keys(STATUS_LABELS)).map((status) => ({
+              value: status,
+              label: STATUS_LABELS[status] ?? status,
+            })),
+          ]}
+        />
       </label>
       {hasFilters ? (
         <button type="button" className="btn ghost handoff-clear" onClick={onClear}>

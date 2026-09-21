@@ -6,39 +6,44 @@ import { LoadingState } from '../../components/ui/LoadingState'
 import { useAuthentication } from '../../features/authentication/use-authentication'
 import { useNotifications } from '../../features/notifications/use-notifications'
 import { getTicketChatContext, markChatConversationRead } from '../../features/tickets/ticket-api'
+import { formatTicketPageTitle } from '../../features/tickets/ticket-page-title'
+import { useLatestRequest } from '../../lib/api/use-latest-request'
 
 export function TicketChatPage() {
   const { ticketId } = useParams()
   const { user } = useAuthentication()
-  const { markChatRead } = useNotifications()
+  const { markChatRead, setResourceTitle } = useNotifications()
   const [ticket, setTicket] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const { beginRequest } = useLatestRequest()
 
   const loadTicket = useCallback(async () => {
+    const request = beginRequest()
     setLoading(true)
     setError('')
     try {
-      setTicket(await getTicketChatContext(ticketId))
+      const result = await getTicketChatContext(ticketId, {
+        signal: request.controller.signal,
+      })
+      if (!request.isCurrent()) return
+      setTicket(result)
     } catch (loadError) {
+      if (!request.isCurrent()) return
       setTicket(null)
       setError(loadError.message || 'Unable to load this ticket conversation.')
     } finally {
-      setLoading(false)
+      if (request.isCurrent()) setLoading(false)
     }
-  }, [ticketId])
+  }, [beginRequest, ticketId])
 
   const markRead = useCallback(async () => {
     try {
       await markChatConversationRead(ticketId)
+      markChatRead(ticketId)
     } catch {
       // A failed read receipt must never block access to the conversation.
     }
-  }, [ticketId])
-
-  useEffect(() => {
-    // Opening a specific conversation removes that ticket from the sidebar's unopened count.
-    markChatRead(ticketId)
   }, [markChatRead, ticketId])
 
   useEffect(() => {
@@ -46,6 +51,11 @@ export function TicketChatPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadTicket()
   }, [loadTicket])
+
+  useEffect(() => {
+    const currentTicket = ticket?.ticketId === ticketId ? ticket : null
+    setResourceTitle(formatTicketPageTitle(currentTicket, 'Ticket Chat'))
+  }, [setResourceTitle, ticket, ticketId])
 
   return (
     <section className="page ticket-chat-page">

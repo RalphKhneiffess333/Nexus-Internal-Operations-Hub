@@ -8,8 +8,8 @@ function withQuery(path, params = {}) {
   return `${path}${query.toString() ? `?${query}` : ''}`
 }
 
-export function getDepartments(params = {}) {
-  return apiRequest(withQuery('/departments', params))
+export function getDepartments(params = {}, requestOptions = {}) {
+  return apiRequest(withQuery('/departments', params), requestOptions)
 }
 
 export function getMyDepartments() {

@@ -3,6 +3,7 @@ import type { AuthenticatedRequestUser } from '../authentication/request-user';
 import { AuthenticationService } from '../authentication/authentication.service';
 import { TicketsService } from '../tickets/tickets.service';
 import { ChatService } from '../chat/chat.service';
+import { FilterOptionsService } from '../filters/filter-options.service';
 import type { ConfigService } from '@nestjs/config';
 import { OperationsGateway } from './operations.gateway';
 import { OperationsServerEvent } from './realtime-events';
@@ -45,6 +46,7 @@ describe('OperationsGateway', () => {
   };
   let gateway: OperationsGateway;
   let chatService: { assertCanViewChat: jest.MockedFunction<ChatService['assertCanViewChat']> };
+  let filterOptionsService: { listForUser: jest.MockedFunction<FilterOptionsService['listForUser']> };
 
   beforeEach(() => {
     authenticationService = {
@@ -55,11 +57,13 @@ describe('OperationsGateway', () => {
       findOne: jest.fn<TicketsService['findOne']>(),
     };
     chatService = { assertCanViewChat: jest.fn<ChatService['assertCanViewChat']>() };
+    filterOptionsService = { listForUser: jest.fn<FilterOptionsService['listForUser']>() };
     gateway = new OperationsGateway(
       config as unknown as ConfigService,
       authenticationService as unknown as AuthenticationService,
       ticketsService as unknown as TicketsService,
       chatService as unknown as ChatService,
+      filterOptionsService as unknown as FilterOptionsService,
     );
   });
 
