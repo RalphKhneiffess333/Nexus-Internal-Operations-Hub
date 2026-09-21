@@ -161,7 +161,10 @@ export function TicketChatPanel({
   async function handleOpen(messageId, attachment) {
     setDownloadingAttachmentId(attachment.attachmentId)
     try {
-      await openChatAttachment(ticket.ticketId, messageId, attachment.attachmentId)
+      await openChatAttachment(ticket.ticketId, messageId, attachment.attachmentId, {
+        mimeType: attachment.mimeType,
+        filename: attachment.originalName,
+      })
     } catch (openError) {
       setError(openError.message || 'Unable to open this attachment.')
     } finally {
@@ -204,7 +207,12 @@ export function TicketChatPanel({
       )}
 
       {connectionNote ? <p className="ticket-chat-connection">{connectionNote}</p> : null}
-      {loading ? <p className="ticket-chat-state">Loading conversation…</p> : null}
+      {loading ? (
+        <div className="ticket-chat-state ticket-chat-loading" role="status" aria-live="polite">
+          <span className="loading-spinner" aria-hidden="true" />
+          <span>Loading conversation…</span>
+        </div>
+      ) : null}
       {!loading && error ? <div className="ticket-chat-state ticket-chat-error"><p>{error}</p><button type="button" className="btn ghost" onClick={() => void loadMessages()}>Try again</button></div> : null}
       {!loading && !error && messages.length === 0 ? (
         <IllustratedEmptyState

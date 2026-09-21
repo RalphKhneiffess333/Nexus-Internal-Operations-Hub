@@ -41,7 +41,10 @@ export function useTicketAttachments(ticketId) {
     setDownloadingAttachmentId(attachment.attachmentId)
     setError('')
     try {
-      await openTicketAttachment(ticketId, eventId, attachment.attachmentId)
+      await openTicketAttachment(ticketId, eventId, attachment.attachmentId, {
+        mimeType: attachment.mimeType,
+        filename: attachment.originalName,
+      })
     } catch (openError) {
       setError(openError.message || 'Unable to open this attachment. Please try again.')
     } finally {

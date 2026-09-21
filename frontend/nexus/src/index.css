@@ -1850,6 +1850,20 @@ h3 {
   gap: 12px;
   color: var(--danger);
 }
+.ticket-chat-state.ticket-chat-loading {
+  display: grid;
+  min-height: 150px;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  padding: 24px 12px;
+  color: var(--ink-soft);
+  text-align: center;
+}
+.ticket-chat-state.ticket-chat-loading .loading-spinner {
+  width: 30px;
+  height: 30px;
+}
 .ticket-chat-list {
   display: grid;
   gap: 10px;
