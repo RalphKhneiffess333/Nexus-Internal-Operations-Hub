@@ -28,14 +28,18 @@ test('participants send a ticket chat message and closed tickets become read-onl
   await claimTicketViaApi(request, AGENT_ID, ticket.ticketId);
 
   await signIn(page, request, EMPLOYEE_ID);
-  await page.goto(`/tickets/${ticket.ticketId}`);
-  await expect(page.getByRole('heading', { name: 'Ticket chat' })).toBeVisible();
+  await page.goto(`/chats/${ticket.ticketId}`);
+  await expect(
+    page.getByRole('heading', { name: 'Chat panel workflow' }),
+  ).toBeVisible();
   await page.getByLabel('New message').fill('Here is the information you requested.');
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect(page.getByText('Here is the information you requested.')).toBeVisible();
   await closeTicketViaApi(request, AGENT_ID, ticket.ticketId, 'Work completed.');
   await page.reload();
-  await expect(page.getByText('This chat is read-only until the ticket is claimed by an agent.')).toBeVisible();
+  await expect(
+    page.getByText('This chat is read-only because the ticket is not currently claimed.'),
+  ).toBeVisible();
   await expect(page.getByLabel('New message')).toHaveCount(0);
 });
 
@@ -51,9 +55,12 @@ test('a claim immediately makes the visible employee chat writable', async ({
   });
 
   await signIn(page, request, EMPLOYEE_ID);
-  await page.goto(`/tickets/${ticket.ticketId}`);
+  await page.goto(`/chats/${ticket.ticketId}`);
   await expect(
-    page.getByText('This chat is read-only while the ticket is unclaimed.'),
+    page.getByRole('heading', { name: 'Claim chat synchronization' }),
+  ).toBeVisible();
+  await expect(
+    page.getByText('This chat is read-only because the ticket is not currently claimed.'),
   ).toBeVisible();
 
   await claimTicketViaApi(request, AGENT_ID, ticket.ticketId);

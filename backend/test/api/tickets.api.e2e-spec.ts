@@ -221,29 +221,34 @@ test('returns complete event details from ticket-owned history endpoints', async
     { headers: { Cookie: e2e.sessionCookie(EMPLOYEE_ID) } },
   );
   expect(historyResponse.status()).toBe(200);
-  const history = await historyResponse.json();
-  expect(history).toHaveLength(2);
+  const historyPage = await historyResponse.json();
+  expect(historyPage.items).toHaveLength(2);
   expect(
-    history.map((event: { action: TicketEventAction }) => event.action),
+    historyPage.items.map((event: { action: TicketEventAction }) => event.action),
   ).toEqual([TicketEventAction.SUBMISSION, TicketEventAction.MODIFICATION]);
-  expect(history[1].details).toEqual({
-    oldTitle: 'Original title',
-    newTitle: 'Updated title',
-    oldDepartmentId: 'dept-it',
-    newDepartmentId: 'dept-it',
-    oldPriority: 'LOW',
-    newPriority: 'HIGH',
-    oldDescription: 'Original description',
-    newDescription: 'Original description',
-  });
+  const modificationSummary = historyPage.items[1];
 
   const eventResponse = await e2e.api.get(
-    `/tickets/${submitted.ticketId}/events/${history[1].ticketEventId}`,
+    `/tickets/${submitted.ticketId}/events/${modificationSummary.ticketEventId}`,
     { headers: { Cookie: e2e.sessionCookie(EMPLOYEE_ID) } },
   );
   expect(eventResponse.status()).toBe(200);
   const event = await eventResponse.json();
-  expect(event).toEqual(history[1]);
+  expect(event).toMatchObject({
+    ticketEventId: modificationSummary.ticketEventId,
+    ticketId: submitted.ticketId,
+    action: TicketEventAction.MODIFICATION,
+    details: {
+      oldTitle: 'Original title',
+      newTitle: 'Updated title',
+      oldDepartmentId: 'dept-it',
+      newDepartmentId: 'dept-it',
+      oldPriority: 'LOW',
+      newPriority: 'HIGH',
+      oldDescription: 'Original description',
+      newDescription: 'Original description',
+    },
+  });
   expect(event.ticket).toBeUndefined();
   expect(event.user).toMatchObject({
     userId: EMPLOYEE_ID,
@@ -268,7 +273,7 @@ test('returns complete event details from ticket-owned history endpoints', async
   expect(arbitraryCreateResponse.status()).toBe(404);
 
   const arbitraryUpdateResponse = await e2e.api.patch(
-    `/tickets/${submitted.ticketId}/events/${history[1].ticketEventId}`,
+    `/tickets/${submitted.ticketId}/events/${modificationSummary.ticketEventId}`,
     {
       headers: { Cookie: e2e.sessionCookie(EMPLOYEE_ID) },
       data: { details: { newTitle: 'Forged history' } },
@@ -277,7 +282,7 @@ test('returns complete event details from ticket-owned history endpoints', async
   expect(arbitraryUpdateResponse.status()).toBe(404);
 
   const arbitraryDeleteResponse = await e2e.api.delete(
-    `/tickets/${submitted.ticketId}/events/${history[1].ticketEventId}`,
+    `/tickets/${submitted.ticketId}/events/${modificationSummary.ticketEventId}`,
     { headers: { Cookie: e2e.sessionCookie(EMPLOYEE_ID) } },
   );
   expect(arbitraryDeleteResponse.status()).toBe(404);
@@ -309,8 +314,16 @@ test('uploads and downloads attachments through ticket event endpoints', async (
       { headers: { Cookie: e2e.sessionCookie(EMPLOYEE_ID) } },
     );
     expect(historyResponse.status()).toBe(200);
-    const history = await historyResponse.json();
-    const submissionEvent = history[0];
+    const historyPage = await historyResponse.json();
+    expect(historyPage.items).toHaveLength(1);
+    expect(historyPage.items[0].hasAttachments).toBe(true);
+
+    const submissionEventResponse = await e2e.api.get(
+      `/tickets/${submitted.ticketId}/events/${historyPage.items[0].ticketEventId}`,
+      { headers: { Cookie: e2e.sessionCookie(EMPLOYEE_ID) } },
+    );
+    expect(submissionEventResponse.status()).toBe(200);
+    const submissionEvent = await submissionEventResponse.json();
     expect(submissionEvent.attachments).toHaveLength(1);
     expect(submissionEvent.attachments[0]).toMatchObject({
       originalName: 'vpn-error.txt',

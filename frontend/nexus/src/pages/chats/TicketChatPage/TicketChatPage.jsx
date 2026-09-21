@@ -5,6 +5,7 @@ import { TicketStatusBadge } from '../../../components/tickets/TicketStatusBadge
 import { LoadingState } from '../../../components/ui/LoadingState/LoadingState'
 import { useAuthentication } from '../../../features/authentication/use-authentication'
 import { useNotifications } from '../../../features/notifications/use-notifications'
+import { useOperationsSocket } from '../../../features/realtime/use-operations-socket'
 import { getTicketChatContext, markChatConversationRead } from '../../../features/tickets/ticket-api'
 import { formatTicketPageTitle } from '../../../features/tickets/ticket-page-title'
 import { useLatestRequest } from '../../../lib/api/use-latest-request'
@@ -14,15 +15,18 @@ export function TicketChatPage() {
   const { ticketId } = useParams()
   const { user } = useAuthentication()
   const { markChatRead, setResourceTitle } = useNotifications()
+  const { subscribeToTicket } = useOperationsSocket()
   const [ticket, setTicket] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const { beginRequest } = useLatestRequest()
 
-  const loadTicket = useCallback(async () => {
+  const loadTicket = useCallback(async ({ silent = false } = {}) => {
     const request = beginRequest()
-    setLoading(true)
-    setError('')
+    if (!silent) {
+      setLoading(true)
+      setError('')
+    }
     try {
       const result = await getTicketChatContext(ticketId, {
         signal: request.controller.signal,
@@ -31,8 +35,10 @@ export function TicketChatPage() {
       setTicket(result)
     } catch (loadError) {
       if (!request.isCurrent()) return
-      setTicket(null)
-      setError(loadError.message || 'Unable to load this ticket conversation.')
+      if (!silent) {
+        setTicket(null)
+        setError(loadError.message || 'Unable to load this ticket conversation.')
+      }
     } finally {
       if (request.isCurrent()) setLoading(false)
     }
@@ -52,6 +58,26 @@ export function TicketChatPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadTicket()
   }, [loadTicket])
+
+  useEffect(
+    () => subscribeToTicket(ticketId, (event) => {
+      if (event?.type === 'reconnected') {
+        void loadTicket({ silent: true })
+        return
+      }
+      if (!event?.payload) return
+
+      setTicket((currentTicket) => currentTicket
+        ? {
+            ...currentTicket,
+            status: event.payload.status ?? currentTicket.status,
+            active: event.payload.active ?? currentTicket.active,
+          }
+        : currentTicket)
+      void loadTicket({ silent: true })
+    }),
+    [loadTicket, subscribeToTicket, ticketId],
+  )
 
   useEffect(() => {
     const currentTicket = ticket?.ticketId === ticketId ? ticket : null

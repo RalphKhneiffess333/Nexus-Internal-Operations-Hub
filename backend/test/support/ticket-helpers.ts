@@ -75,8 +75,23 @@ export async function fillTicketForm(
 ): Promise<void> {
   await page.getByLabel('Title').fill(values.title);
   await page.getByLabel('Description').fill(values.description);
-  await page.getByLabel('Priority').selectOption(values.priority);
+  const priorityLabels: Record<string, string> = {
+    LOW: 'Low',
+    MODERATE: 'Moderate',
+    HIGH: 'High',
+  };
+  const priority = page.getByRole('combobox', { name: 'Priority' });
+  await priority.click();
   await page
-    .getByLabel('Department')
-    .selectOption({ label: values.department });
+    .getByRole('option', {
+      name: priorityLabels[values.priority] ?? values.priority,
+      exact: true,
+    })
+    .click();
+
+  const department = page.getByRole('combobox', { name: 'Department' });
+  await department.click();
+  await page
+    .getByRole('option', { name: values.department, exact: true })
+    .click();
 }

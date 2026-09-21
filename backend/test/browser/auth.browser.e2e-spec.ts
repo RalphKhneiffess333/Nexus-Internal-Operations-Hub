@@ -13,7 +13,7 @@ test('unauthenticated users see the Microsoft login landing page', async ({
 }) => {
   await page.goto('/tickets');
 
-  await expect(page.getByRole('heading', { name: 'Nexus' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Nexus sign in' })).toBeVisible();
   await expect(
     page.getByRole('button', { name: 'Login with Microsoft' }),
   ).toBeVisible();
@@ -32,7 +32,9 @@ test('authenticated users enter the dashboard from the root route', async ({
   await expect(page).toHaveURL(/\/dashboard$/);
   await expect(page.getByText('Employee 1')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Dashboard' })).toBeVisible();
-  await expect(page.getByText('Live updates connected')).toBeVisible();
+  await expect(
+    page.getByRole('status', { name: 'Live updates connected' }),
+  ).toBeVisible();
 });
 
 test('signing out clears the protected URL before another user signs in', async ({
