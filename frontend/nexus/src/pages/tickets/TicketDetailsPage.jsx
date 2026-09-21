@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useLocation, useParams } from 'react-router-dom'
 import { LoadingState } from '../../components/ui/LoadingState'
 import { TicketDetailsHeader } from '../../components/tickets/TicketDetailsHeader'
@@ -8,6 +8,7 @@ import { useDepartments } from '../../features/departments/use-departments'
 import { useNotifications } from '../../features/notifications/use-notifications'
 import { usePriorities } from '../../features/priorities/use-priorities'
 import { canWorkTickets, UserRole } from '../../features/tickets/ticket-types'
+import { formatTicketPageTitle } from '../../features/tickets/ticket-page-title'
 import { useTicketActions } from '../../features/tickets/use-ticket-actions'
 import { useTicketAttachments } from '../../features/tickets/use-ticket-attachments'
 import { useTicketDetails } from '../../features/tickets/use-ticket-details'
@@ -17,7 +18,7 @@ export function TicketDetailsPage() {
   const { ticketId } = useParams()
   const location = useLocation()
   const { user } = useAuthentication()
-  const { refreshNotificationCounts } = useNotifications()
+  const { refreshNotificationCounts, setResourceTitle } = useNotifications()
   const [editing, setEditing] = useState(false)
   const [timelineOpen, setTimelineOpen] = useState(true)
   const timeline = useTicketTimeline(ticketId)
@@ -42,6 +43,11 @@ export function TicketDetailsPage() {
     error: prioritiesError,
     reload: reloadPriorities,
   } = usePriorities()
+
+  useEffect(() => {
+    const currentTicket = details.ticket?.ticketId === ticketId ? details.ticket : null
+    setResourceTitle(formatTicketPageTitle(currentTicket, 'Ticket Details'))
+  }, [details.ticket, setResourceTitle, ticketId])
 
   const handleTicketChanged = useCallback((updated, action) => {
     updateTicket(updated)

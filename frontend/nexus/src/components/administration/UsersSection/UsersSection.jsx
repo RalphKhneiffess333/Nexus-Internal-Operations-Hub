@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { DebouncedSearchInput } from '../../ui/DebouncedSearchInput/DebouncedSearchInput'
+import { AppSelect } from '../../ui/AppSelect'
 import { UserLink } from '../../users/UserLink/UserLink'
 import { UserRole } from '../../../features/tickets/ticket-types'
 import { AdminConfirmDialog, AdminDialog } from '../AdminDialog/AdminDialog'
@@ -38,26 +39,38 @@ export function UsersSection({ model, actions, loading }) {
         <div className="admin-filter-group">
           <label className="field admin-filter">
             <span>Status</span>
-            <select value={filters.status} onChange={(event) => actions.updateUserFilter('userStatus', event.target.value)}>
-              <option value="">All statuses</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
+            <AppSelect
+              value={filters.status}
+              onChange={(value) => actions.updateUserFilter('userStatus', value)}
+              options={[
+                { value: '', label: 'All statuses' },
+                { value: 'active', label: 'Active' },
+                { value: 'inactive', label: 'Inactive' },
+              ]}
+            />
           </label>
           <label className="field admin-filter">
             <span>Department</span>
-            <select value={filters.departmentId} onChange={(event) => actions.updateUserFilter('userDepartmentId', event.target.value)}>
-              <option value="">All departments</option>
-              {model.departments.map((department) => <option key={department.departmentId} value={department.departmentId}>{department.name}</option>)}
-            </select>
+            <AppSelect
+              value={filters.departmentId}
+              onChange={(value) => actions.updateUserFilter('userDepartmentId', value)}
+              options={[
+                { value: '', label: 'All departments' },
+                ...model.departments.map((department) => ({ value: department.departmentId, label: department.name })),
+              ]}
+            />
           </label>
           <label className="field admin-filter">
             <span>Login</span>
-            <select value={filters.hasLogged} onChange={(event) => actions.updateUserFilter('userHasLogged', event.target.value)}>
-              <option value="">Any login status</option>
-              <option value="true">Has logged in</option>
-              <option value="false">Has not logged in</option>
-            </select>
+            <AppSelect
+              value={filters.hasLogged}
+              onChange={(value) => actions.updateUserFilter('userHasLogged', value)}
+              options={[
+                { value: '', label: 'Any login status' },
+                { value: 'true', label: 'Has logged in' },
+                { value: 'false', label: 'Has not logged in' },
+              ]}
+            />
           </label>
         </div>
         <button type="button" className="btn primary" onClick={() => actions.setShowCreateUser(true)}>Pre-provision user</button>
@@ -123,8 +136,7 @@ export function UsersSection({ model, actions, loading }) {
 }
 
 function UserRow({ user, selected, onSelect, onRequestAction }) {
-  function changeRole(event) {
-    const role = event.target.value
+  function changeRole(role) {
     if (role !== user.role) onRequestAction({ type: 'role', user, role })
   }
 
@@ -144,11 +156,17 @@ function UserRow({ user, selected, onSelect, onRequestAction }) {
     >
       <td><UserLink user={user} /><span className="admin-subtext">{user.email}</span></td>
       <td>
-        <select aria-label={`Role for ${user.fullName}`} value={user.role} onChange={changeRole} onClick={(event) => event.stopPropagation()}>
-          <option value={UserRole.EMPLOYEE}>Employee</option>
-          <option value={UserRole.AGENT}>Agent</option>
-          <option value={UserRole.ADMIN}>Admin</option>
-        </select>
+        <AppSelect
+          ariaLabel={`Role for ${user.fullName}`}
+          value={user.role}
+          onChange={changeRole}
+          options={[
+            { value: UserRole.EMPLOYEE, label: 'Employee' },
+            { value: UserRole.AGENT, label: 'Agent' },
+            { value: UserRole.ADMIN, label: 'Admin' },
+          ]}
+          onClick={(event) => event.stopPropagation()}
+        />
       </td>
       <td>
         <button type="button" className={`status-toggle ${user.isActive ? 'is-active' : ''}`} onClick={(event) => { event.stopPropagation(); onRequestAction({ type: 'status', user }) }}>
@@ -180,7 +198,7 @@ function CreateUserForm({ actions, onDone }) {
         <label className="field"><span>Full name</span><input name="fullName" required value={form.fullName} onChange={update} /></label>
         <label className="field"><span>Email</span><input name="email" type="email" required value={form.email} onChange={update} /></label>
         <label className="field"><span>Phone</span><input name="phoneNumber" value={form.phoneNumber} onChange={update} /></label>
-        <label className="field"><span>Initial role</span><select name="role" value={form.role} onChange={update}><option value={UserRole.EMPLOYEE}>Employee</option><option value={UserRole.AGENT}>Agent</option><option value={UserRole.ADMIN}>Admin</option></select></label>
+        <label className="field"><span>Initial role</span><AppSelect name="role" value={form.role} onChange={(value) => setForm((current) => ({ ...current, role: value }))} options={[{ value: UserRole.EMPLOYEE, label: 'Employee' }, { value: UserRole.AGENT, label: 'Agent' }, { value: UserRole.ADMIN, label: 'Admin' }]} /></label>
       </div>
       <div className="form-actions"><button type="submit" className="btn primary">Create account</button><button type="button" className="btn ghost" onClick={onDone}>Cancel</button></div>
     </form>
@@ -219,4 +237,3 @@ function UserDepartmentEditor({ user, departments, actions }) {
     </div>
   )
 }
-

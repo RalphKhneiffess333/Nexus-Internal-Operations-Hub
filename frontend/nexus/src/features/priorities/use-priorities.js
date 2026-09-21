@@ -12,45 +12,40 @@ export function usePriorities() {
   const [error, setError] = useState('')
   const { beginRequest } = useLatestRequest()
 
-  const reload = useCallback(async () => {
+  const load = useCallback(async ({ background = false } = {}) => {
     const request = beginRequest()
-    setLoading(true)
-    setError('')
+    if (!background) {
+      setLoading(true)
+      setError('')
+    }
     try {
       const result = normalizePriorities(await getPriorities({ signal: request.controller.signal }))
       if (!request.isCurrent()) return
       setPriorities(result)
+      setError('')
     } catch (loadError) {
       if (!request.isCurrent()) return
+      if (background) return
       setPriorities([])
       setError(loadError.message || 'Unable to load priorities. Please try again.')
     } finally {
-      if (request.isCurrent()) setLoading(false)
+      if (request.isCurrent() && !background) setLoading(false)
     }
   }, [beginRequest])
 
+  const reload = useCallback(() => load(), [load])
+
   useEffect(() => {
-    const load = async () => {
-      const request = beginRequest()
-      setLoading(true)
-      setError('')
-      try {
-        const result = normalizePriorities(await getPriorities({ signal: request.controller.signal }))
-        if (request.isCurrent()) setPriorities(result)
-      } catch (loadError) {
-        if (request.isCurrent()) {
-          setPriorities([])
-          setError(loadError.message || 'Unable to load priorities. Please try again.')
-        }
-      } finally {
-        if (request.isCurrent()) setLoading(false)
-      }
-    }
-
+    // The priority hook owns the initial reference-data synchronization.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load()
+  }, [load])
 
+  useEffect(() => {
     const refreshWhenActive = () => {
-      if (document.visibilityState === 'visible') void load()
+      if (document.visibilityState === 'visible' && !loading) {
+        void load({ background: true })
+      }
     }
     window.addEventListener('focus', refreshWhenActive)
     document.addEventListener('visibilitychange', refreshWhenActive)
@@ -59,7 +54,7 @@ export function usePriorities() {
       window.removeEventListener('focus', refreshWhenActive)
       document.removeEventListener('visibilitychange', refreshWhenActive)
     }
-  }, [beginRequest])
+  }, [load, loading])
 
   return { priorities, loading, error, reload }
 }

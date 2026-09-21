@@ -44,8 +44,14 @@ export function AuthenticationProvider({ children }) {
   }, [])
 
   const logoutCurrentSession = useCallback(async () => {
-    await logout()
-    setUser(null)
+    try {
+      await logout()
+    } catch {
+      // Clear the local session even if the server logout request fails.
+    } finally {
+      setUser(null)
+      setError('')
+    }
   }, [])
 
   const value = useMemo(
@@ -74,5 +80,3 @@ export function AuthenticationProvider({ children }) {
     </AuthenticationContext.Provider>
   )
 }
-
-

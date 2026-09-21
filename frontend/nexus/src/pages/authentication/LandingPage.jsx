@@ -1,4 +1,5 @@
 import landingPageImage from '../../assets/LandingPageImg.png'
+import nexusLogo from '../../assets/Nexus Logo.png'
 import { TestLoginPanel } from '../../features/authentication/TestLoginPanel'
 import { useAuthentication } from '../../features/authentication/use-authentication'
 
@@ -12,9 +13,7 @@ export function LandingPage() {
         <div className="landing-shell">
           <header className="landing-header">
             <div className="landing-brand">
-              <span className="brand-mark" aria-hidden="true">
-                N
-              </span>
+              <img className="brand-mark" src={nexusLogo} alt="" aria-hidden="true" />
               <span className="brand-name">Nexus</span>
             </div>
             <span className="landing-status">

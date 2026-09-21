@@ -5,6 +5,7 @@ import layoutStyles from '../Layout.module.css'
 import notificationStyles from '../../notifications/Notifications.module.css'
 import responsiveStyles from '../../../styles/responsive.module.css'
 import sharedStyles from '../../../styles/shared.module.css'
+import nexusLogo from '../../../assets/Nexus Logo.png'
 
 export function AppShell() {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -40,7 +41,7 @@ export function AppShell() {
           >
             ☰
           </button>
-          <span className="mobile-title">Nexus</span>
+          <span className="mobile-title"><img src={nexusLogo} alt="" aria-hidden="true" />Nexus</span>
         </header>
         <main className={`page-frame${isTicketChat ? ' page-frame-chat' : ''}`}>
           <Outlet />
@@ -49,5 +50,4 @@ export function AppShell() {
     </div>
   )
 }
-
 

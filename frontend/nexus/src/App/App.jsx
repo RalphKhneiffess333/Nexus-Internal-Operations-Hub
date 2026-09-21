@@ -17,12 +17,12 @@ import { NotFoundPage } from '../pages/NotFoundPage'
 
 function AdminRoute({ children }) {
   const { user } = useAuthentication()
-  return user?.role === UserRole.ADMIN ? children : <Navigate to="/tickets" replace />
+  return user?.role === UserRole.ADMIN ? children : <Navigate to="/dashboard" replace />
 }
 
 function WorkQueueRoute({ children }) {
   const { user } = useAuthentication()
-  return canWorkTickets(user) ? children : <Navigate to="/tickets" replace />
+  return canWorkTickets(user) ? children : <Navigate to="/dashboard" replace />
 }
 
 export default function App() {
@@ -41,7 +41,7 @@ export default function App() {
     content = (
       <Routes>
         <Route path="/" element={<LandingPage />} />
-        <Route path="*" element={<NotFoundPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     )
   } else {
@@ -80,6 +80,11 @@ export default function App() {
           <Route path="/tickets/all" element={<AdminRoute><Navigate to="/tickets/pool?view=system" replace /></AdminRoute>} />
           <Route path="/admin/management" element={<AdminRoute><ManagementPage /></AdminRoute>} />
           <Route path="/admin/logs" element={<AdminRoute><LogsPage /></AdminRoute>} />
+          <Route path="/admin/*" element={<AdminRoute><NotFoundPage /></AdminRoute>} />
+          <Route path="/tickets/pool/*" element={<WorkQueueRoute><NotFoundPage /></WorkQueueRoute>} />
+          <Route path="/tickets/handoffs/*" element={<WorkQueueRoute><NotFoundPage /></WorkQueueRoute>} />
+          <Route path="/tickets/department/*" element={<WorkQueueRoute><NotFoundPage /></WorkQueueRoute>} />
+          <Route path="/tickets/all/*" element={<AdminRoute><NotFoundPage /></AdminRoute>} />
           <Route path="/tickets/new" element={<NewTicketPage />} />
           <Route path="/tickets/:ticketId" element={<TicketDetailsPage />} />
           <Route path="*" element={<NotFoundPage />} />
@@ -95,4 +100,3 @@ export default function App() {
     </>
   )
 }
-

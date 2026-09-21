@@ -19,6 +19,8 @@ export function FilePicker({ onChange, maxFiles = 5, disabled = false }) {
   const [errors, setErrors] = useState([])
 
   function handleChange(event) {
+    event.preventDefault()
+    event.stopPropagation()
     const selectedFiles = Array.from(event.target.files ?? [])
     event.target.value = ''
 
@@ -40,6 +42,19 @@ export function FilePicker({ onChange, maxFiles = 5, disabled = false }) {
     setFiles(nextFiles)
     setErrors([...new Set(nextErrors.filter(Boolean))])
     onChange(nextFiles)
+  }
+
+  function openFilePicker(event) {
+    event.preventDefault()
+    event.stopPropagation()
+    const input = inputRef.current
+    if (!input) return
+
+    if (typeof input.showPicker === 'function') {
+      input.showPicker()
+      return
+    }
+    input.click()
   }
 
   function removeFile(fileToRemove) {
@@ -65,7 +80,7 @@ export function FilePicker({ onChange, maxFiles = 5, disabled = false }) {
       <button
         type="button"
         className="file-picker-button"
-        onClick={() => inputRef.current?.click()}
+        onClick={openFilePicker}
         disabled={disabled || files.length >= maxFiles}
       >
         <span className="file-picker-icon" aria-hidden="true">＋</span>
@@ -105,5 +120,4 @@ export function FilePicker({ onChange, maxFiles = 5, disabled = false }) {
     </div>
   )
 }
-
 

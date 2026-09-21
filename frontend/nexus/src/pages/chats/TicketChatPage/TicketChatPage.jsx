@@ -6,13 +6,14 @@ import { LoadingState } from '../../../components/ui/LoadingState/LoadingState'
 import { useAuthentication } from '../../../features/authentication/use-authentication'
 import { useNotifications } from '../../../features/notifications/use-notifications'
 import { getTicketChatContext, markChatConversationRead } from '../../../features/tickets/ticket-api'
+import { formatTicketPageTitle } from '../../../features/tickets/ticket-page-title'
 import { useLatestRequest } from '../../../lib/api/use-latest-request'
 import chatStyles from '../ChatStyles.module.css'
 
 export function TicketChatPage() {
   const { ticketId } = useParams()
   const { user } = useAuthentication()
-  const { markChatRead } = useNotifications()
+  const { markChatRead, setResourceTitle } = useNotifications()
   const [ticket, setTicket] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -52,6 +53,11 @@ export function TicketChatPage() {
     void loadTicket()
   }, [loadTicket])
 
+  useEffect(() => {
+    const currentTicket = ticket?.ticketId === ticketId ? ticket : null
+    setResourceTitle(formatTicketPageTitle(currentTicket, 'Ticket Chat'))
+  }, [setResourceTitle, ticket, ticketId])
+
   return (
     <section className={`page ticket-chat-page ${chatStyles.moduleAnchor}`}>
       <header className="ticket-chat-page-header">
@@ -90,5 +96,3 @@ export function TicketChatPage() {
     </section>
   )
 }
-
-

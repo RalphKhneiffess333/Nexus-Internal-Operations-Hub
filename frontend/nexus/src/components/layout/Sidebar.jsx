@@ -3,6 +3,7 @@ import { useAuthentication } from '../../features/authentication/use-authenticat
 import { useOperationsSocket } from '../../features/realtime/use-operations-socket'
 import { canWorkTickets, UserRole } from '../../features/tickets/ticket-types'
 import { useNotifications } from '../../features/notifications/use-notifications'
+import nexusLogo from '../../assets/Nexus Logo.png'
 
 export function Sidebar({ open, onNavigate }) {
   const { user, logoutCurrentSession } = useAuthentication()
@@ -14,9 +15,7 @@ export function Sidebar({ open, onNavigate }) {
   return (
     <aside className={`sidebar ${open ? 'is-open' : ''}`}>
       <div className="sidebar-brand">
-        <span className="brand-mark" aria-hidden="true">
-          N
-        </span>
+        <img className="brand-mark" src={nexusLogo} alt="" aria-hidden="true" />
         <span className="brand-name">Nexus</span>
       </div>
 
@@ -39,7 +38,7 @@ export function Sidebar({ open, onNavigate }) {
           end
           onClick={onNavigate}
         >
-          My tickets
+          My Tickets
         </NavLink>
         <NavLink
           to="/chats"
@@ -60,7 +59,7 @@ export function Sidebar({ open, onNavigate }) {
               }
               onClick={onNavigate}
             >
-              Ticket pools {unclaimedTickets > 0 ? <span className="nav-notification-badge">{unclaimedTickets > 99 ? '99+' : unclaimedTickets}</span> : null}
+              Ticket Pools {unclaimedTickets > 0 ? <span className="nav-notification-badge">{unclaimedTickets > 99 ? '99+' : unclaimedTickets}</span> : null}
             </NavLink>
             <NavLink
               to="/tickets/handoffs"

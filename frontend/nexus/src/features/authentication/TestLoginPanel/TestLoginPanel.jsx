@@ -4,6 +4,7 @@ import {
   loginAsTestUser,
 } from '../test-authentication-api'
 import { useAuthentication } from '../use-authentication'
+import { AppSelect } from '../../../components/ui/AppSelect'
 
 function userOptionLabel(user) {
   const departments = user.departments.map((department) => department.code)
@@ -73,18 +74,13 @@ export function TestLoginPanel() {
       </div>
       <label className="test-user-field" htmlFor="test-user">
         Test user
-        <select
+        <AppSelect
           id="test-user"
           value={selectedUserId}
-          onChange={(event) => setSelectedUserId(event.target.value)}
+          onChange={setSelectedUserId}
           disabled={submitting}
-        >
-          {users.map((user) => (
-            <option key={user.userId} value={user.userId}>
-              {userOptionLabel(user)}
-            </option>
-          ))}
-        </select>
+          options={users.map((user) => ({ value: user.userId, label: userOptionLabel(user) }))}
+        />
       </label>
       <button
         type="submit"
@@ -97,5 +93,3 @@ export function TestLoginPanel() {
     </form>
   )
 }
-
-

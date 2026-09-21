@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { sanitizePlainText } from '../../../lib/content/sanitize'
+import { AppSelect } from '../../ui/AppSelect'
 import { FilePicker } from '../FilePicker/FilePicker'
 import { MAX_FILES_PER_EVENT, attachmentCountError } from '../file-validation'
 import {
@@ -99,23 +100,16 @@ export function TicketForm({
 
       <label className="field">
         <span>Priority</span>
-        <select
+        <AppSelect
           name="priority"
           defaultValue={initialValues?.priority ?? priorities[0]?.code ?? ''}
           required
-        >
-          {priorities.length === 0 ? <option value="">No priorities available</option> : null}
-          {currentInactivePriority ? (
-            <option value={currentInactivePriority.code}>
-              {currentInactivePriority.name}
-            </option>
-          ) : null}
-          {priorities.map((priority) => (
-            <option key={priority.code} value={priority.code}>
-              {priority.name}
-            </option>
-          ))}
-        </select>
+          options={[
+            ...(priorities.length === 0 ? [{ value: '', label: 'No priorities available' }] : []),
+            ...(currentInactivePriority ? [{ value: currentInactivePriority.code, label: currentInactivePriority.name }] : []),
+            ...priorities.map((priority) => ({ value: priority.code, label: priority.name })),
+          ]}
+        />
         {fieldErrors?.priority ? (
           <em className="field-error">{fieldErrors.priority}</em>
         ) : null}
@@ -123,21 +117,16 @@ export function TicketForm({
 
       <label className="field">
         <span>Department</span>
-        <select
+        <AppSelect
           name="departmentId"
           defaultValue={defaultDepartmentId}
           required
           disabled={departments.length === 0}
-        >
-          {departments.length === 0 ? (
-            <option value="">No departments available</option>
-          ) : null}
-          {departments.map((department) => (
-            <option key={department.departmentId} value={department.departmentId}>
-              {department.name}
-            </option>
-          ))}
-        </select>
+          options={[
+            ...(departments.length === 0 ? [{ value: '', label: 'No departments available' }] : []),
+            ...departments.map((department) => ({ value: department.departmentId, label: department.name })),
+          ]}
+        />
         {fieldErrors?.departmentId ? (
           <em className="field-error">{fieldErrors.departmentId}</em>
         ) : null}
@@ -210,6 +199,5 @@ export function TicketForm({
     </form>
   )
 }
-
 
 

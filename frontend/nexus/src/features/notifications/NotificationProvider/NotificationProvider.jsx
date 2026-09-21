@@ -12,13 +12,15 @@ import { NotificationsContext } from '../notifications-context'
 
 const TOAST_DURATION = 5000
 
-function pageTitle(pathname) {
+function pageTitle(pathname, resourceTitle = '') {
   if (pathname === '/dashboard') return 'Dashboard - Nexus'
   if (pathname === '/chats') return 'Chats - Nexus'
-  if (pathname.startsWith('/chats/')) return 'Ticket chat - Nexus'
-  if (pathname === '/tickets/pool') return 'Ticket pools - Nexus'
+  if (pathname.startsWith('/chats/')) return resourceTitle || 'Ticket Chat - Nexus'
+  if (pathname === '/tickets') return 'My Tickets - Nexus'
+  if (pathname === '/tickets/pool') return 'Ticket Pools - Nexus'
   if (pathname === '/tickets/handoffs') return 'Handoffs - Nexus'
-  if (pathname.startsWith('/tickets/')) return 'Ticket details - Nexus'
+  if (pathname === '/tickets/new') return 'New Ticket - Nexus'
+  if (pathname.startsWith('/tickets/')) return resourceTitle || 'Ticket Details - Nexus'
   if (pathname === '/admin/management') return 'Management - Nexus'
   if (pathname === '/admin/logs') return 'Logs - Nexus'
   return 'Nexus'
@@ -33,6 +35,7 @@ export function NotificationProvider({ children }) {
   const [blockingNotification, setBlockingNotification] = useState(null)
   const [unreadChatIds, setUnreadChatIds] = useState(() => new Set())
   const [unclaimedTickets, setUnclaimedTickets] = useState(0)
+  const [resourceTitleState, setResourceTitleState] = useState(null)
   const audioContextRef = useRef(null)
   const audioBufferRef = useRef(null)
   const titleCountRef = useRef(0)
@@ -45,6 +48,16 @@ export function NotificationProvider({ children }) {
   } = useLatestRequest()
   const unreadChats = unreadChatIds.size
   const canViewTicketPool = user?.role === UserRole.AGENT || user?.role === UserRole.ADMIN
+  const resourceTitle = resourceTitleState?.pathname === location.pathname
+    ? resourceTitleState.title
+    : ''
+
+  const setResourceTitle = useCallback((title) => {
+    setResourceTitleState({
+      pathname: location.pathname,
+      title: typeof title === 'string' ? title.trim() : '',
+    })
+  }, [location.pathname])
 
   const markChatRead = useCallback((ticketId) => {
     if (!ticketId) return
@@ -110,9 +123,9 @@ export function NotificationProvider({ children }) {
   }, [refreshNotificationCounts])
 
   const applyTitle = useCallback(() => {
-    const title = pageTitle(location.pathname)
+    const title = pageTitle(location.pathname, resourceTitle)
     document.title = titleCountRef.current > 0 ? `(${titleCountRef.current}) - ${title}` : title
-  }, [location.pathname])
+  }, [location.pathname, resourceTitle])
 
   const unlockAudio = useCallback(async () => {
     try {
@@ -241,7 +254,8 @@ export function NotificationProvider({ children }) {
     unclaimedTickets,
     markChatRead,
     refreshNotificationCounts,
-  }), [markChatRead, refreshNotificationCounts, unclaimedTickets, unreadChats])
+    setResourceTitle,
+  }), [markChatRead, refreshNotificationCounts, setResourceTitle, unclaimedTickets, unreadChats])
 
   return (
     <NotificationsContext.Provider value={value}>
@@ -273,6 +287,5 @@ export function NotificationProvider({ children }) {
     </NotificationsContext.Provider>
   )
 }
-
 
 
