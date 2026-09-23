@@ -511,6 +511,16 @@ h3 {
   mask-size: 132% 111%;
   -webkit-mask-size: 132% 111%;
 }
+.nav-ai-icon {
+  display: grid;
+  width: 36px;
+  height: 34px;
+  flex: 0 0 36px;
+  place-items: center;
+  color: #aebcff;
+  font-size: 24px;
+  line-height: 1;
+}
 
 .nav-item:hover {
   color: #fff;

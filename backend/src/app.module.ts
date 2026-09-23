@@ -13,6 +13,7 @@ import { ChatModule } from './chat/chat.module';
 import { BackgroundWorkersModule } from './background-workers/background-workers.module';
 import { PrioritiesModule } from './priorities/priorities.module';
 import { FiltersModule } from './filters/filters.module';
+import { AiModule } from './ai/ai.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { FiltersModule } from './filters/filters.module';
     BackgroundWorkersModule,
     PrioritiesModule,
     FiltersModule,
+    AiModule,
   ],
 })
 export class AppModule {}

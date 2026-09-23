@@ -153,6 +153,14 @@ There are intentionally no admin audit-log update or delete routes. There are al
 | GET | `/users/:userId` | Employee, Agent, Admin | Safe user profile response |
 | GET | `/dashboard/summary` | Employee, Agent, Admin | Dashboard summary for the authenticated user |
 
+## AI assistant
+
+| Method | Route | Access | Body/response |
+|---|---|---|---|
+| POST | `/ai/messages` | Employee, Agent, Admin | `{ message, conversationId? }`; returns an assistant message, optional `PREFILL_TICKET` action, and a server-issued `conversationId` |
+
+The current AI scope is general request assistance. It provides guidance first and asks for confirmation before optionally prefilling the submission form with current department and priority configuration. It does not inspect or search tickets and never submits a ticket automatically.
+
 ## Socket.io API
 
 The gateway uses the `operations` namespace and the HTTP-only session cookie for authentication.

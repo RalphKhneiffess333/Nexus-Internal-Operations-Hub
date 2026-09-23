@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { TicketForm } from "../../components/tickets/TicketForm";
 import { LoadingState } from "../../components/ui/LoadingState";
 import { validateTicketFields } from "../../components/tickets/ticket-validation";
@@ -10,6 +10,8 @@ import { createTicket } from "../../features/tickets/ticket-api";
 
 export function NewTicketPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const prefill = location.state?.prefill;
   const { refreshNotificationCounts } = useNotifications();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -90,6 +92,7 @@ export function NewTicketPage() {
 
       {!loadingReferences && !referenceError ? (
         <TicketForm
+          initialValues={prefill}
           departments={departments}
           priorities={priorities}
           submitLabel="Submit ticket"
