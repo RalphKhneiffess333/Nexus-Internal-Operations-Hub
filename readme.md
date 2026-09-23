@@ -244,6 +244,16 @@ All require `backend/.env.integration` pointing at a separate PostgreSQL databas
 - `npm run test:browser:e2e` runs Playwright browser E2E tests against the backend and frontend.
 - `npm run test:e2e` runs both API E2E and browser E2E tests.
 
+### Model-backed AI evaluations
+
+Run the representative AI evaluations from the repository root:
+
+```bash
+npm run eval
+```
+
+This command runs only the model-backed AI eval runner. It uses the existing Groq provider, so `backend/.env` must contain `GROQ_API_KEY`; `GROQ_MODEL` is optional. The runner uses fixed in-memory departments, priorities, and ticket-access results, so it does not require PostgreSQL or a running Nexus server. It makes real Groq requests and reports the clear, thin, ambiguous, trusted-context, conditional-prefill, supplied-evidence, damage-prevention, and repeatability cases separately.
+
 ## 13. How to run the app
 
 From the repository root:
