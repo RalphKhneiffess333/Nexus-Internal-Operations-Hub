@@ -25,7 +25,7 @@ The AI must never receive unrestricted database access.
 
 # 2. AI Provider Architecture
 
-Use Groq-hosted Llama model as the initial AI provider.
+Use Groq-hosted model as the initial AI provider.
 
 Use the Strategy pattern for the AI provider integration so that Groq can later be replaced by another provider without changing the agent orchestration logic.
 
