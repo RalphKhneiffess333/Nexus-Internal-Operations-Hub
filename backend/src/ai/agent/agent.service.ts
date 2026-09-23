@@ -65,16 +65,24 @@ function toAssistantHistoryContent(content: string): string {
   return JSON.stringify({ message: content, action: null });
 }
 
-function hasPrefillOffer(turns: AssistantTurn[]): boolean {
-  const lastAssistantTurn = [...turns]
-    .reverse()
-    .find((turn) => turn.role === 'assistant');
-  return Boolean(
-    lastAssistantTurn &&
-    /would you like me to (?:pre)?fill a submission form/i.test(
-      lastAssistantTurn.content,
-    ),
-  );
+function assistantMessageText(content: string): string {
+  const parsed = parseJsonObject(content);
+  return parsed && typeof parsed.message === 'string'
+    ? parsed.message
+    : content;
+}
+
+function isPrefillOffer(content: string): boolean {
+  const message = assistantMessageText(content);
+  const mentionsPrefill =
+    /\b(?:pre[- ]?fill|fill (?:in|out)|submission form|ticket draft)\b/i.test(
+      message,
+    );
+  const offersNextStep =
+    /\b(?:would you like|do you want|shall i|can help|i can|please confirm|once you confirm|ready to prepare|prepare .*form)\b/i.test(
+      message,
+    );
+  return mentionsPrefill && offersNextStep;
 }
 
 function hasPrefillConfirmation(message: string): boolean {
@@ -84,6 +92,26 @@ function hasPrefillConfirmation(message: string): boolean {
     ) ||
     /\b(?:prefill|fill (?:in|out))\b.*\b(?:form|submission)\b/i.test(message)
   );
+}
+
+function hasPrefillPermission(turns: AssistantTurn[], message: string): boolean {
+  const offerIndex = [...turns]
+    .map((turn, index) => ({ turn, index }))
+    .reverse()
+    .find(
+      ({ turn }) =>
+        turn.role === 'assistant' && isPrefillOffer(turn.content),
+    )?.index;
+
+  if (offerIndex === undefined) return false;
+  if (hasPrefillConfirmation(message)) return true;
+
+  return turns
+    .slice(offerIndex + 1)
+    .some(
+      (turn) =>
+        turn.role === 'user' && hasPrefillConfirmation(turn.content),
+    );
 }
 
 @Injectable()
@@ -98,8 +126,10 @@ export class AgentService {
     actor: AuthenticatedRequestUser,
     previousTurns: AssistantTurn[],
   ): Promise<AssistantResponse> {
-    const prefillPermissionGranted =
-      hasPrefillOffer(previousTurns) && hasPrefillConfirmation(message);
+    const prefillPermissionGranted = hasPrefillPermission(
+      previousTurns,
+      message,
+    );
     const messages: AiProviderMessage[] = previousTurns.map((turn) => ({
       role: turn.role,
       text:

@@ -7,7 +7,7 @@ export const NEXUS_GENERAL_ASSISTANT_SYSTEM_PROMPT = [
   '',
   'If a ticket may still be useful, ask exactly: "Would you like me to prefill a submission form with these details?" Set action to null in that response. Do not say that a ticket draft has been prepared before the user agrees.',
   '',
-  'Only after the user clearly confirms that offer in a later message may you call getTicketSubmissionOptions and return a PREFILL_TICKET action. An issue description, a request for help, or a mention of a ticket is not confirmation. Never invent department names, department identifiers, priority names, or priority codes. The tool data is authoritative and may change.',
+  'Only after the user clearly confirms that offer in a later message may you call getTicketSubmissionOptions and return a PREFILL_TICKET action. A reply such as "yes, and it is moderate" is confirmation of the prefill request plus the stated priority. After confirmation, do not ask the user to confirm the department or priority separately, do not ask another confirmation question, and do not respond that you will retrieve options; call the tool and complete the prefill action in the same turn. Use the tool data to choose the best matching department and priority. If no priority was stated, choose the best fit from the available options rather than asking a second confirmation. Never invent department names, department identifiers, priority names, or priority codes. The tool data is authoritative and may change.',
   '',
   'You cannot submit, modify, claim, close, reopen, delete, or hand off tickets. You cannot inspect ticket information in this version. Do not perform general ticket searches. If asked about a ticket, explain that ticket-specific lookup is not available yet.',
   '',
