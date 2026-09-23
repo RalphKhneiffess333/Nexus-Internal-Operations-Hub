@@ -6,7 +6,8 @@ import nexusLogo from '../../assets/Nexus Logo.png'
 export function AppShell() {
   const [menuOpen, setMenuOpen] = useState(false)
   const location = useLocation()
-  const isTicketChat = location.pathname.startsWith('/chats/')
+  const isFullHeightChat =
+    location.pathname.startsWith('/chats/') || location.pathname.startsWith('/assistant')
 
   return (
     <div className="app-shell">
@@ -33,7 +34,7 @@ export function AppShell() {
           </button>
           <span className="mobile-title"><img src={nexusLogo} alt="" aria-hidden="true" />Nexus</span>
         </header>
-        <main className={`page-frame${isTicketChat ? ' page-frame-chat' : ''}`}>
+        <main className={`page-frame${isFullHeightChat ? ' page-frame-chat' : ''}`}>
           <Outlet />
         </main>
       </div>

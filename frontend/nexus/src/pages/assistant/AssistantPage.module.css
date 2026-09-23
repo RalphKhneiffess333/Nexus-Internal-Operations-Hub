@@ -1,158 +1,109 @@
-.page {
-  display: grid;
-  gap: 24px;
+.messageList {
+  scrollbar-gutter: stable;
+  scrollbar-color: rgba(104, 117, 140, 0.38) transparent;
+  scrollbar-width: thin;
 }
 
-.header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 24px;
+.messageList::-webkit-scrollbar {
+  width: 12px;
 }
 
-.header h1 {
-  margin: 5px 0 0;
+.messageList::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-.header p:last-child {
-  max-width: 650px;
-  margin: 10px 0 0;
+.messageList::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: rgba(104, 117, 140, 0.38);
+  background-clip: padding-box;
+}
+
+.messageList::-webkit-scrollbar-thumb:hover {
+  background: rgba(73, 103, 217, 0.58);
+  background-clip: padding-box;
+}
+
+.messageAuthor {
   color: var(--ink-soft);
-  line-height: 1.6;
+  font-size: 11px;
+  font-weight: 600;
 }
 
-.workspace {
-  display: grid;
-  grid-template-rows: minmax(360px, 1fr) auto;
-  min-height: min(680px, calc(100svh - 250px));
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 20px;
-  background: var(--card);
-  box-shadow: var(--shadow-md);
-}
-
-.messages {
-  display: grid;
-  align-content: start;
-  gap: 14px;
-  overflow-y: auto;
-  padding: clamp(18px, 3vw, 30px);
-}
-
-.message {
-  display: grid;
-  gap: 8px;
-  max-width: min(84%, 720px);
-  padding: 14px 16px;
-  border: 1px solid var(--line);
-  border-radius: 15px 15px 15px 5px;
+.messageContent {
+  min-width: 0;
   color: var(--ink);
-  background: #fbfcff;
-  line-height: 1.6;
-  white-space: pre-wrap;
+  font-size: 12px;
+  line-height: 1.45;
   overflow-wrap: anywhere;
 }
 
-.messageUser {
-  justify-self: end;
-  border-color: #c8d5f0;
-  border-radius: 15px 15px 5px 15px;
-  color: #263d7a;
-  background: var(--primary-soft);
-}
-
-.messageLabel {
-  color: var(--ink-faint);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.message p {
+.messageContent :global(p) {
   margin: 0;
-  font-size: 14px;
+}
+
+.messageContent :global(p + p),
+.messageContent :global(ul + p),
+.messageContent :global(ol + p) {
+  margin-top: 8px;
+}
+
+.messageContent :global(ul),
+.messageContent :global(ol) {
+  margin: 6px 0;
+  padding-left: 20px;
+}
+
+.messageContent :global(li + li) {
+  margin-top: 3px;
+}
+
+.messageContent :global(a) {
+  color: var(--primary-dark);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.messageContent :global(code) {
+  padding: 2px 5px;
+  border-radius: 5px;
+  color: #263d7a;
+  background: #edf2ff;
+  font-size: 0.92em;
+}
+
+.messageContent :global(pre) {
+  max-width: 100%;
+  margin: 8px 0 0;
+  padding: 10px;
+  overflow-x: auto;
+  border-radius: 9px;
+  color: #edf2ff;
+  background: #1d2945;
+}
+
+.messageContent :global(pre code) {
+  padding: 0;
+  color: inherit;
+  background: transparent;
 }
 
 .typing {
   color: var(--ink-soft);
-  font-size: 13px;
+  font-size: 12px;
   font-style: italic;
 }
 
 .prefill {
   display: grid;
-  gap: 10px;
+  gap: 8px;
   margin-top: 4px;
-  padding-top: 12px;
+  padding-top: 10px;
   border-top: 1px solid var(--line);
 }
 
 .prefill p {
+  margin: 0;
   color: var(--ink-soft);
   font-size: 12px;
-}
-
-.composer {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  padding: 16px;
-  border-top: 1px solid var(--line);
-  background: #f8faff;
-}
-
-.composer textarea {
-  min-height: 48px;
-  max-height: 150px;
-  resize: vertical;
-  padding: 13px 14px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  outline: none;
-  color: var(--ink);
-  background: #fff;
-}
-
-.composer textarea:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(73, 103, 217, 0.14);
-}
-
-.composer button {
-  align-self: stretch;
-  min-width: 100px;
-}
-
-.error {
-  grid-column: 1 / -1;
-  margin: 0;
-  color: var(--danger);
-  font-size: 12px;
-  font-weight: 650;
-}
-
-@media (max-width: 620px) {
-  .header {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .workspace {
-    min-height: calc(100svh - 260px);
-  }
-
-  .message {
-    max-width: 94%;
-  }
-
-  .composer {
-    grid-template-columns: 1fr;
-  }
-
-  .composer button {
-    min-height: 44px;
-  }
 }

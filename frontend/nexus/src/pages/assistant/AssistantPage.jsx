@@ -1,4 +1,6 @@
-import { useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { useNavigate } from 'react-router-dom'
 import { sendAssistantMessage } from '../../features/assistant/assistant-api'
 import styles from './AssistantPage.module.css'
@@ -10,6 +12,17 @@ const WELCOME_MESSAGE = {
     'Tell me what happened and I’ll help you work through it. If a submission is still needed, I’ll ask before prefilling the form.',
 }
 
+function isSafeMarkdownUrl(url) {
+  if (!url) return false
+
+  try {
+    const protocol = new URL(url, window.location.origin).protocol
+    return protocol === 'http:' || protocol === 'https:' || protocol === 'mailto:'
+  } catch {
+    return false
+  }
+}
+
 export function AssistantPage() {
   const navigate = useNavigate()
   const [conversationId, setConversationId] = useState('')
@@ -18,6 +31,11 @@ export function AssistantPage() {
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const messagesRef = useRef(null)
+
+  useLayoutEffect(() => {
+    const messageList = messagesRef.current
+    if (messageList) messageList.scrollTop = messageList.scrollHeight
+  }, [messages.length, sending])
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -44,12 +62,6 @@ export function AssistantPage() {
           action: response?.action,
         },
       ])
-      requestAnimationFrame(() => {
-        messagesRef.current?.scrollTo({
-          top: messagesRef.current.scrollHeight,
-          behavior: 'smooth',
-        })
-      })
     } catch (sendError) {
       setError(sendError.message || 'The assistant is temporarily unavailable. Please try again.')
     } finally {
@@ -58,74 +70,91 @@ export function AssistantPage() {
   }
 
   return (
-    <section className={[styles.page, 'page'].join(' ')}>
-      <header className={[styles.header, 'page-header'].join(' ')}>
-        <div>
-          <p className="eyebrow">Nexus assistant</p>
-          <h1>Let’s shape your request</h1>
-          <p>
-            Describe a workplace problem in your own words. The assistant will
-            help with guidance first and leave any final review and submission
-            to you.
-          </p>
-        </div>
-      </header>
+    <section className="ticket-chat-full" aria-labelledby="assistant-chat-heading">
+      <div className="ticket-chat-heading ticket-chat-full-heading">
+        <span id="assistant-chat-heading">Nexus assistant conversation</span>
+      </div>
 
-      <div className={styles.workspace}>
-        <div className={styles.messages} ref={messagesRef} aria-live="polite">
-          {messages.map((item) => (
-            <article
-              className={[
-                styles.message,
-                item.role === 'user' ? styles.messageUser : '',
-              ].join(' ')}
-              key={item.id}
-            >
-              <span className={styles.messageLabel}>
+      <ol ref={messagesRef} className={`ticket-chat-list ${styles.messageList}`} aria-live="polite">
+        {messages.map((item) => (
+          <li
+            className={`ticket-chat-message${item.role === 'user' ? ' is-mine' : ''}`}
+            key={item.id}
+          >
+            <div className="ticket-chat-message-meta">
+              <span className={styles.messageAuthor}>
                 {item.role === 'user' ? 'You' : 'Nexus assistant'}
               </span>
-              <p>{item.content}</p>
-              {item.action?.type === 'PREFILL_TICKET' ? (
-                <div className={styles.prefill}>
-                  <p>I can open the submission form with these suggestions filled in for you to review.</p>
-                  <button
-                    type="button"
-                    className="btn primary"
-                    onClick={() =>
-                      navigate('/tickets/new', {
-                        state: { prefill: item.action.data },
-                      })
-                    }
-                  >
-                    Prefill form
-                  </button>
-                </div>
-              ) : null}
-            </article>
-          ))}
-          {sending ? (
-            <div className={styles.message}>
-              <span className={styles.messageLabel}>Nexus assistant</span>
-              <span className={styles.typing}>Thinking…</span>
             </div>
-          ) : null}
-        </div>
+            {item.role === 'assistant' ? (
+              <div className={styles.messageContent}>
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  skipHtml
+                  components={{
+                    a: ({ href, children }) =>
+                      isSafeMarkdownUrl(href) ? (
+                        <a href={href} target="_blank" rel="noopener noreferrer">
+                          {children}
+                        </a>
+                      ) : (
+                        <span>{children}</span>
+                      ),
+                  }}
+                >
+                  {item.content}
+                </ReactMarkdown>
+              </div>
+            ) : (
+              <p>{item.content}</p>
+            )}
+            {item.action?.type === 'PREFILL_TICKET' ? (
+              <div className={styles.prefill}>
+                <p>I can open the submission form with these suggestions filled in for you to review.</p>
+                <button
+                  type="button"
+                  className="btn primary"
+                  onClick={() =>
+                    navigate('/tickets/new', {
+                      state: { prefill: item.action.data },
+                    })
+                  }
+                >
+                  Prefill form
+                </button>
+              </div>
+            ) : null}
+          </li>
+        ))}
+        {sending ? (
+          <li className="ticket-chat-message">
+            <div className="ticket-chat-message-meta">
+              <span className={styles.messageAuthor}>Nexus assistant</span>
+            </div>
+            <span className={styles.typing}>Thinking…</span>
+          </li>
+        ) : null}
+      </ol>
 
-        <form className={styles.composer} onSubmit={handleSubmit}>
-          {error ? <p className={styles.error}>{error}</p> : null}
-          <textarea
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            placeholder="For example: My laptop keeps disconnecting from the office Wi-Fi…"
-            maxLength={4000}
-            disabled={sending}
-            aria-label="Message the Nexus assistant"
-          />
+      <form className="ticket-chat-composer" onSubmit={handleSubmit}>
+        <label htmlFor="assistant-message">New message</label>
+        <textarea
+          id="assistant-message"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          placeholder="For example: My laptop keeps disconnecting from the office Wi-Fi…"
+          maxLength={4000}
+          rows="3"
+          disabled={sending}
+        />
+        {error ? <p className="ticket-chat-send-error">{error}</p> : null}
+        <div className="ticket-chat-actions">
+          <span>{draft.length}/4000</span>
           <button type="submit" className="btn primary" disabled={sending || !draft.trim()}>
-            {sending ? 'Sending…' : 'Send'}
+            {sending ? 'Sending…' : 'Send message'}
           </button>
-        </form>
-      </div>
+        </div>
+      </form>
     </section>
   )
 }
