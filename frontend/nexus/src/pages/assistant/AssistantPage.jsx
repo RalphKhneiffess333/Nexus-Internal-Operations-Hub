@@ -3,14 +3,8 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useNavigate } from 'react-router-dom'
 import { sendAssistantMessage } from '../../features/assistant/assistant-api'
+import { useAssistantConversation } from '../../features/assistant/use-assistant-conversation'
 import styles from './AssistantPage.module.css'
-
-const WELCOME_MESSAGE = {
-  id: 'welcome',
-  role: 'assistant',
-  content:
-    'Tell me what happened and I’ll help you work through it. If a submission is still needed, I’ll ask before prefilling the form.',
-}
 
 function isSafeMarkdownUrl(url) {
   if (!url) return false
@@ -25,8 +19,7 @@ function isSafeMarkdownUrl(url) {
 
 export function AssistantPage() {
   const navigate = useNavigate()
-  const [conversationId, setConversationId] = useState('')
-  const [messages, setMessages] = useState([WELCOME_MESSAGE])
+  const { conversationId, setConversationId, messages, setMessages } = useAssistantConversation()
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
