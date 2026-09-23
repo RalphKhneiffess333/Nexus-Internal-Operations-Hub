@@ -43,11 +43,32 @@ export class TicketAccessService {
     return ticket;
   }
 
+  async getTicketForViewByCode(
+    ticketCode: string,
+    actor: AuthenticatedRequestUser,
+  ): Promise<TicketRecord> {
+    const ticket = await this.ticketsRepository.findByCode(ticketCode);
+    if (!ticket || (!ticket.active && actor.role !== UserRole.Admin)) {
+      throw new NotFoundException(`Ticket ${ticketCode} was not found`);
+    }
+    return ticket;
+  }
+
   async assertCanViewTicket(
     ticketId: string,
     actor: AuthenticatedRequestUser,
   ): Promise<TicketRecord> {
     const ticket = await this.getTicketForView(ticketId, actor);
+    const actorDepartmentIds = await this.getActorDepartmentIds(actor);
+    this.viewTicketPolicy.assert(actor, ticket, actorDepartmentIds);
+    return ticket;
+  }
+
+  async assertCanViewTicketByCode(
+    ticketCode: string,
+    actor: AuthenticatedRequestUser,
+  ): Promise<TicketRecord> {
+    const ticket = await this.getTicketForViewByCode(ticketCode, actor);
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
     this.viewTicketPolicy.assert(actor, ticket, actorDepartmentIds);
     return ticket;

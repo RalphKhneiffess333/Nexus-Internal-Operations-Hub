@@ -8,7 +8,9 @@ import {
   type AiProviderMessage,
 } from '../providers/ai-provider.interface';
 import {
+  GET_TICKET_BY_NUMBER,
   GET_TICKET_SUBMISSION_OPTIONS,
+  type TicketInformationResult,
   type TicketSubmissionOptions,
   ToolRegistryService,
 } from '../tools/tool-registry.service';
@@ -114,6 +116,52 @@ function hasPrefillPermission(turns: AssistantTurn[], message: string): boolean 
     );
 }
 
+function extractTicketNumbers(message: string): string[] {
+  return [
+    ...new Set(
+      [...message.matchAll(/\bTKT-\d{4,}\b/gi)].map((match) =>
+        match[0].toUpperCase(),
+      ),
+    ),
+  ];
+}
+
+function latestTicketNumber(turns: AssistantTurn[]): string | null {
+  for (const turn of [...turns].reverse()) {
+    if (turn.role !== 'user') continue;
+    const numbers = extractTicketNumbers(turn.content);
+    if (numbers.length === 1) return numbers[0];
+  }
+  return null;
+}
+
+function hasTicketLookupContext(
+  turns: AssistantTurn[],
+  message: string,
+): boolean {
+  return (
+    extractTicketNumbers(message).length === 1 ||
+    latestTicketNumber(turns) !== null
+  );
+}
+
+function readTicketNumberArgument(args: Record<string, unknown>): string {
+  if (
+    Object.keys(args).length !== 1 ||
+    typeof args.ticketNumber !== 'string'
+  ) {
+    return '';
+  }
+  const ticketNumber = args.ticketNumber.trim().toUpperCase();
+  return /^TKT-\d{4,}$/.test(ticketNumber) ? ticketNumber : '';
+}
+
+function isTicketSubmissionOptions(
+  value: TicketSubmissionOptions | TicketInformationResult,
+): value is TicketSubmissionOptions {
+  return 'departments' in value && 'priorities' in value;
+}
+
 @Injectable()
 export class AgentService {
   constructor(
@@ -126,10 +174,24 @@ export class AgentService {
     actor: AuthenticatedRequestUser,
     previousTurns: AssistantTurn[],
   ): Promise<AssistantResponse> {
+    const requestedTicketNumbers = extractTicketNumbers(message);
+    if (requestedTicketNumbers.length > 1) {
+      return {
+        message:
+          'I can inspect only one ticket at a time. Please choose one ticket number and ask again.',
+      };
+    }
+
     const prefillPermissionGranted = hasPrefillPermission(
       previousTurns,
       message,
     );
+    const ticketLookupRequested = hasTicketLookupContext(
+      previousTurns,
+      message,
+    );
+    const expectedTicketNumber =
+      requestedTicketNumbers[0] ?? latestTicketNumber(previousTurns);
     const messages: AiProviderMessage[] = previousTurns.map((turn) => ({
       role: turn.role,
       text:
@@ -140,16 +202,18 @@ export class AgentService {
     messages.push({ role: 'user', text: message });
 
     let toolCallCount = 0;
+    let ticketLookupCount = 0;
     let options: TicketSubmissionOptions | null = null;
+    const toolDefinitions = this.tools.definitions({
+      includeSubmissionOptions: prefillPermissionGranted,
+      includeTicketByNumber: ticketLookupRequested,
+    });
 
     for (;;) {
       const result = await this.provider.generate({
         systemPrompt: NEXUS_GENERAL_ASSISTANT_SYSTEM_PROMPT,
         messages,
-        tools:
-          prefillPermissionGranted && toolCallCount === 0
-            ? this.tools.definitions()
-            : [],
+        tools: toolCallCount === 0 ? toolDefinitions : [],
       });
 
       if (result.type === 'text') {
@@ -170,24 +234,78 @@ export class AgentService {
 
       messages.push({ role: 'assistant', toolCalls: result.calls });
       for (const call of result.calls) {
-        if (call.name !== GET_TICKET_SUBMISSION_OPTIONS) {
-          throw new AiResponseError('Unknown AI tool requested');
+        if (call.name === GET_TICKET_SUBMISSION_OPTIONS) {
+          if (!prefillPermissionGranted) {
+            throw new AiResponseError('AI tool request was rejected');
+          }
+          if (Object.keys(call.arguments).length > 0) {
+            throw new AiResponseError('AI tool request was rejected');
+          }
+          const toolResult = await this.tools.execute(
+            call.name,
+            call.arguments,
+            actor,
+          );
+          if (!isTicketSubmissionOptions(toolResult)) {
+            throw new AiResponseError('AI returned an invalid tool result');
+          }
+          options = toolResult;
+          messages.push({
+            role: 'tool',
+            name: call.name,
+            response: toolResult,
+            toolCallId: call.id,
+          });
+          continue;
         }
-        if (Object.keys(call.arguments).length > 0) {
-          throw new AiResponseError('AI tool request was rejected');
+
+        if (call.name === GET_TICKET_BY_NUMBER) {
+          if (!ticketLookupRequested) {
+            throw new AiResponseError('AI tool request was rejected');
+          }
+
+          let toolResult: TicketInformationResult;
+          const requestedTicketNumber = readTicketNumberArgument(
+            call.arguments,
+          );
+          if (ticketLookupCount > 0) {
+            toolResult = {
+              accessible: false,
+              message:
+                'I can inspect only one ticket at a time. Please choose one ticket number.',
+            };
+          } else if (
+            !requestedTicketNumber ||
+            requestedTicketNumber !== expectedTicketNumber
+          ) {
+            toolResult = {
+              accessible: false,
+              message:
+                'I can inspect only the ticket number provided in the user request.',
+            };
+          } else {
+            ticketLookupCount += 1;
+            const result = await this.tools.execute(
+              call.name,
+              { ticketNumber: requestedTicketNumber },
+              actor,
+            );
+            if (isTicketSubmissionOptions(result)) {
+              throw new AiResponseError('AI returned an invalid tool result');
+            }
+            toolResult = result;
+          }
+
+          messages.push({
+            role: 'tool',
+            name: call.name,
+            response: toolResult,
+            toolCallId: call.id,
+          });
+          continue;
         }
-        const toolResult = await this.tools.execute(
-          call.name,
-          call.arguments,
-          actor,
-        );
-        options = toolResult;
-        messages.push({
-          role: 'tool',
-          name: call.name,
-          response: toolResult,
-          toolCallId: call.id,
-        });
+
+        throw new AiResponseError('Unknown AI tool requested');
       }
     }
   }

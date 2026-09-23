@@ -56,6 +56,13 @@ export class TicketsService {
     return this.ticketQueryService.findOne(ticketId, actor);
   }
 
+  findOneByCode(
+    ticketCode: string,
+    actor: AuthenticatedRequestUser,
+  ): Promise<TicketWithPermissions> {
+    return this.ticketQueryService.findOneByCode(ticketCode, actor);
+  }
+
   findChatContext(
     ticketId: string,
     actor: AuthenticatedRequestUser,

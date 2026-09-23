@@ -107,6 +107,23 @@ export class TicketQueryService {
     );
   }
 
+  async findOneByCode(
+    ticketCode: string,
+    actor: AuthenticatedRequestUser,
+  ): Promise<TicketWithPermissions> {
+    const ticket = await this.ticketAccess.assertCanViewTicketByCode(
+      ticketCode,
+      actor,
+    );
+    const actorDepartmentIds =
+      await this.ticketAccess.getActorDepartmentIds(actor);
+    return this.ticketResponseMapper.withPermission(
+      ticket,
+      actor,
+      actorDepartmentIds,
+    );
+  }
+
   async findChatContext(
     ticketId: string,
     actor: AuthenticatedRequestUser,

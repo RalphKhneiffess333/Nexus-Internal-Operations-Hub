@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { DepartmentsModule } from '../departments/departments.module';
 import { PrioritiesModule } from '../priorities/priorities.module';
+import { TicketsModule } from '../tickets/tickets.module';
 import { AI_PROVIDER } from './providers/ai-provider.interface';
 import { GroqProvider } from './providers/groq.provider';
 import { AgentService } from './agent/agent.service';
@@ -9,7 +10,7 @@ import { AiController } from './ai.controller';
 import { AiService } from './ai.service';
 
 @Module({
-  imports: [DepartmentsModule, PrioritiesModule],
+  imports: [DepartmentsModule, PrioritiesModule, TicketsModule],
   controllers: [AiController],
   providers: [
     AiService,

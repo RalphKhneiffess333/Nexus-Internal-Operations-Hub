@@ -177,6 +177,17 @@ export class TicketsRepository {
     }
   }
 
+  async findByCode(ticketCode: string): Promise<TicketRecord | null> {
+    try {
+      return await this.prisma.ticket.findUnique({
+        where: { ticketCode },
+        include: ticketInclude,
+      });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }
+
   async findChatContext(
     ticketId: string,
   ): Promise<TicketChatContextRecord | null> {
