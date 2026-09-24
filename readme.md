@@ -254,6 +254,8 @@ npm run eval
 
 This command runs only the model-backed AI eval runner. It uses the existing Groq provider, so `backend/.env` must contain `GROQ_API_KEY`; `GROQ_MODEL` is optional. The runner uses fixed in-memory departments, priorities, and ticket-access results, so it does not require PostgreSQL or a running Nexus server. It makes real Groq requests and reports the clear, thin, ambiguous, trusted-context, conditional-prefill, supplied-evidence, damage-prevention, and repeatability cases separately.
 
+NOTICE: If you're on a limited tier, only a select number of evals may pass before getting hit with a rate limit failure.
+
 ## 13. How to run the app
 
 From the repository root:
