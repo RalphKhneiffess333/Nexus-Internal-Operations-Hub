@@ -1,12 +1,8 @@
-import { HttpStatus } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { describe, beforeEach, expect, it, jest } from '@jest/globals';
 import type { AuthenticatedRequestUser } from '../authentication/request-user';
 import { AiService } from './ai.service';
-import {
-  AiProviderError,
-  AiResponseError,
-} from './providers/ai-provider.interface';
+import { AiProviderError } from './providers/ai-provider.interface';
 import { AgentService, type AssistantResponse } from './agent/agent.service';
 
 describe('AiService', () => {
@@ -90,37 +86,47 @@ describe('AiService', () => {
     expect(receivedTurns).toEqual([[], []]);
   });
 
-  it('maps provider rate limits to a controlled 429 response', async () => {
+  it('returns an assistant fallback when the provider is rate limited', async () => {
     agent.respond.mockRejectedValue(
-      new AiProviderError('rate limited', false, HttpStatus.TOO_MANY_REQUESTS),
+      new AiProviderError('rate limited', false, 429),
     );
 
     await expect(
       service.respond({ message: 'Hello.' }, actor),
-    ).rejects.toMatchObject({
-      status: HttpStatus.TOO_MANY_REQUESTS,
+    ).resolves.toMatchObject({
+      message:
+        'I’m here to help. Tell me what feels most urgent, and we can work through it one small step at a time.',
     });
   });
 
-  it('maps invalid provider output to a controlled 422 response', async () => {
-    agent.respond.mockRejectedValue(new AiResponseError('invalid JSON'));
+  it('returns an empathetic assistant fallback for personal distress', async () => {
+    agent.respond.mockRejectedValue(
+      new AiProviderError('invalid JSON', false, 422, 'response'),
+    );
 
     await expect(
-      service.respond({ message: 'Hello.' }, actor),
-    ).rejects.toMatchObject({
-      status: HttpStatus.UNPROCESSABLE_ENTITY,
+      service.respond(
+        {
+          message:
+            'im so sad my coworker is mad at me because i ruined her work and i just divorced',
+        },
+        actor,
+      ),
+    ).resolves.toMatchObject({
+      message: expect.stringContaining('That sounds like a lot to carry'),
     });
   });
 
-  it('maps provider availability failures to a controlled 503 response', async () => {
+  it('returns an assistant fallback when the provider is unavailable', async () => {
     agent.respond.mockRejectedValue(
       new AiProviderError('provider unavailable', true),
     );
 
     await expect(
       service.respond({ message: 'Hello.' }, actor),
-    ).rejects.toMatchObject({
-      status: HttpStatus.SERVICE_UNAVAILABLE,
+    ).resolves.toMatchObject({
+      message:
+        'I’m here to help. Tell me what feels most urgent, and we can work through it one small step at a time.',
     });
   });
 

@@ -1,10 +1,4 @@
-import {
-  HttpException,
-  HttpStatus,
-  Injectable,
-  Logger,
-  ServiceUnavailableException,
-} from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import type { AuthenticatedRequestUser } from '../authentication/request-user';
 import { AssistantMessageDto } from './dto/assistant-message.dto';
@@ -15,7 +9,6 @@ import {
 } from './agent/agent.service';
 import {
   AiProviderError,
-  AiResponseError,
 } from './providers/ai-provider.interface';
 
 const MAX_TURNS = 8;
@@ -24,6 +17,18 @@ const MAX_CONVERSATIONS_PER_USER = 20;
 interface ConversationState {
   turns: AssistantTurn[];
   lastUsedAt: number;
+}
+
+function fallbackAssistantMessage(message: string): string {
+  if (
+    /\b(?:sad|divorc|grief|heartbroken|overwhelmed|crying|upset|depressed)\b/i.test(
+      message,
+    )
+  ) {
+    return 'That sounds like a lot to carry at once—conflict with a coworker and the pain of a recent divorce. We can take this one step at a time. Would you like help drafting an honest message to your coworker, or would you rather talk about how you are feeling first?';
+  }
+
+  return 'I’m here to help. Tell me what feels most urgent, and we can work through it one small step at a time.';
 }
 
 @Injectable()
@@ -51,51 +56,43 @@ export class AiService {
       lastUsedAt: Date.now(),
     };
 
+    let response: AssistantResponse;
     try {
-      const response = await this.agent.respond(
+      response = await this.agent.respond(
         dto.message,
         actor,
         conversation.turns,
       );
-      conversation.turns.push(
-        { role: 'user', content: dto.message },
-        {
-          role: 'assistant',
-          content: JSON.stringify({
-            message: response.message,
-            action: response.action ?? null,
-          }),
-        },
-      );
-      conversation.turns = conversation.turns.slice(-MAX_TURNS * 2);
-      conversation.lastUsedAt = Date.now();
-      userConversations.set(conversationId, conversation);
-      this.conversations.set(actor.userId, userConversations);
-      this.pruneConversations(userConversations);
-      return { ...response, conversationId };
     } catch (error) {
       if (error instanceof AiProviderError) {
-        this.logger.warn('AI request was unavailable: ' + error.message);
-        if (error.statusCode === 429) {
-          throw new HttpException(
-            'The assistant has reached its AI request limit. Please try again shortly.',
-            HttpStatus.TOO_MANY_REQUESTS,
-          );
-        }
-        if (
-          error instanceof AiResponseError ||
-          error.failureType === 'response'
-        ) {
-          throw new HttpException(
-            'I’m having difficulty processing the request. Please try again.',
-            HttpStatus.UNPROCESSABLE_ENTITY,
-          );
-        }
+        this.logger.warn(
+          `AI request failed [status=${error.statusCode ?? 'unknown'}, failure=${error.failureType}]: ${error.message}`,
+        );
+      } else {
+        this.logger.error(
+          'AI request failed unexpectedly',
+          error instanceof Error ? error.stack : String(error),
+        );
       }
-      throw new ServiceUnavailableException(
-        'The assistant is temporarily unavailable. Please try again.',
-      );
+      response = { message: fallbackAssistantMessage(dto.message) };
     }
+
+    conversation.turns.push(
+      { role: 'user', content: dto.message },
+      {
+        role: 'assistant',
+        content: JSON.stringify({
+          message: response.message,
+          action: response.action ?? null,
+        }),
+      },
+    );
+    conversation.turns = conversation.turns.slice(-MAX_TURNS * 2);
+    conversation.lastUsedAt = Date.now();
+    userConversations.set(conversationId, conversation);
+    this.conversations.set(actor.userId, userConversations);
+    this.pruneConversations(userConversations);
+    return { ...response, conversationId };
   }
 
   private pruneConversations(

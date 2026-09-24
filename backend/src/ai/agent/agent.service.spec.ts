@@ -78,26 +78,181 @@ describe('AgentService', () => {
     });
   });
 
-  it('requires a previous explicit offer before executing the submission-options tool', async () => {
-    provider.generate.mockResolvedValue({
-      type: 'tool_call',
-      calls: [
-        {
-          id: 'call-1',
-          name: GET_TICKET_SUBMISSION_OPTIONS,
-          arguments: {},
-        },
-      ],
-    });
+  it('does not reject a submission-options tool call while the model decides confirmation', async () => {
+    tools.execute.mockResolvedValue(submissionOptions);
+    provider.generate
+      .mockResolvedValueOnce({
+        type: 'tool_call',
+        calls: [
+          {
+            id: 'call-1',
+            name: GET_TICKET_SUBMISSION_OPTIONS,
+            arguments: {},
+          },
+        ],
+      })
+      .mockResolvedValueOnce(
+        textResult({
+          message:
+            'Would you like me to prefill a submission form with these details?',
+          action: null,
+        }),
+      );
 
     await expect(
-      service.respond('Please prepare the ticket form.', actor, []),
-    ).rejects.toBeInstanceOf(AiResponseError);
+      service.respond(
+        'Please prepare the ticket form.',
+        actor,
+        [
+          {
+            role: 'assistant',
+            content:
+              'Would you like me to prefill a submission form with these details?',
+          },
+        ],
+      ),
+    ).resolves.toEqual({
+      message:
+        'Would you like me to prefill a submission form with these details?',
+    });
 
-    expect(tools.execute).not.toHaveBeenCalled();
+    expect(tools.execute).toHaveBeenCalledWith(
+      GET_TICKET_SUBMISSION_OPTIONS,
+      {},
+      actor,
+    );
     expect(tools.definitions).toHaveBeenCalledWith({
-      includeSubmissionOptions: false,
+      includeSubmissionOptions: true,
       includeTicketByNumber: false,
+    });
+  });
+
+  it('turns a prefill action without prior context into a confirmation instead of an error', async () => {
+    tools.execute.mockResolvedValue(submissionOptions);
+    provider.generate
+      .mockResolvedValueOnce({
+        type: 'tool_call',
+        calls: [
+          {
+            id: 'call-1',
+            name: GET_TICKET_SUBMISSION_OPTIONS,
+            arguments: {},
+          },
+        ],
+      })
+      .mockResolvedValueOnce(
+        textResult({
+          message: 'I prepared a draft.',
+          action: {
+            type: 'PREFILL_TICKET',
+            data: {
+              title: 'Laptop issue',
+              description: 'The laptop has a network problem.',
+              departmentId: 'HR',
+              priority: 'HIGH',
+            },
+          },
+        }),
+      );
+
+    await expect(
+      service.respond('Prepare a ticket for HR.', actor, []),
+    ).resolves.toEqual({
+      message:
+        'I can prepare that request for your review. Would you like me to prefill a submission form with these details?',
+    });
+  });
+
+  it('explains when the requested department is unavailable instead of repeating confirmation', async () => {
+    tools.execute.mockResolvedValue(submissionOptions);
+    provider.generate
+      .mockResolvedValueOnce({
+        type: 'tool_call',
+        calls: [
+          {
+            id: 'call-1',
+            name: GET_TICKET_SUBMISSION_OPTIONS,
+            arguments: {},
+          },
+        ],
+      })
+      .mockResolvedValueOnce(
+        textResult({
+          message: 'I cannot prepare this for Administration.',
+          action: {
+            type: 'PREFILL_TICKET',
+            data: {
+              title: 'Laptop issue',
+              description: 'The laptop has a network problem.',
+              departmentId: 'Administration',
+              priority: 'HIGH',
+            },
+          },
+        }),
+      );
+
+    await expect(
+      service.respond('Sure, prepare the same request for Administration.', actor, [
+        {
+          role: 'assistant',
+          content:
+            'Would you like me to prefill a submission form with these details for Administration?',
+        },
+      ]),
+    ).resolves.toEqual({
+      message:
+        'I can’t prepare this for Administration because that department is not available for your account. Available departments are Information Technology (IT), Human Resources (HR). Would you like me to prepare it for one of those instead?',
+    });
+  });
+
+  it('supports a natural department change when the model returns a validated action', async () => {
+    tools.execute.mockResolvedValue(submissionOptions);
+    provider.generate
+      .mockResolvedValueOnce({
+        type: 'tool_call',
+        calls: [
+          {
+            id: 'call-1',
+            name: GET_TICKET_SUBMISSION_OPTIONS,
+            arguments: {},
+          },
+        ],
+      })
+      .mockResolvedValueOnce(
+        textResult({
+          message: 'I prepared the same request for HR to review.',
+          action: {
+            type: 'PREFILL_TICKET',
+            data: {
+              title: 'Laptop Wi-Fi failure',
+              description: 'The laptop cannot connect to office Wi-Fi.',
+              departmentId: 'HR',
+              priority: 'HIGH',
+            },
+          },
+        }),
+      );
+
+    await expect(
+      service.respond(
+        'No, prefill the same information but send it to HR instead.',
+        actor,
+        [
+          {
+            role: 'assistant',
+            content:
+              'Would you like me to prefill a submission form with these details?',
+          },
+        ],
+      ),
+    ).resolves.toMatchObject({
+      action: {
+        type: 'PREFILL_TICKET',
+        data: {
+          departmentId: 'department-hr',
+          priority: 'HIGH',
+        },
+      },
     });
   });
 
@@ -163,7 +318,7 @@ describe('AgentService', () => {
     });
   });
 
-  it('rejects a prefill action containing values outside the trusted options', async () => {
+  it('does not fail when a prefill action contains values outside trusted options', async () => {
     tools.execute.mockResolvedValue(submissionOptions);
     provider.generate
       .mockResolvedValueOnce({
@@ -199,15 +354,18 @@ describe('AgentService', () => {
             'Would you like me to prefill a submission form with these details?',
         },
       ]),
-    ).rejects.toBeInstanceOf(AiResponseError);
+    ).resolves.toEqual({
+      message:
+        'I can’t prepare this for FINANCE because that department is not available for your account. Available departments are Information Technology (IT), Human Resources (HR). Would you like me to prepare it for one of those instead?',
+    });
   });
 
-  it('rejects malformed structured output', async () => {
+  it('preserves a readable provider response when structured output is malformed', async () => {
     provider.generate.mockResolvedValue({ type: 'text', text: 'not JSON' });
 
     await expect(
       service.respond('Give me some help.', actor, []),
-    ).rejects.toBeInstanceOf(AiResponseError);
+    ).resolves.toEqual({ message: 'not JSON' });
   });
 
   it('limits ticket inspection to one explicitly requested ticket', async () => {

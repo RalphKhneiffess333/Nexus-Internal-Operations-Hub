@@ -21,7 +21,7 @@ describe('GroqProvider', () => {
   let provider: GroqProvider;
   const configValues: Record<string, string | undefined> = {
     GROQ_API_KEY: 'test-key',
-    GROQ_MODEL: 'test-model',
+    GROQ_MODEL: 'qwen/qwen3.8-27b',
     AI_RETRY_DELAY_MS: '1',
   };
 
@@ -55,6 +55,18 @@ describe('GroqProvider', () => {
     expect(fetchMock.mock.calls[0][0]).toBe(
       'https://api.groq.com/openai/v1/chat/completions',
     );
+
+    const requestBody = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
+    expect(requestBody.response_format).toEqual({
+      type: 'json_schema',
+      json_schema: expect.objectContaining({
+        name: 'nexus_assistant_response',
+        strict: true,
+        schema: expect.objectContaining({
+          required: ['message', 'action'],
+        }),
+      }),
+    });
   });
 
   it('retries transient provider failures and succeeds on a later attempt', async () => {

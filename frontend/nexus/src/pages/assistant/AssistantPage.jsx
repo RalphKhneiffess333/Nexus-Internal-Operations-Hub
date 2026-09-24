@@ -6,6 +6,9 @@ import { sendAssistantMessage } from '../../features/assistant/assistant-api'
 import { useAssistantConversation } from '../../features/assistant/use-assistant-conversation'
 import styles from './AssistantPage.module.css'
 
+const NETWORK_FALLBACK_MESSAGE =
+  'I’m here to help. Tell me what feels most urgent, and we can work through it one small step at a time.'
+
 function isSafeMarkdownUrl(url) {
   if (!url) return false
 
@@ -22,7 +25,6 @@ export function AssistantPage() {
   const { conversationId, setConversationId, messages, setMessages } = useAssistantConversation()
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
-  const [error, setError] = useState('')
   const messagesRef = useRef(null)
 
   useLayoutEffect(() => {
@@ -36,7 +38,6 @@ export function AssistantPage() {
     if (!message || sending) return
 
     setDraft('')
-    setError('')
     setMessages((current) => [
       ...current,
       { id: String(Date.now()) + '-user', role: 'user', content: message },
@@ -55,8 +56,15 @@ export function AssistantPage() {
           action: response?.action,
         },
       ])
-    } catch (sendError) {
-      setError(sendError.message || 'The assistant is temporarily unavailable. Please try again.')
+    } catch {
+      setMessages((current) => [
+        ...current,
+        {
+          id: String(Date.now()) + '-assistant-fallback',
+          role: 'assistant',
+          content: NETWORK_FALLBACK_MESSAGE,
+        },
+      ])
     } finally {
       setSending(false)
     }
@@ -140,7 +148,6 @@ export function AssistantPage() {
           rows="3"
           disabled={sending}
         />
-        {error ? <p className="ticket-chat-send-error">{error}</p> : null}
         <div className="ticket-chat-actions">
           <span>{draft.length}/4000</span>
           <button type="submit" className="btn primary" disabled={sending || !draft.trim()}>

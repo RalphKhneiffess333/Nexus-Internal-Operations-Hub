@@ -67,6 +67,18 @@ function toAssistantHistoryContent(content: string): string {
   return JSON.stringify({ message: content, action: null });
 }
 
+function removeReasoningMarkup(content: string): string {
+  return content.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+}
+
+function hasPrefillContext(turns: AssistantTurn[]): boolean {
+  return turns.some(
+    (turn) =>
+      turn.role === 'assistant' &&
+      (isPrefillOffer(turn.content) || parseJsonObject(turn.content)?.action),
+  );
+}
+
 function assistantMessageText(content: string): string {
   const parsed = parseJsonObject(content);
   return parsed && typeof parsed.message === 'string'
@@ -85,35 +97,6 @@ function isPrefillOffer(content: string): boolean {
       message,
     );
   return mentionsPrefill && offersNextStep;
-}
-
-function hasPrefillConfirmation(message: string): boolean {
-  return (
-    /^(?:yes|yeah|yep|sure|okay|ok|please|go ahead|do it)\b/i.test(
-      message.trim(),
-    ) ||
-    /\b(?:prefill|fill (?:in|out))\b.*\b(?:form|submission)\b/i.test(message)
-  );
-}
-
-function hasPrefillPermission(turns: AssistantTurn[], message: string): boolean {
-  const offerIndex = [...turns]
-    .map((turn, index) => ({ turn, index }))
-    .reverse()
-    .find(
-      ({ turn }) =>
-        turn.role === 'assistant' && isPrefillOffer(turn.content),
-    )?.index;
-
-  if (offerIndex === undefined) return false;
-  if (hasPrefillConfirmation(message)) return true;
-
-  return turns
-    .slice(offerIndex + 1)
-    .some(
-      (turn) =>
-        turn.role === 'user' && hasPrefillConfirmation(turn.content),
-    );
 }
 
 function extractTicketNumbers(message: string): string[] {
@@ -182,10 +165,7 @@ export class AgentService {
       };
     }
 
-    const prefillPermissionGranted = hasPrefillPermission(
-      previousTurns,
-      message,
-    );
+    const prefillContextAvailable = hasPrefillContext(previousTurns);
     const ticketLookupRequested = hasTicketLookupContext(
       previousTurns,
       message,
@@ -205,7 +185,7 @@ export class AgentService {
     let ticketLookupCount = 0;
     let options: TicketSubmissionOptions | null = null;
     const toolDefinitions = this.tools.definitions({
-      includeSubmissionOptions: prefillPermissionGranted,
+      includeSubmissionOptions: prefillContextAvailable,
       includeTicketByNumber: ticketLookupRequested,
     });
 
@@ -220,7 +200,7 @@ export class AgentService {
         return this.normalizeResponse(
           result.text,
           options,
-          prefillPermissionGranted,
+          prefillContextAvailable,
         );
       }
 
@@ -235,9 +215,6 @@ export class AgentService {
       messages.push({ role: 'assistant', toolCalls: result.calls });
       for (const call of result.calls) {
         if (call.name === GET_TICKET_SUBMISSION_OPTIONS) {
-          if (!prefillPermissionGranted) {
-            throw new AiResponseError('AI tool request was rejected');
-          }
           if (Object.keys(call.arguments).length > 0) {
             throw new AiResponseError('AI tool request was rejected');
           }
@@ -313,10 +290,19 @@ export class AgentService {
   private normalizeResponse(
     rawText: string,
     options: TicketSubmissionOptions | null,
-    prefillPermissionGranted: boolean,
+    prefillContextAvailable: boolean,
   ): AssistantResponse {
     const parsed = parseJsonObject(rawText);
-    if (!parsed || typeof parsed.message !== 'string') {
+    if (!parsed) {
+      const plainText = readString(removeReasoningMarkup(rawText));
+      if (plainText) {
+        return {
+          message: plainText.slice(0, MAX_ASSISTANT_MESSAGE_LENGTH),
+        };
+      }
+      throw new AiResponseError('AI returned an invalid response message');
+    }
+    if (typeof parsed.message !== 'string') {
       throw new AiResponseError('AI returned an invalid response message');
     }
     const message = readString(parsed.message);
@@ -330,10 +316,13 @@ export class AgentService {
     const action = parsed?.action;
     if (action === null || action === undefined) return response;
     if (!this.isPrefillAction(action)) {
-      throw new AiResponseError('AI returned an invalid ticket action');
+      return response;
     }
-    if (!options || !prefillPermissionGranted) {
-      throw new AiResponseError('AI returned an unexpected ticket action');
+    if (!options || !prefillContextAvailable) {
+      return {
+        message:
+          'I can prepare that request for your review. Would you like me to prefill a submission form with these details?',
+      };
     }
 
     const data = action.data;
@@ -351,8 +340,20 @@ export class AgentService {
       options,
     );
 
-    if (!title || !description || !departmentId || !priority) {
-      throw new AiResponseError('AI returned incomplete ticket data');
+    if (!departmentId) {
+      return {
+        message: this.unavailableDepartmentMessage(
+          readString(data.departmentId),
+          options,
+        ),
+      };
+    }
+
+    if (!title || !description || !priority) {
+      return {
+        message:
+          'I can prepare that request for your review. Would you like me to prefill a submission form with these details?',
+      };
     }
 
     return {
@@ -399,5 +400,25 @@ export class AgentService {
         (item) => item.code === value || item.id === value,
       )?.code ?? ''
     );
+  }
+
+  private unavailableDepartmentMessage(
+    requestedDepartment: string,
+    options: TicketSubmissionOptions,
+  ): string {
+    const requested = requestedDepartment || 'that department';
+    const available = options.departments
+      .map((department) => {
+        const name = readString(department.name);
+        const code = readString(department.code);
+        return name && code ? `${name} (${code})` : name || code;
+      })
+      .filter(Boolean);
+
+    if (available.length === 0) {
+      return `I can’t prepare this for ${requested} because that department is not available for your account right now. No departments are currently available for ticket submission.`;
+    }
+
+    return `I can’t prepare this for ${requested} because that department is not available for your account. Available departments are ${available.join(', ')}. Would you like me to prepare it for one of those instead?`;
   }
 }

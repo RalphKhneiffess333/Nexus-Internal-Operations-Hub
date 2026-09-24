@@ -14,6 +14,40 @@ const DEFAULT_MODEL = 'qwen/qwen3.8-27b';
 const MAX_ATTEMPTS = 3;
 const DEFAULT_RETRY_DELAY_MS = 250;
 
+const ASSISTANT_RESPONSE_SCHEMA = {
+  type: 'object',
+  properties: {
+    message: {
+      type: 'string',
+      description: 'The concise, helpful response shown to the user.',
+    },
+    action: {
+      type: ['object', 'null'],
+      properties: {
+        type: {
+          type: 'string',
+          enum: ['PREFILL_TICKET'],
+        },
+        data: {
+          type: 'object',
+          properties: {
+            title: { type: 'string' },
+            description: { type: 'string' },
+            departmentId: { type: 'string' },
+            priority: { type: 'string' },
+          },
+          required: ['title', 'description', 'departmentId', 'priority'],
+          additionalProperties: false,
+        },
+      },
+      required: ['type', 'data'],
+      additionalProperties: false,
+    },
+  },
+  required: ['message', 'action'],
+  additionalProperties: false,
+} as const;
+
 type JsonRecord = Record<string, unknown>;
 
 function isRecord(value: unknown): value is JsonRecord {
@@ -110,6 +144,13 @@ function parseProviderResult(payload: unknown): AiProviderResult {
   return { type: 'text', text: content.trim() };
 }
 
+function supportsStrictStructuredOutputs(model: string): boolean {
+  return (
+    model === DEFAULT_MODEL ||
+    /^openai\/gpt-oss-(?:20b|120b)$/.test(model)
+  );
+}
+
 @Injectable()
 export class GroqProvider implements AiProvider {
   private readonly logger = new Logger(GroqProvider.name);
@@ -145,7 +186,18 @@ export class GroqProvider implements AiProvider {
       reasoning_format: 'hidden',
       ...(tools.length > 0
         ? { tools }
-        : { response_format: { type: 'json_object' } }),
+        : {
+            response_format: supportsStrictStructuredOutputs(this.model)
+              ? {
+                  type: 'json_schema',
+                  json_schema: {
+                    name: 'nexus_assistant_response',
+                    strict: true,
+                    schema: ASSISTANT_RESPONSE_SCHEMA,
+                  },
+                }
+              : { type: 'json_object' },
+          }),
     };
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
@@ -187,7 +239,9 @@ export class GroqProvider implements AiProvider {
       } catch (error) {
         if (error instanceof AiProviderError && !error.retryable) throw error;
         if (attempt >= MAX_ATTEMPTS) {
-          this.logger.warn('Groq request failed after retries');
+          this.logger.warn(
+            `Groq request failed after ${attempt} attempt(s): ${this.describeError(error)}`,
+          );
           throw new AiProviderError('Groq is temporarily unavailable', true);
         }
         await this.delay(attempt);
@@ -201,6 +255,10 @@ export class GroqProvider implements AiProvider {
     await new Promise((resolve) =>
       setTimeout(resolve, this.retryDelayMs * 2 ** (attempt - 1)),
     );
+  }
+
+  private describeError(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 
   private readPositiveInteger(key: string, fallback: number): number {
