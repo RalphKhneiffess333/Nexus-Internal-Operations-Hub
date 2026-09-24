@@ -60,7 +60,7 @@ Authentication: normal Nexus session cookie. Allowed roles are `Employee`,
 
 Request body:
 
-```json
+```json 
 {
   "message": "My work laptop cannot connect to the office Wi-Fi.",
   "conversationId": "optional-uuid-for-a-follow-up"

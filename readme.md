@@ -25,8 +25,12 @@ If setup CLI fails to run, continue reading this file for step by step initializ
 - npm
 - PostgreSQL (a local database you can create and connect to)
 - An identity provider organization (Microsoft Entra ID tenant for now)
+- A Groq API key if you want to use the AI assistant or run `npm run eval`
+- An SMTP provider account if you want transactional email notifications
 
-Optional: an API client such as Postman for manual testing.
+The Groq API key and SMTP account are optional for the core ticket application.
+They are required only for their respective integrations. An API client such as
+Postman is also optional for manual testing.
 
 ## 4. How to install dependencies
 
@@ -76,7 +80,7 @@ DATABASE_URL=postgresql://your_user:your_password@localhost:5432/nexus
 ```
 
 ## 6. Testing Environment
-Tests use a separate database from the one used in production. Create another database in your PostgreSQL and link it in `backend/.env.integration`, use `backend/.env.integration.example` for the template.
+Tests use a separate database from the one used in production. Create another database in your PostgreSQL and link it in `backend/.env.integration`, use `backend/.env.integration.example` for the template. The integration template keeps SMTP disabled by default; add a Groq key there only when you want AI responses while running `npm run start:test`.
 
 ## 7. How to configure Microsoft Entra ID
 
@@ -103,7 +107,9 @@ The seeded identity-provider record uses the code `MICROSOFT_ENTRA_ID`. Users ar
 In the organization-locked setup, users are checked through the configured Microsoft tenant to ensure only internal accounts can use the app. 
 For current testing, the backend uses Microsoft's `common` login endpoint so any Microsoft work, school, or personal account can be used.
 
-## 8. Optional Email Notifications
+## 8. Optional Integrations
+
+### Email Notifications
 
 Nexus can send asynchronous transactional emails through Nodemailer over SMTP after successful ticket and handoff operations. Email delivery is isolated from the request path: missing configuration, provider failures, and exhausted retries are logged and dropped without failing the ticket operation.
 
@@ -125,6 +131,50 @@ APP_BASE_URL=http://localhost:5173
 ```
 
 The system emails ticket submission, claim, close, reopen, and handoff request/accept/reject events. It intentionally does not email ticket cancellation or automatic handoff-cancellation events. Email delivery has no database outbox or idempotency records; each successful domain operation schedules one best-effort notification with bounded retries.
+
+`SMTP_HOST` and `SMTP_FROM_EMAIL` must be configured for delivery to be
+enabled. Set `SMTP_ENABLED=false` when running tests or when email is not
+needed. Port `465` is treated as secure automatically; otherwise set
+`SMTP_SECURE=true` when your provider requires TLS.
+
+### AI Assistant (Groq)
+
+The Nexus assistant runs through Groq from the backend. Keep the API key in
+`backend/.env`; it must never be placed in the frontend environment.
+
+```env
+GROQ_API_KEY=your_groq_api_key
+GROQ_MODEL=qwen/qwen3.8-27b
+AI_RETRY_DELAY_MS=250
+```
+
+`GROQ_API_KEY` is required for live assistant responses and `npm run eval`.
+`GROQ_MODEL` defaults to `qwen/qwen3.8-27b`, and
+`AI_RETRY_DELAY_MS` controls the delay between retry attempts. If the key is
+missing or Groq is unavailable, the rest of the application can still start,
+but AI requests return a conversational fallback and the technical failure is
+logged by the backend.
+
+### Other backend settings
+
+These settings are already included in `backend/.env.example` and can be
+adjusted when needed:
+
+```env
+PORT=3000
+FILE_UPLOAD_DIR=uploads
+BACKGROUND_WORKERS_ENABLED=true
+ORPHANED_FILE_CLEANUP_INTERVAL_MS=3600000
+AUDIT_LOG_CLEANUP_INTERVAL_MS=86400000
+UNCLAIMED_TICKET_REMINDER_INTERVAL_MS=300000
+FILE_ORPHAN_GRACE_PERIOD_MS=3600000
+```
+
+`APP_BASE_URL` is used in email links and should point to the frontend URL in
+the environment where the application is running. The complete variable
+templates are [backend/.env.example](backend/.env.example),
+[backend/.env.integration.example](backend/.env.integration.example), and
+[frontend/nexus/.env.example](frontend/nexus/.env.example).
 
 ## 9. Frontend Optional Configuration
 For the frontend, copy `frontend/nexus/.env.example` if you need to override the API origin:

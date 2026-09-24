@@ -526,7 +526,7 @@ function ensureFileFromExample(targetPath, examplePath) {
   return "created";
 }
 
-function printEnvStatus(filePath, requiredKeys) {
+function printEnvStatus(filePath, requiredKeys, { optional = false } = {}) {
   if (!fs.existsSync(filePath)) {
     warning(`${path.relative(repoRoot, filePath)} does not exist yet.`);
     return;
@@ -539,7 +539,11 @@ function printEnvStatus(filePath, requiredKeys) {
     } else if (item.status === "empty") {
       warning(`${item.key} exists but is empty`);
     } else {
-      failure(`${item.key} is missing`);
+      if (optional) {
+        warning(`${item.key} is not configured (optional)`);
+      } else {
+        failure(`${item.key} is missing`);
+      }
     }
   }
 }
@@ -566,6 +570,12 @@ async function runPrerequisitesStage() {
   );
   info(
     "- A Microsoft organization / Entra tenant if you intend to test authentication",
+  );
+  info(
+    "- A Groq API key if you want the AI assistant or model-backed evaluations",
+  );
+  info(
+    "- An SMTP email provider account if you want transactional email notifications",
   );
   info("- Optional: an API client such as Postman");
   info("");
@@ -669,6 +679,21 @@ async function runEnvironmentStage() {
   info(
     "Eurisko Academy instructors can check their Week 3 email for identity provider credentials.",
   );
+  info("");
+  info("AI assistant variables (required for AI responses and npm run eval):");
+  info("GROQ_API_KEY, GROQ_MODEL, AI_RETRY_DELAY_MS");
+  info("The API key stays in backend/.env and is never sent to the frontend.");
+  info("");
+  info("Email notification variables (optional; required to send email):");
+  info(
+    "SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASSWORD, SMTP_FROM_EMAIL,",
+  );
+  info(
+    "SMTP_FROM_NAME, SMTP_ENABLED, SMTP_TIMEOUT_MS, EMAIL_MAX_ATTEMPTS, EMAIL_RETRY_DELAY_MS, APP_BASE_URL",
+  );
+  info(
+    "Email delivery is best effort and does not block ticket operations when unavailable.",
+  );
 
   const effect = await askStageDecision(
     "Would you like this wizard to create missing .env files from the examples and then wait while you configure them?",
@@ -717,8 +742,32 @@ async function runEnvironmentStage() {
     "FRONTEND_URL",
   ]);
 
+  info("");
+  info("Optional AI configuration:");
+  printEnvStatus(path.join(repoRoot, "backend", ".env"), [
+    "GROQ_API_KEY",
+    "GROQ_MODEL",
+    "AI_RETRY_DELAY_MS",
+  ], { optional: true });
+  info("");
+  info("Optional email configuration:");
+  printEnvStatus(path.join(repoRoot, "backend", ".env"), [
+    "SMTP_HOST",
+    "SMTP_PORT",
+    "SMTP_SECURE",
+    "SMTP_USER",
+    "SMTP_PASSWORD",
+    "SMTP_FROM_EMAIL",
+    "SMTP_FROM_NAME",
+    "SMTP_ENABLED",
+    "SMTP_TIMEOUT_MS",
+    "EMAIL_MAX_ATTEMPTS",
+    "EMAIL_RETRY_DELAY_MS",
+    "APP_BASE_URL",
+  ], { optional: true });
+
   await askDoneOrCancel(
-    "Have you finished configuring the required environment variables?",
+    "Have you finished configuring the required variables and any optional integrations you want to use?",
   );
   success("Environment configuration acknowledged");
 }
