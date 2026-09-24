@@ -60,6 +60,16 @@ export function Sidebar({ open, onNavigate }) {
           <NavIcon src={chatsIcon} crop="chats" />
           Chats {unreadChats > 0 ? <span className="nav-notification-badge">{unreadChats > 99 ? '99+' : unreadChats}</span> : null}
         </NavLink>
+        <NavLink
+          to="/assistant"
+          className={({ isActive }) =>
+            'nav-item ' + (isActive ? 'is-active' : '')
+          }
+          onClick={onNavigate}
+        >
+          <span className="nav-ai-icon" aria-hidden="true">✦</span>
+          Assistant
+        </NavLink>
 
         {showWorkQueues ? (
           <>

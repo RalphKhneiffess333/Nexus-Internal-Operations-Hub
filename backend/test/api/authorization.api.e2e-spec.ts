@@ -8,6 +8,14 @@ test('rejects protected ticket endpoints without a session', async ({
   expect(response.status()).toBe(401);
 });
 
+test('rejects AI messages without a session', async ({ e2e }) => {
+  const response = await e2e.api.post('/ai/messages', {
+    data: { message: 'Help me with my laptop.' },
+  });
+
+  expect(response.status()).toBe(401);
+});
+
 test('rejects disallowed endpoint roles before reaching ticket policies', async ({
   e2e,
 }) => {

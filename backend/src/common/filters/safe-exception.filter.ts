@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import type { Response } from 'express';
 
 @Catch()
@@ -13,6 +14,7 @@ export class SafeExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(SafeExceptionFilter.name);
 
   catch(exception: unknown, host: ArgumentsHost): void {
+    const request = host.switchToHttp().getRequest<Request>();
     const response = host.switchToHttp().getResponse<Response>();
     const status =
       exception instanceof HttpException
@@ -23,8 +25,23 @@ export class SafeExceptionFilter implements ExceptionFilter {
     const message = this.safeMessage(exceptionResponse, status);
 
     if (status >= 500) {
+      const method = request?.method ?? 'UNKNOWN';
+      const path = request?.originalUrl ?? request?.url ?? 'unknown path';
+      const errorName =
+        exception instanceof Error ? exception.name : 'UnhandledException';
+      const errorMessage =
+        exception instanceof HttpException
+          ? 'HTTP exception'
+          : exception instanceof Error
+            ? exception.message
+            : String(exception);
       this.logger.error(
-        exception instanceof Error ? exception.stack : 'Unhandled exception',
+        `${method} ${path} -> ${status} ${errorName}: ${errorMessage}`,
+        exception instanceof HttpException
+          ? undefined
+          : exception instanceof Error
+            ? exception.stack
+            : undefined,
       );
     }
     response.status(status).json({ statusCode: status, message });

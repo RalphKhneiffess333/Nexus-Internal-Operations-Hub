@@ -10,6 +10,7 @@ const positiveIntegerKeys = [
   'AUDIT_LOG_CLEANUP_INTERVAL_MS',
   'UNCLAIMED_TICKET_REMINDER_INTERVAL_MS',
   'FILE_ORPHAN_GRACE_PERIOD_MS',
+  'AI_RETRY_DELAY_MS',
 ] as const;
 
 const booleanKeys = [

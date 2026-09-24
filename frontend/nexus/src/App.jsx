@@ -14,6 +14,7 @@ import { ChatsPage } from './pages/chats/ChatsPage'
 import { TicketChatPage } from './pages/chats/TicketChatPage'
 import { canWorkTickets, UserRole } from './features/tickets/ticket-types'
 import { NotFoundPage } from './pages/NotFoundPage'
+import { AssistantPage } from './pages/assistant/AssistantPage'
 
 function AdminRoute({ children }) {
   const { user } = useAuthentication()
@@ -51,6 +52,7 @@ export default function App() {
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/chats" element={<ChatsPage />} />
+          <Route path="/assistant" element={<AssistantPage />} />
           <Route path="/chats/:ticketId" element={<TicketChatPage />} />
           <Route path="/tickets" element={<TicketsPage view="submitted" />} />
           <Route
