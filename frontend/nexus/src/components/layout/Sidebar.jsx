@@ -1,27 +1,29 @@
-import { NavLink } from 'react-router-dom'
-import { useAuthentication } from '../../features/authentication/use-authentication'
-import { useOperationsSocket } from '../../features/realtime/use-operations-socket'
-import { canWorkTickets, UserRole } from '../../features/tickets/ticket-types'
-import { useNotifications } from '../../features/notifications/use-notifications'
-import nexusLogo from '../../assets/Nexus Logo.png'
-import dashboardIcon from '../../assets/Dashboard.svg'
-import myTicketsIcon from '../../assets/mytickets.svg'
-import ticketPoolIcon from '../../assets/ticketspool.svg'
-import chatsIcon from '../../assets/Chats.svg'
-import managementIcon from '../../assets/management.svg'
-import logsIcon from '../../assets/logs.svg'
-import handoffsIcon from '../../assets/handoffs.svg'
-import { NavIcon } from './NavIcon'
+import { NavLink } from "react-router-dom";
+import { useAuthentication } from "../../features/authentication/use-authentication";
+import { useOperationsSocket } from "../../features/realtime/use-operations-socket";
+import { canWorkTickets, UserRole } from "../../features/tickets/ticket-types";
+import { useNotifications } from "../../features/notifications/use-notifications";
+import nexusLogo from "../../assets/Nexus Logo.png";
+import dashboardIcon from "../../assets/Dashboard.svg";
+import myTicketsIcon from "../../assets/mytickets.svg";
+import ticketPoolIcon from "../../assets/ticketspool.svg";
+import chatsIcon from "../../assets/Chats.svg";
+import managementIcon from "../../assets/management.svg";
+import logsIcon from "../../assets/logs.svg";
+import handoffsIcon from "../../assets/handoffs.svg";
+import assistantIcon from "../../assets/assistant.svg";
+import { NavIcon } from "./NavIcon";
 
 export function Sidebar({ open, onNavigate }) {
-  const { user, logoutCurrentSession } = useAuthentication()
-  const { connectionState } = useOperationsSocket()
-  const { unreadChats, unclaimedTickets } = useNotifications()
-  const showWorkQueues = canWorkTickets(user)
-  const showAdministration = user?.role === UserRole.ADMIN
+  const { user, logoutCurrentSession } = useAuthentication();
+  const { connectionState } = useOperationsSocket();
+  const { unreadChats, unclaimedTickets, pendingIncomingHandoffs } =
+    useNotifications();
+  const showWorkQueues = canWorkTickets(user);
+  const showAdministration = user?.role === UserRole.ADMIN;
 
   return (
-    <aside className={`sidebar ${open ? 'is-open' : ''}`}>
+    <aside className={`sidebar ${open ? "is-open" : ""}`}>
       <div className="sidebar-brand">
         <img className="brand-mark" src={nexusLogo} alt="" aria-hidden="true" />
         <span className="brand-name">Nexus</span>
@@ -31,7 +33,7 @@ export function Sidebar({ open, onNavigate }) {
         <NavLink
           to="/dashboard"
           className={({ isActive }) =>
-            `nav-item ${isActive ? 'is-active' : ''}`
+            `nav-item ${isActive ? "is-active" : ""}`
           }
           end
           onClick={onNavigate}
@@ -40,9 +42,19 @@ export function Sidebar({ open, onNavigate }) {
           Dashboard
         </NavLink>
         <NavLink
+          to="/assistant"
+          className={({ isActive }) =>
+            "nav-item " + (isActive ? "is-active" : "")
+          }
+          onClick={onNavigate}
+        >
+          <NavIcon src={assistantIcon} />
+          Assistant
+        </NavLink>
+        <NavLink
           to="/tickets"
           className={({ isActive }) =>
-            `nav-item ${isActive ? 'is-active' : ''}`
+            `nav-item ${isActive ? "is-active" : ""}`
           }
           end
           onClick={onNavigate}
@@ -50,59 +62,79 @@ export function Sidebar({ open, onNavigate }) {
           <NavIcon src={myTicketsIcon} crop="mytickets" />
           My Tickets
         </NavLink>
-        <NavLink
-          to="/chats"
-          className={({ isActive }) =>
-            `nav-item ${isActive ? 'is-active' : ''}`
-          }
-          onClick={onNavigate}
-        >
-          <NavIcon src={chatsIcon} crop="chats" />
-          Chats {unreadChats > 0 ? <span className="nav-notification-badge">{unreadChats > 99 ? '99+' : unreadChats}</span> : null}
-        </NavLink>
-        <NavLink
-          to="/assistant"
-          className={({ isActive }) =>
-            'nav-item ' + (isActive ? 'is-active' : '')
-          }
-          onClick={onNavigate}
-        >
-          <span className="nav-ai-icon" aria-hidden="true">✦</span>
-          Assistant
-        </NavLink>
 
         {showWorkQueues ? (
           <>
             <NavLink
               to="/tickets/pool"
               className={({ isActive }) =>
-                `nav-item ${isActive ? 'is-active' : ''}`
+                `nav-item ${isActive ? "is-active" : ""}`
               }
               onClick={onNavigate}
             >
               <NavIcon src={ticketPoolIcon} crop="ticketpool" />
-              Ticket Pools {unclaimedTickets > 0 ? <span className="nav-notification-badge">{unclaimedTickets > 99 ? '99+' : unclaimedTickets}</span> : null}
+              Ticket Pools{" "}
+              {unclaimedTickets > 0 ? (
+                <span className="nav-notification-badge">
+                  {unclaimedTickets > 99 ? "99+" : unclaimedTickets}
+                </span>
+              ) : null}
             </NavLink>
             <NavLink
               to="/tickets/handoffs"
               className={({ isActive }) =>
-                `nav-item ${isActive ? 'is-active' : ''}`
+                `nav-item ${isActive ? "is-active" : ""}`
               }
               onClick={onNavigate}
             >
               <NavIcon src={handoffsIcon} crop="handoffs" />
-              Handoffs
+              Handoffs{" "}
+              {pendingIncomingHandoffs > 0 ? (
+                <span className="nav-notification-badge">
+                  {pendingIncomingHandoffs > 99
+                    ? "99+"
+                    : pendingIncomingHandoffs}
+                </span>
+              ) : null}
             </NavLink>
           </>
         ) : null}
 
+        <NavLink
+          to="/chats"
+          className={({ isActive }) =>
+            `nav-item ${isActive ? "is-active" : ""}`
+          }
+          onClick={onNavigate}
+        >
+          <NavIcon src={chatsIcon} crop="chats" />
+          Chats{" "}
+          {unreadChats > 0 ? (
+            <span className="nav-notification-badge">
+              {unreadChats > 99 ? "99+" : unreadChats}
+            </span>
+          ) : null}
+        </NavLink>
+
         {showAdministration ? (
           <>
-            <NavLink to="/admin/management" className={({ isActive }) => `nav-item ${isActive ? 'is-active' : ''}`} onClick={onNavigate}>
+            <NavLink
+              to="/admin/management"
+              className={({ isActive }) =>
+                `nav-item ${isActive ? "is-active" : ""}`
+              }
+              onClick={onNavigate}
+            >
               <NavIcon src={managementIcon} crop="management" />
               Management
             </NavLink>
-            <NavLink to="/admin/logs" className={({ isActive }) => `nav-item ${isActive ? 'is-active' : ''}`} onClick={onNavigate}>
+            <NavLink
+              to="/admin/logs"
+              className={({ isActive }) =>
+                `nav-item ${isActive ? "is-active" : ""}`
+              }
+              onClick={onNavigate}
+            >
               <NavIcon src={logsIcon} crop="logs" />
               Logs
             </NavLink>
@@ -118,14 +150,18 @@ export function Sidebar({ open, onNavigate }) {
               role="status"
               aria-label={`Live updates ${connectionState}`}
             />
-            {user?.fullName ?? 'Signed in'}
+            {user?.fullName ?? "Signed in"}
           </p>
           <span>{user?.email}</span>
         </div>
-        <button type="button" className="sidebar-logout" onClick={logoutCurrentSession}>
+        <button
+          type="button"
+          className="sidebar-logout"
+          onClick={logoutCurrentSession}
+        >
           Sign out
         </button>
       </div>
     </aside>
-  )
+  );
 }

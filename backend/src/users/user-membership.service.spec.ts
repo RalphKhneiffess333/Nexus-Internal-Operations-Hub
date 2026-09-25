@@ -72,4 +72,38 @@ describe('UserMembershipService', () => {
 
     expect(publish).toHaveBeenCalledWith(mutations, 'admin-1');
   });
+
+  it('cancels eligible tickets before removing a deactivated user from departments', async () => {
+    const tx = {} as Prisma.TransactionClient;
+    const cancelled = [{ ticketEventId: 'cancel-event' }] as never;
+    const reconciled = [{ ticketEventId: 'close-event' }] as never;
+    const cancelTicketsForDeactivatedUser = jest
+      .fn()
+      .mockResolvedValue(cancelled);
+    const cancelPendingForUser = jest.fn().mockResolvedValue(undefined);
+    const reconciliation = {
+      cancelTicketsForDeactivatedUser,
+      cancelPendingForUser,
+    } as unknown as TicketAssignmentReconciliationService;
+    const service = new UserMembershipService(
+      {
+        findMemberships: jest.fn().mockResolvedValue([]),
+      } as unknown as UsersRepository,
+      {} as never,
+      reconciliation,
+    );
+    jest
+      .spyOn(service, 'reconcileUserEligibility')
+      .mockResolvedValue(reconciled);
+
+    await expect(
+      service.reconcileUserDeactivation('user-1', 'admin-1', tx),
+    ).resolves.toEqual([...cancelled, ...reconciled]);
+
+    expect(cancelTicketsForDeactivatedUser).toHaveBeenCalledWith(
+      'user-1',
+      'admin-1',
+      tx,
+    );
+  });
 });

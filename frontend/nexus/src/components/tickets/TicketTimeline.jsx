@@ -214,6 +214,7 @@ function AttachmentList({
               <button
                 type="button"
                 className="timeline-attachment"
+                title={attachment.originalName}
                 onClick={() => onOpen(attachment)}
                 disabled={downloadingAttachmentId === attachment.attachmentId}
               >

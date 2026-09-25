@@ -18,7 +18,7 @@ describe('UserAdministrationService', () => {
     findAdminById: jest.Mock;
   };
   let membership: {
-    reconcileUserEligibility: jest.Mock;
+    reconcileUserDeactivation: jest.Mock;
     ensureAdministrationMembership: jest.Mock;
     publish: jest.Mock;
   };
@@ -38,7 +38,7 @@ describe('UserAdministrationService', () => {
       (operation as (client: Prisma.TransactionClient) => Promise<unknown>)(tx),
     );
     membership = {
-      reconcileUserEligibility: jest.fn().mockResolvedValue([] as never),
+      reconcileUserDeactivation: jest.fn().mockResolvedValue([] as never),
       ensureAdministrationMembership: jest
         .fn()
         .mockResolvedValue(undefined as never),
@@ -81,7 +81,7 @@ describe('UserAdministrationService', () => {
       UserInternalEvent.Deactivated,
       { userId: 'user-1' },
     );
-    expect(membership.reconcileUserEligibility).toHaveBeenCalledWith(
+    expect(membership.reconcileUserDeactivation).toHaveBeenCalledWith(
       'user-1',
       'admin-1',
       expect.anything(),

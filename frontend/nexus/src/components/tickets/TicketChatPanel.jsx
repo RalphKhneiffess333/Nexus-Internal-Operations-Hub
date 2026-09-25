@@ -28,6 +28,10 @@ function mergeMessages(current, incoming) {
   return sortMessages([...byId.values()])
 }
 
+function isConversationVisible() {
+  return document.visibilityState === 'visible' && document.hasFocus()
+}
+
 export function TicketChatPanel({
   ticket,
   currentUser,
@@ -50,11 +54,15 @@ export function TicketChatPanel({
   const messageListRef = useRef(null)
   const messagePageRef = useRef(1)
   const shouldFollowLatestRef = useRef(true)
+  const hasLoadedMessagesRef = useRef(false)
   const ticketId = ticket?.ticketId
   const { beginRequest } = useLatestRequest()
 
   const writable = ticket?.active !== false && ticket?.status === 'CLAIMED' &&
     (ticket?.submittedBy?.userId === currentUser?.userId || ticket?.agent?.userId === currentUser?.userId)
+  const readOnlyReason = ticket?.active !== false && ticket?.status === 'CLAIMED'
+    ? 'This chat is read-only because it is not assigned to you.'
+    : 'This chat is read-only because the ticket is not currently claimed.'
 
   const loadMessages = useCallback(async ({ silent = false, append = false, nextPage = 1 } = {}) => {
     const request = beginRequest()
@@ -69,17 +77,20 @@ export function TicketChatPanel({
         { page: nextPage, pageSize: 50 },
         { signal: request.controller.signal },
       )
-      if (!request.isCurrent()) return
+      if (!request.isCurrent()) return false
       const incoming = result?.items ?? (Array.isArray(result) ? result : [])
       setMessages((current) => (append || silent ? mergeMessages(current, incoming) : incoming))
       const highestPage = Math.max(messagePageRef.current, nextPage)
       messagePageRef.current = highestPage
       setMessagePage(highestPage)
       if (nextPage === highestPage) setHasMoreMessages(Boolean(result?.hasMore))
+      if (!append) hasLoadedMessagesRef.current = true
+      return true
     } catch (loadError) {
       if (request.isCurrent() && !silent) {
         setError(loadError.message || 'Unable to load the conversation.')
       }
+      return false
     } finally {
       if (request.isCurrent()) {
         if (append) {
@@ -95,6 +106,7 @@ export function TicketChatPanel({
   useEffect(() => {
     // Reset paginated history when the selected ticket changes.
     messagePageRef.current = 1
+    hasLoadedMessagesRef.current = false
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMessagePage(1)
     setHasMoreMessages(false)
@@ -102,24 +114,44 @@ export function TicketChatPanel({
   }, [ticketId])
 
   useEffect(() => {
-    // The authoritative history request intentionally synchronizes this panel.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadMessages()
-    void onConversationRead?.()
+    // Do not write a read receipt until the conversation is available to the
+    // user in the active browser window.
+    void (async () => {
+      const loaded = await loadMessages()
+      if (loaded && isConversationVisible()) {
+        void onConversationRead?.()
+      }
+    })()
   }, [loadMessages, onConversationRead])
 
   useEffect(() => subscribeToChat(ticketId, (event) => {
     if (event?.type === 'reconnected') {
-      void loadMessages({ silent: true })
+      void loadMessages({ silent: true }).then((loaded) => {
+        if (loaded && isConversationVisible()) void onConversationRead?.()
+      })
       return
     }
     if (event?.payload?.messageId) {
       setMessages((current) => mergeMessages(current, [event.payload]))
-      if (event.payload.sender?.userId !== currentUser?.userId) {
+      if (event.payload.sender?.userId !== currentUser?.userId && isConversationVisible()) {
         void onConversationRead?.()
       }
     }
   }), [currentUser?.userId, loadMessages, onConversationRead, subscribeToChat, ticket?.status, ticketId])
+
+  useEffect(() => {
+    const markReadWhenVisible = () => {
+      if (hasLoadedMessagesRef.current && isConversationVisible()) {
+        void onConversationRead?.()
+      }
+    }
+    window.addEventListener('focus', markReadWhenVisible)
+    document.addEventListener('visibilitychange', markReadWhenVisible)
+    return () => {
+      window.removeEventListener('focus', markReadWhenVisible)
+      document.removeEventListener('visibilitychange', markReadWhenVisible)
+    }
+  }, [onConversationRead])
 
   useLayoutEffect(() => {
     if (!shouldFollowLatestRef.current) return
@@ -232,7 +264,7 @@ export function TicketChatPanel({
             <li key={message.messageId} className={`ticket-chat-message${message.sender?.userId === currentUser?.userId ? ' is-mine' : ''}`}>
               <div className="ticket-chat-message-meta"><UserLink user={message.sender} /><time dateTime={message.createdAt}>{formatDateTime(message.createdAt)}</time></div>
               {message.content ? <p>{message.content}</p> : null}
-              {message.attachments?.length ? <ul className="ticket-chat-attachments">{message.attachments.map((attachment) => <li key={attachment.attachmentId}><div><button type="button" className="ticket-chat-attachment-name" onClick={() => void handleOpen(message.messageId, attachment)} disabled={downloadingAttachmentId === attachment.attachmentId}>📎 <span>{attachment.originalName}</span></button><button type="button" className="ticket-chat-attachment-download" onClick={() => void handleDownload(message.messageId, attachment.attachmentId)} disabled={downloadingAttachmentId === attachment.attachmentId}>{downloadingAttachmentId === attachment.attachmentId ? 'Working…' : 'Download'}</button></div></li>)}</ul> : null}
+              {message.attachments?.length ? <ul className="ticket-chat-attachments">{message.attachments.map((attachment) => <li key={attachment.attachmentId}><div><button type="button" className="ticket-chat-attachment-name" title={attachment.originalName} onClick={() => void handleOpen(message.messageId, attachment)} disabled={downloadingAttachmentId === attachment.attachmentId}>📎 <span>{attachment.originalName}</span></button><button type="button" className="ticket-chat-attachment-download" onClick={() => void handleDownload(message.messageId, attachment.attachmentId)} disabled={downloadingAttachmentId === attachment.attachmentId}>{downloadingAttachmentId === attachment.attachmentId ? 'Working…' : 'Download'}</button></div></li>)}</ul> : null}
             </li>
           ))}
         </ol>
@@ -258,7 +290,7 @@ export function TicketChatPanel({
           <div className="ticket-chat-actions"><span>{content.length}/{MAX_CHAT_MESSAGE_LENGTH}</span><button type="submit" className="btn primary" disabled={sending || (!content.trim() && files.length === 0)}>{sending ? 'Sending…' : 'Send message'}</button></div>
         </form>
       ) : (
-        <p className="ticket-chat-read-only">This chat is read-only because the ticket is not currently claimed.</p>
+        <p className="ticket-chat-read-only">{readOnlyReason}</p>
       )}
     </section>
   )

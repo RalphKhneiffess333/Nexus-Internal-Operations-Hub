@@ -152,7 +152,7 @@ export function TicketForm({
                   )
                   .map((attachment) => (
                     <li key={attachment.attachmentId}>
-                      <span className="file-name">
+                      <span className="file-name" title={attachment.originalName}>
                         <span aria-hidden="true">📎</span>
                         {attachment.originalName}
                       </span>

@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   getTestAuthentication,
   loginAsTestUser,
 } from './test-authentication-api'
 import { useAuthentication } from './use-authentication'
 import { AppSelect } from '../../components/ui/AppSelect'
+import { ApiError } from '../../lib/api/client'
 
 function userOptionLabel(user) {
   const departments = user.departments.map((department) => department.code)
@@ -14,6 +16,7 @@ function userOptionLabel(user) {
 
 export function TestLoginPanel() {
   const { refreshAuthentication } = useAuthentication()
+  const navigate = useNavigate()
   const [users, setUsers] = useState([])
   const [selectedUserId, setSelectedUserId] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -60,6 +63,15 @@ export function TestLoginPanel() {
       await loginAsTestUser(selectedUserId)
       await refreshAuthentication()
     } catch (loginError) {
+      if (
+        loginError instanceof ApiError &&
+        loginError.status === 401 &&
+        loginError.message === 'The selected test user is inactive'
+      ) {
+        navigate('/?account=deactivated', { replace: true })
+        return
+      }
+
       setError(loginError.message || 'Unable to start the test session.')
     } finally {
       setSubmitting(false)

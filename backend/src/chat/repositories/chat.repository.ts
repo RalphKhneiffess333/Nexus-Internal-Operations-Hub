@@ -186,7 +186,6 @@ export class ChatRepository {
   async findInboxTickets(
     userId: string,
     actorRole: UserRole,
-    actorDepartmentIds: string[],
     page = 1,
     pageSize = 50,
     search?: string,
@@ -195,16 +194,34 @@ export class ChatRepository {
     const safePage = Math.max(page, 1);
     try {
       const visibility =
-        actorRole === UserRole.Admin
-          ? Prisma.empty
-          : actorRole === UserRole.Agent && actorDepartmentIds.length > 0
-            ? Prisma.sql`
-                AND (
-                  t."submitted_by" = ${userId}
-                  OR t."department_id" IN (${Prisma.join(actorDepartmentIds)})
+        actorRole === UserRole.Employee
+          ? Prisma.sql`AND t."submitted_by" = ${userId}`
+          : Prisma.sql`
+              AND (
+                t."agent_id" = ${userId}
+                OR EXISTS (
+                  SELECT 1
+                  FROM "ticket_events" ownership_event
+                  WHERE ownership_event."ticket_id" = t."ticket_id"
+                    AND (
+                      (
+                        ownership_event.action::text = 'CLAIM'
+                        AND ownership_event.details ->> 'agentId' = ${userId}
+                      )
+                      OR (
+                        ownership_event.action::text = 'HANDOFF'
+                        AND (
+                          ownership_event.details ->> 'requesterId' = ${userId}
+                          OR (
+                            ownership_event.details ->> 'action' = 'ACCEPTED'
+                            AND ownership_event.details ->> 'requestedAgentId' = ${userId}
+                          )
+                        )
+                      )
+                    )
                 )
-              `
-            : Prisma.sql`AND t."submitted_by" = ${userId}`;
+              )
+            `;
       const trimmedSearch = search?.trim();
       const searchFilter = trimmedSearch
         ? Prisma.sql`
@@ -264,7 +281,9 @@ export class ChatRepository {
         LEFT JOIN "chat_read_receipts" receipt
           ON receipt.ticket_id = t.ticket_id
           AND receipt.user_id = ${userId}
-        WHERE t.active = TRUE ${visibility} ${searchFilter}
+        WHERE t.active = TRUE
+          AND latest.message_id IS NOT NULL
+          ${visibility} ${searchFilter}
         ORDER BY
           latest.created_at DESC NULLS LAST,
           latest.message_id DESC NULLS LAST,

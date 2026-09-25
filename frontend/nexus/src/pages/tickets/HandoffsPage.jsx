@@ -8,6 +8,7 @@ import noHandoffImage from '../../assets/NoHandoff.png'
 import { useAuthentication } from '../../features/authentication/use-authentication'
 import { useDepartments } from '../../features/departments/use-departments'
 import { useFilterOptions } from '../../features/filters/use-filter-options'
+import { useNotifications } from '../../features/notifications/use-notifications'
 import {
   acceptHandoff,
   cancelHandoff,
@@ -18,6 +19,7 @@ import { useLatestRequest } from '../../lib/api/use-latest-request'
 
 export function HandoffsPage() {
   const { user } = useAuthentication()
+  const { pendingIncomingHandoffs, refreshNotificationCounts } = useNotifications()
   const [searchParams, setSearchParams] = useSearchParams()
   const view = searchParams.get('view') === 'outgoing' ? 'outgoing' : 'incoming'
   const search = searchParams.get('search') ?? ''
@@ -116,9 +118,11 @@ export function HandoffsPage() {
     setActionError('')
     try {
       await action(handoff.handoffId)
+      void refreshNotificationCounts()
       await loadHandoffs()
     } catch (actionLoadError) {
       setActionError(actionLoadError.message || 'This handoff request is no longer available.')
+      void refreshNotificationCounts()
       await loadHandoffs()
     } finally {
       setBusy(false)
@@ -144,7 +148,7 @@ export function HandoffsPage() {
           className={view === 'incoming' ? 'is-active' : ''}
           onClick={() => updateView('incoming')}
         >
-          Incoming
+          Incoming {pendingIncomingHandoffs > 0 ? <span className="section-notification-badge">{pendingIncomingHandoffs > 99 ? '99+' : pendingIncomingHandoffs}</span> : null}
         </button>
         <button
           type="button"

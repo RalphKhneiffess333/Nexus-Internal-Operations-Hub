@@ -34,7 +34,7 @@ function userFacingMessage(status, payload) {
 }
 
 export async function apiRequest(path, options = {}) {
-  const { method = 'GET', body, signal } = options
+  const { method = 'GET', body, signal, expectJson = true } = options
   const headers = { Accept: 'application/json' }
   const isFormData = typeof FormData !== 'undefined' && body instanceof FormData
 
@@ -82,6 +82,7 @@ export async function apiRequest(path, options = {}) {
   }
 
   if (!isJson) {
+    if (!expectJson) return null
     throw new ApiError('The server returned an unexpected response.', response.status)
   }
 

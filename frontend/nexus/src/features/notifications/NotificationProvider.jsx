@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import notificationSound from '../../assets/notification.mp3'
+import chatReceivedSound from '../../assets/chatrec.mp3'
 import { useOperationsSocket } from '../realtime/use-operations-socket'
 import { useAuthentication } from '../authentication/use-authentication'
-import { getChatConversations, getTicketPoolCount } from '../tickets/ticket-api'
+import {
+  getChatConversations,
+  getIncomingPendingHandoffCount,
+  getTicketPoolCount,
+} from '../tickets/ticket-api'
 import { UserRole } from '../tickets/ticket-types'
 import { useLatestRequest } from '../../lib/api/use-latest-request'
 import { Dialog } from '../../components/ui/Dialog'
@@ -15,6 +20,7 @@ function pageTitle(pathname, resourceTitle = '') {
   if (pathname === '/dashboard') return 'Dashboard - Nexus'
   if (pathname === '/chats') return 'Chats - Nexus'
   if (pathname.startsWith('/chats/')) return resourceTitle || 'Ticket Chat - Nexus'
+  if (pathname === '/assistant') return 'Assistant - Nexus'
   if (pathname === '/tickets') return 'My Tickets - Nexus'
   if (pathname === '/tickets/pool') return 'Ticket Pools - Nexus'
   if (pathname === '/tickets/handoffs') return 'Handoffs - Nexus'
@@ -33,10 +39,14 @@ export function NotificationProvider({ children }) {
   const [toasts, setToasts] = useState([])
   const [blockingNotification, setBlockingNotification] = useState(null)
   const [unreadChatIds, setUnreadChatIds] = useState(() => new Set())
+  const [unreadChatsReady, setUnreadChatsReady] = useState(false)
+  const [chatInboxVersion, setChatInboxVersion] = useState(0)
   const [unclaimedTickets, setUnclaimedTickets] = useState(0)
+  const [pendingIncomingHandoffs, setPendingIncomingHandoffs] = useState(0)
   const [resourceTitleState, setResourceTitleState] = useState(null)
   const audioContextRef = useRef(null)
   const audioBufferRef = useRef(null)
+  const chatReceivedAudioBufferRef = useRef(null)
   const titleCountRef = useRef(0)
   const focusedRef = useRef(!document.hidden)
   const timersRef = useRef(new Set())
@@ -57,16 +67,6 @@ export function NotificationProvider({ children }) {
       title: typeof title === 'string' ? title.trim() : '',
     })
   }, [location.pathname])
-
-  const markChatRead = useCallback((ticketId) => {
-    if (!ticketId) return
-    setUnreadChatIds((current) => {
-      if (!current.has(ticketId)) return current
-      const next = new Set(current)
-      next.delete(ticketId)
-      return next
-    })
-  }, [])
 
   const loadUnreadChatIds = useCallback(async (signal) => {
     const unreadIds = new Set()
@@ -96,22 +96,71 @@ export function NotificationProvider({ children }) {
     const poolCountPromise = canViewTicketPool
       ? getTicketPoolCount({ signal: request.controller.signal })
       : Promise.resolve(null)
+    const pendingIncomingHandoffsPromise = canViewTicketPool
+      ? getIncomingPendingHandoffCount({ signal: request.controller.signal })
+      : Promise.resolve(null)
     const unreadChatIdsPromise = loadUnreadChatIds(request.controller.signal)
-    const [poolCountResult, unreadChatIdsResult] = await Promise.allSettled([
+    const [poolCountResult, unreadChatIdsResult, pendingIncomingHandoffsResult] = await Promise.allSettled([
       poolCountPromise,
       unreadChatIdsPromise,
+      pendingIncomingHandoffsPromise,
     ])
 
     if (!request.isCurrent()) return
     if (unreadChatIdsResult.status === 'fulfilled') {
       setUnreadChatIds(unreadChatIdsResult.value)
+      setUnreadChatsReady(true)
+      setChatInboxVersion((version) => version + 1)
     }
     if (!canViewTicketPool) {
       setUnclaimedTickets(0)
-    } else if (poolCountResult.status === 'fulfilled') {
-      setUnclaimedTickets(Number(poolCountResult.value?.count) || 0)
+      setPendingIncomingHandoffs(0)
+    } else {
+      if (poolCountResult.status === 'fulfilled') {
+        setUnclaimedTickets(Number(poolCountResult.value?.count) || 0)
+      }
+      if (pendingIncomingHandoffsResult.status === 'fulfilled') {
+        setPendingIncomingHandoffs(pendingIncomingHandoffsResult.value)
+      }
     }
   }, [beginCountRequest, canViewTicketPool, loadUnreadChatIds, user?.userId])
+
+  const markChatRead = useCallback((ticketId) => {
+    if (!ticketId) return
+    if (countRefreshTimerRef.current) {
+      window.clearTimeout(countRefreshTimerRef.current)
+      countRefreshTimerRef.current = null
+    }
+    // A count request may have read the old receipt before this chat was marked
+    // read. Cancel it so it cannot restore stale unread state afterwards.
+    cancelCountRequest()
+    setUnreadChatIds((current) => {
+      if (!current.has(ticketId)) return current
+      const next = new Set(current)
+      next.delete(ticketId)
+      return next
+    })
+    setChatInboxVersion((version) => version + 1)
+    // The read receipt has already been persisted by the caller. Re-read the
+    // authoritative server state after invalidating any older snapshot.
+    void refreshNotificationCounts()
+  }, [cancelCountRequest, refreshNotificationCounts])
+
+  const markChatUnread = useCallback((ticketId) => {
+    if (!ticketId) return
+    setUnreadChatIds((current) => {
+      if (current.has(ticketId)) return current
+      const next = new Set(current)
+      next.add(ticketId)
+      return next
+    })
+    setChatInboxVersion((version) => version + 1)
+  }, [])
+
+  const isChatUnread = useCallback(
+    (ticketId) => Boolean(ticketId && unreadChatIds.has(ticketId)),
+    [unreadChatIds],
+  )
 
   const scheduleNotificationCountRefresh = useCallback(() => {
     if (countRefreshTimerRef.current) window.clearTimeout(countRefreshTimerRef.current)
@@ -133,10 +182,20 @@ export function NotificationProvider({ children }) {
       if (!audioContextRef.current) audioContextRef.current = new AudioContext()
       const context = audioContextRef.current
       if (context.state !== 'running') await context.resume()
-      if (!audioBufferRef.current) {
-        const response = await fetch(notificationSound)
-        audioBufferRef.current = await context.decodeAudioData(await response.arrayBuffer())
-      }
+      await Promise.allSettled([
+        audioBufferRef.current
+          ? Promise.resolve()
+          : fetch(notificationSound)
+            .then((response) => response.arrayBuffer())
+            .then((data) => context.decodeAudioData(data))
+            .then((buffer) => { audioBufferRef.current = buffer }),
+        chatReceivedAudioBufferRef.current
+          ? Promise.resolve()
+          : fetch(chatReceivedSound)
+            .then((response) => response.arrayBuffer())
+            .then((data) => context.decodeAudioData(data))
+            .then((buffer) => { chatReceivedAudioBufferRef.current = buffer }),
+      ])
     } catch {
       // Browser autoplay and decoding failures must never affect live updates.
     }
@@ -155,6 +214,21 @@ export function NotificationProvider({ children }) {
       // A suspended context is an expected browser restriction.
     }
   }, [])
+
+  const playChatReceivedSound = useCallback(async () => {
+    await unlockAudio()
+    const context = audioContextRef.current
+    const buffer = chatReceivedAudioBufferRef.current
+    if (!context || !buffer || context.state !== 'running') return
+    try {
+      const source = context.createBufferSource()
+      source.buffer = buffer
+      source.connect(context.destination)
+      source.start()
+    } catch {
+      // A suspended context is an expected browser restriction.
+    }
+  }, [unlockAudio])
 
   const dismissToast = useCallback((toastId) => {
     setToasts((current) => current.map((toast) => toast.id === toastId ? { ...toast, leaving: true } : toast))
@@ -180,7 +254,10 @@ export function NotificationProvider({ children }) {
       // Reset badge state when the authenticated session disappears.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setUnreadChatIds(new Set())
+      setUnreadChatsReady(false)
+      setChatInboxVersion((version) => version + 1)
       setUnclaimedTickets(0)
+      setPendingIncomingHandoffs(0)
       return
     }
     // Badges are initialized from server state instead of inferred from realtime deltas.
@@ -207,6 +284,7 @@ export function NotificationProvider({ children }) {
       focusedRef.current = true
       titleCountRef.current = 0
       applyTitle()
+      scheduleNotificationCountRefresh()
     }
     const handleVisibility = () => {
       focusedRef.current = !document.hidden
@@ -218,7 +296,7 @@ export function NotificationProvider({ children }) {
       window.removeEventListener('focus', reset)
       document.removeEventListener('visibilitychange', handleVisibility)
     }
-  }, [applyTitle])
+  }, [applyTitle, scheduleNotificationCountRefresh])
 
   useEffect(() => subscribeToNotifications((event) => {
     const notification = event.payload
@@ -231,7 +309,13 @@ export function NotificationProvider({ children }) {
       && notification.ticketId
       && location.pathname === `/chats/${notification.ticketId}`
       && focusedRef.current
-    if (isCurrentChat) return
+    if (isCurrentChat) {
+      playChatReceivedSound()
+      return
+    }
+    if (notification.type === 'CHAT_MESSAGE') {
+      markChatUnread(notification.ticketId)
+    }
     scheduleNotificationCountRefresh()
     const toast = { id: event.eventId, ...notification }
     setToasts((current) => [...current.slice(-3), toast])
@@ -245,15 +329,21 @@ export function NotificationProvider({ children }) {
       titleCountRef.current += 1
       applyTitle()
     }
-  }), [applyTitle, dismissToast, location.pathname, playSound, scheduleNotificationCountRefresh, subscribeToNotifications])
+  }), [applyTitle, dismissToast, location.pathname, markChatUnread, playChatReceivedSound, playSound, scheduleNotificationCountRefresh, subscribeToNotifications])
 
   const value = useMemo(() => ({
     unreadChats,
+    unreadChatsReady,
+    isChatUnread,
+    chatInboxVersion,
     unclaimedTickets,
+    pendingIncomingHandoffs,
     markChatRead,
     refreshNotificationCounts,
     setResourceTitle,
-  }), [markChatRead, refreshNotificationCounts, setResourceTitle, unclaimedTickets, unreadChats])
+    unlockAudio,
+    playChatReceivedSound,
+  }), [chatInboxVersion, isChatUnread, markChatRead, pendingIncomingHandoffs, playChatReceivedSound, refreshNotificationCounts, setResourceTitle, unlockAudio, unclaimedTickets, unreadChats, unreadChatsReady])
 
   return (
     <NotificationsContext.Provider value={value}>

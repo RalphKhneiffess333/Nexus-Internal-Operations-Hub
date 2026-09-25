@@ -38,6 +38,11 @@ export function TicketDetails({
   const submitted = formatDate(ticket.createdAt)
   const updated = formatDate(ticket.updatedAt)
   const closed = formatDate(ticket.closedAt)
+  const attachmentHeading = ticket.status === 'CLOSED'
+    ? 'Files attached to completion notes'
+    : ticket.status === 'REOPENED'
+      ? 'Files attached to reopened description'
+      : 'Files attached to description'
   return (
     <article className="ticket-details clay-card content-reveal">
       <div className="ticket-details-heading">
@@ -81,17 +86,6 @@ export function TicketDetails({
         <DetailRow
           label="Completion notes"
           value={ticket.completionNotes}
-          supplemental={
-            ticket.status === 'CLOSED' && attachments.length > 0 ? (
-              <TicketAttachments
-                attachments={attachments}
-                heading="Files attached to completion notes"
-                downloadingAttachmentId={downloadingAttachmentId}
-                onOpen={onOpenAttachment}
-                onDownload={onDownloadAttachment}
-              />
-            ) : null
-          }
         />
         <DetailRow label="Closed" value={closed} />
       </dl>
@@ -99,15 +93,13 @@ export function TicketDetails({
       <section className="detail-block">
         <h2>Description</h2>
         <p>{ticket.description}</p>
-        {ticket.status !== 'CLOSED' ? (
-          <TicketAttachments
-            attachments={attachments}
-            heading="Files attached to description"
-            downloadingAttachmentId={downloadingAttachmentId}
-            onOpen={onOpenAttachment}
-            onDownload={onDownloadAttachment}
-          />
-        ) : null}
+        <TicketAttachments
+          attachments={attachments}
+          heading={attachmentHeading}
+          downloadingAttachmentId={downloadingAttachmentId}
+          onOpen={onOpenAttachment}
+          onDownload={onDownloadAttachment}
+        />
       </section>
 
       <dl className="detail-grid">

@@ -52,7 +52,7 @@ export function getChatConversations(params = {}, requestOptions = {}) {
 }
 
 export function markChatConversationRead(ticketId) {
-  return apiRequest(`/chats/${ticketId}/read`, { method: 'POST' })
+  return apiRequest(`/chats/${ticketId}/read`, { method: 'POST', expectJson: false })
 }
 
 export function createChatMessage(ticketId, content, files = []) {
@@ -102,6 +102,14 @@ export function cancelHandoff(handoffId) {
 
 export function getHandoffs(params = {}, requestOptions = {}) {
   return apiRequest(withQuery('/handoffs', params), requestOptions)
+}
+
+export async function getIncomingPendingHandoffCount(requestOptions = {}) {
+  const result = await getHandoffs(
+    { direction: 'incoming', status: 'PENDING', page: 1, pageSize: 1 },
+    requestOptions,
+  )
+  return Number(result?.pendingCount) || 0
 }
 
 export function getHandoffParticipants(requestOptions = {}) {

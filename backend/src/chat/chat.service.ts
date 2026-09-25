@@ -162,11 +162,9 @@ export class ChatService {
     actor: AuthenticatedRequestUser,
     query: ChatInboxQueryDto = {},
   ): Promise<ChatConversationPageResponse> {
-    const actorDepartmentIds = await this.getActorDepartmentIds(actor.userId);
     const result: ChatInboxPage = await this.chatRepository.findInboxTickets(
       actor.userId,
       actor.role,
-      actorDepartmentIds,
       query.page,
       query.pageSize,
       query.search,
@@ -238,16 +236,22 @@ export class ChatService {
       const response = this.toResponse(message);
       this.publishMessage(response, actor.userId);
       const ticket = await this.ticketsRepository.findById(ticketId);
-      const recipientUserId =
-        ticket?.submittedBy === actor.userId ? ticket.agentId : ticket?.submittedBy;
-      if (recipientUserId) {
-        this.notifications.notify({
-          type: 'CHAT_MESSAGE',
-          message: `New message received on ticket ${ticket?.ticketCode ?? ''}.`,
-          recipientUserIds: [recipientUserId],
-          ticketId,
-          link: `/chats/${ticketId}`,
-        });
+      if (ticket) {
+        void this.notifications
+          .notifyChatViewers(
+            ticket.departmentId,
+            ticket.submittedBy,
+            {
+              type: 'CHAT_MESSAGE',
+              message: `New message received on ticket ${ticket.ticketCode}.`,
+              ticketId,
+              link: `/chats/${ticketId}`,
+            },
+            actor.userId,
+          )
+          .catch(() => {
+            // Realtime notification delivery must not fail a persisted message.
+          });
       }
       return response;
     } catch (error) {

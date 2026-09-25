@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole } from '@prisma/client';
+import { Prisma, PrismaClient, UserRole } from '@prisma/client';
 import { ADMINISTRATION_DEPARTMENT_ID } from '../departments/department.constants';
 
 export { ADMINISTRATION_DEPARTMENT_ID };
@@ -23,7 +23,11 @@ export const TEST_USER_IDS = [
   ADMIN_ID,
 ] as const;
 
-export async function seedDatabase(prisma: PrismaClient): Promise<void> {
+type SeedPersistenceClient = PrismaClient | Prisma.TransactionClient;
+
+export async function seedDatabase(
+  prisma: SeedPersistenceClient,
+): Promise<void> {
   await prisma.identityProvider.upsert({
     where: { identityProviderId: SEED_IDENTITY_PROVIDER_ID },
     update: {
@@ -99,13 +103,14 @@ export async function seedDatabase(prisma: PrismaClient): Promise<void> {
 }
 
 export async function seedTestDatabase(prisma: PrismaClient): Promise<void> {
-  await seedDatabase(prisma);
-
-  await seedTestUsers(prisma);
-  await seedTestDepartmentMembers(prisma);
+  await prisma.$transaction(async (tx) => {
+    await seedDatabase(tx);
+    await seedTestUsers(tx);
+    await seedTestDepartmentMembers(tx);
+  });
 }
 
-async function seedTestUsers(prisma: PrismaClient): Promise<void> {
+async function seedTestUsers(prisma: SeedPersistenceClient): Promise<void> {
   const users: Array<{
     userId: string;
     email: string;
@@ -180,7 +185,9 @@ async function seedTestUsers(prisma: PrismaClient): Promise<void> {
   }
 }
 
-async function seedTestDepartmentMembers(prisma: PrismaClient): Promise<void> {
+async function seedTestDepartmentMembers(
+  prisma: SeedPersistenceClient,
+): Promise<void> {
   const memberships = [
     {
       departmentMemberId: 'dept-member-it-agent-1',

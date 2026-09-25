@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
 import { mapPrismaError } from '../database/prisma-error';
 import { PrismaService } from '../database/prisma.service';
 
@@ -57,6 +57,38 @@ export class NotificationsRepository {
         select: { userId: true },
       });
       return members.map((member) => member.userId);
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }
+
+  async findActiveChatRecipientIds(
+    departmentId: string,
+    submitterId: string,
+    excludeUserId?: string,
+  ): Promise<string[]> {
+    try {
+      const users = await this.prisma.user.findMany({
+        where: {
+          isActive: true,
+          ...(excludeUserId ? { userId: { not: excludeUserId } } : {}),
+          OR: [
+            { userId: submitterId },
+            { role: UserRole.Admin },
+            {
+              role: UserRole.Agent,
+              departmentMembers: {
+                some: {
+                  departmentId,
+                  department: { active: true },
+                },
+              },
+            },
+          ],
+        },
+        select: { userId: true },
+      });
+      return users.map((user) => user.userId);
     } catch (error) {
       mapPrismaError(error);
     }

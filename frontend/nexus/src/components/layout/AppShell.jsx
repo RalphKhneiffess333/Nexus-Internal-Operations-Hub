@@ -9,6 +9,7 @@ export function AppShell() {
   const location = useLocation()
   const isFullHeightChat =
     location.pathname.startsWith('/chats/') || location.pathname.startsWith('/assistant')
+  const isTicketChat = location.pathname.startsWith('/chats/')
 
   return (
     <AssistantConversationProvider>
@@ -24,7 +25,7 @@ export function AppShell() {
 
         <Sidebar open={menuOpen} onNavigate={() => setMenuOpen(false)} />
 
-        <div className="app-main">
+        <div className={`app-main${isTicketChat ? ' app-main--ticket-chat' : ''}`}>
           <header className="mobile-bar">
             <button
               type="button"
