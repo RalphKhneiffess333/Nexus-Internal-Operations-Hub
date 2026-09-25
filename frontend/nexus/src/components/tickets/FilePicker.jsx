@@ -101,7 +101,7 @@ export function FilePicker({ onChange, maxFiles = 5, disabled = false }) {
         <ul className="file-list">
           {files.map((file) => (
             <li key={`${file.name}-${file.size}-${file.lastModified}`}>
-              <span className="file-name">
+              <span className="file-name" title={file.name}>
                 <span aria-hidden="true">📎</span>
                 {file.name}
               </span>

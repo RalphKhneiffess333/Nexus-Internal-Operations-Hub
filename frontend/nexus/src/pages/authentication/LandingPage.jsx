@@ -1,11 +1,52 @@
 import landingPageImage from '../../assets/LandingPageImg.png'
 import nexusLogo from '../../assets/Nexus Logo.png'
+import { Link, useSearchParams } from 'react-router-dom'
 import { TestLoginPanel } from '../../features/authentication/TestLoginPanel'
 import { useAuthentication } from '../../features/authentication/use-authentication'
 
 export function LandingPage() {
   const { error, loginWithMicrosoft, refreshAuthentication } =
     useAuthentication()
+  const [searchParams] = useSearchParams()
+  const accountDeactivated = searchParams.get('account') === 'deactivated'
+
+  if (accountDeactivated) {
+    return (
+      <main className="landing-page">
+        <section className="landing-hero" aria-labelledby="deactivated-account-title">
+          <div className="landing-shell landing-deactivated-shell">
+            <header className="landing-header">
+              <div className="landing-brand">
+                <img className="brand-mark" src={nexusLogo} alt="" aria-hidden="true" />
+                <span className="brand-name">Nexus</span>
+              </div>
+              <span className="landing-status">
+                <span className="landing-status-dot" aria-hidden="true" />
+                Secure service desk
+              </span>
+            </header>
+
+            <div className="landing-deactivated-card" role="status">
+              <span className="landing-deactivated-icon" aria-hidden="true">!</span>
+              <p className="eyebrow">Account unavailable</p>
+              <h1 id="deactivated-account-title">Your account has been deactivated.</h1>
+              <p>
+                You no longer have access to Nexus. Contact an administrator if you think this is a mistake.
+              </p>
+              <Link to="/" replace className="btn microsoft-login">
+                ← Back to home
+              </Link>
+            </div>
+
+            <footer className="landing-footer">
+              <span>Nexus service desk</span>
+              <span>Internal workspace</span>
+            </footer>
+          </div>
+        </section>
+      </main>
+    )
+  }
 
   return (
     <main className="landing-page">

@@ -224,7 +224,7 @@ export class UserAdministrationService {
       );
       if (!dto.active) {
         reconciledTickets.push(
-          ...(await this.userMembershipService.reconcileUserEligibility(
+          ...(await this.userMembershipService.reconcileUserDeactivation(
             userId,
             actor.userId,
             tx,

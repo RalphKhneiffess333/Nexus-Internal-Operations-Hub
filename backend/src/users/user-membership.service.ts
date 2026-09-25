@@ -214,6 +214,25 @@ export class UserMembershipService {
     return this.reconcileMemberships(userId, actorId, tx);
   }
 
+  async reconcileUserDeactivation(
+    userId: string,
+    actorId: string,
+    tx: Prisma.TransactionClient,
+  ): Promise<TicketLifecycleResult[]> {
+    const cancelledTickets =
+      await this.ticketReconciliation.cancelTicketsForDeactivatedUser(
+        userId,
+        actorId,
+        tx,
+      );
+    const reconciledTickets = await this.reconcileUserEligibility(
+      userId,
+      actorId,
+      tx,
+    );
+    return [...cancelledTickets, ...reconciledTickets];
+  }
+
   publish(mutations: TicketLifecycleResult[], actorId: string): void {
     this.ticketReconciliation.publish(mutations, actorId);
   }

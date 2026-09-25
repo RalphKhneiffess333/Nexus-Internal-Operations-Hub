@@ -511,17 +511,6 @@ h3 {
   mask-size: 132% 111%;
   -webkit-mask-size: 132% 111%;
 }
-.nav-ai-icon {
-  display: grid;
-  width: 36px;
-  height: 34px;
-  flex: 0 0 36px;
-  place-items: center;
-  color: #aebcff;
-  font-size: 24px;
-  line-height: 1;
-}
-
 .nav-item:hover {
   color: #fff;
   background: rgba(255, 255, 255, 0.06);
@@ -658,6 +647,9 @@ h3 {
   background: rgba(73, 103, 217, 0.58);
   background-clip: padding-box;
 }
+.app-main--ticket-chat {
+  overflow: hidden;
+}
 .mobile-bar {
   display: none;
 }
@@ -678,7 +670,24 @@ h3 {
 }
 .page {
   width: 100%;
-  animation: page-enter 400ms ease-out both;
+}
+.page > * {
+  animation: content-reveal 520ms cubic-bezier(0.2, 0.7, 0.25, 1) backwards;
+}
+.page > :nth-child(2) {
+  animation-delay: 45ms;
+}
+.page > :nth-child(3) {
+  animation-delay: 90ms;
+}
+.page > :nth-child(4) {
+  animation-delay: 135ms;
+}
+.page > :nth-child(5) {
+  animation-delay: 180ms;
+}
+.page > :nth-child(n + 6) {
+  animation-delay: 225ms;
 }
 
 .page-header {
@@ -1323,6 +1332,10 @@ h3 {
   background: var(--card);
   box-shadow: var(--shadow-sm);
 }
+
+.clay-card label.field {
+  margin-bottom: 15px;
+}
 .ticket-list {
   display: grid;
   gap: 12px;
@@ -1626,7 +1639,6 @@ h3 {
   font-size: 13px;
   font-weight: 600;
   overflow-wrap: break-word;
-  word-break: break-all;
 }
 
 .status-badge {
@@ -1691,10 +1703,10 @@ h3 {
   border-top: 1px dashed #dde3ed;
 }
 .ticket-attachments-heading {
-  margin: 0 0 7px;
-  color: var(--ink-faint);
-  font-size: 9px;
-  font-weight: 800;
+  margin: 0 0 3px !important;
+  color: var(--ink-faint) !important;
+  font-size: 9px !important;
+  font-weight: 800 !important;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -1702,14 +1714,18 @@ h3 {
   display: grid;
   gap: 6px;
   margin: 0;
+  margin-bottom: 20px;
   padding: 2px 0 1px;
   list-style: none;
 }
 .ticket-attachment-actions,
 .timeline-attachment-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 6px;
+  min-width: 0;
+  max-width: 100%;
 }
 .ticket-attachment {
   min-width: 0;
@@ -1778,8 +1794,16 @@ h3 {
   justify-content: space-between;
   gap: 20px;
 }
+.ticket-details-heading > div {
+  min-width: 0;
+}
 .ticket-details-heading h1 {
   margin-top: 5px;
+  overflow-wrap: anywhere;
+}
+.ticket-details-heading .timeline-toggle {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .ticket-workspace {
@@ -1924,11 +1948,16 @@ h3 {
   margin: 0;
   padding: 0;
   list-style: none;
+  min-width: 0;
+  max-width: 100%;
 }
+.ticket-chat-attachments li,
 .ticket-chat-attachments li > div {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
+  max-width: 100%;
 }
 .ticket-chat-attachments button {
   min-width: 0;
@@ -1945,8 +1974,6 @@ h3 {
 }
 .ticket-chat-attachment-name {
   flex: 1 1 auto;
-}
-.ticket-chat-attachment-name span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2004,6 +2031,7 @@ h3 {
 .ticket-chat-full {
   width: 100%;
   min-height: 0;
+  min-width: 0;
   flex: 1 1 auto;
   margin-top: 0;
   display: flex;
@@ -2029,9 +2057,16 @@ h3 {
   flex: 1 1 auto;
   max-height: none;
   min-height: 0;
+  min-width: 0;
   gap: 12px;
   align-content: start;
   padding: 28px clamp(18px, 5vw, 58px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  scrollbar-color: rgba(104, 117, 140, 0.38) transparent;
+  scrollbar-width: thin;
+  overscroll-behavior: contain;
   background:
     radial-gradient(
       circle at 18% 8%,
@@ -2039,6 +2074,22 @@ h3 {
       transparent 28%
     ),
     linear-gradient(180deg, #f9faff 0%, #f2f5fb 100%);
+}
+.ticket-chat-full .ticket-chat-list::-webkit-scrollbar {
+  width: 12px;
+}
+.ticket-chat-full .ticket-chat-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.ticket-chat-full .ticket-chat-list::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: rgba(104, 117, 140, 0.38);
+  background-clip: padding-box;
+}
+.ticket-chat-full .ticket-chat-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(73, 103, 217, 0.58);
+  background-clip: padding-box;
 }
 .ticket-chat-full .ticket-chat-composer {
   flex: 0 0 auto;
@@ -2468,6 +2519,7 @@ h3 {
   margin: 0;
   padding: 0;
   list-style: none;
+  min-width: 0;
 }
 
 .timeline-list::before {
@@ -2484,6 +2536,7 @@ h3 {
 .timeline-item {
   --timeline-accent: var(--primary);
   position: relative;
+  min-width: 0;
   padding-left: 30px;
 }
 
@@ -2522,6 +2575,8 @@ h3 {
 
 .timeline-entry {
   overflow: hidden;
+  min-width: 0;
+  max-width: 100%;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: #fbfcfe;
@@ -2600,6 +2655,8 @@ h3 {
 }
 
 .timeline-detail-panel {
+  min-width: 0;
+  max-width: 100%;
   padding: 15px 14px 16px;
   border-top: 1px solid var(--line);
   background: #fff;
@@ -2664,6 +2721,8 @@ h3 {
   margin-top: 15px;
   padding-top: 12px;
   border-top: 1px dashed #dde3ed;
+  min-width: 0;
+  max-width: 100%;
 }
 .timeline-attachments-heading {
   margin: 0 0 8px;
@@ -2679,13 +2738,20 @@ h3 {
   margin: 0;
   padding: 0;
   list-style: none;
+  min-width: 0;
+  max-width: 100%;
+}
+.timeline-attachments li {
+  min-width: 0;
+  max-width: 100%;
 }
 .timeline-attachment {
   min-width: 0;
-  flex: 1 1 auto;
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 7px;
+  overflow: hidden;
   padding: 7px 0;
   border: 0;
   color: var(--primary);
@@ -2703,6 +2769,7 @@ h3 {
   opacity: 0.65;
 }
 .timeline-attachment > span:nth-child(2) {
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2772,9 +2839,34 @@ h3 {
 
 .ticket-form {
   display: grid;
-  gap: 20px;
+  gap: 22px;
   max-width: 760px;
   padding: 28px;
+}
+.ticket-form .field {
+  gap: 7px;
+}
+.ticket-form .field > span {
+  color: var(--ink-soft);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.ticket-form .field > span small {
+  margin-left: 4px;
+  color: var(--ink-faint);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.ticket-form .field input,
+.ticket-form .field textarea {
+  font-weight: 500;
+}
+.ticket-form .field textarea {
+  font-weight: 400;
 }
 .field {
   display: grid;
@@ -2827,6 +2919,7 @@ h3 {
 .file-picker {
   display: grid;
   gap: 8px;
+  min-width: 0;
 }
 .file-picker-input {
   position: absolute;
@@ -2890,12 +2983,16 @@ h3 {
   margin: 0;
   padding: 0;
   list-style: none;
+  min-width: 0;
+  max-width: 100%;
 }
 .file-list li {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  min-width: 0;
+  max-width: 100%;
   padding: 8px 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -2905,8 +3002,11 @@ h3 {
   font-weight: 600;
 }
 .file-list li span {
+  display: block;
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .file-remove {
   flex: 0 0 auto;
@@ -2920,7 +3020,7 @@ h3 {
 }
 .form-actions {
   justify-content: flex-end;
-  padding-top: 4px;
+  margin-top: 10px;
 }
 
 .banner {
@@ -3577,11 +3677,34 @@ button.status-toggle {
 .dialog {
   position: relative;
   width: min(460px, 100%);
+  max-height: calc(100dvh - 40px);
   padding: 26px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  scrollbar-color: rgba(104, 117, 140, 0.38) transparent;
+  scrollbar-width: thin;
+  overscroll-behavior: contain;
   box-shadow: var(--shadow-lg);
   transform-origin: center;
   animation: dialog-enter 220ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
   z-index: 1;
+}
+.dialog::-webkit-scrollbar {
+  width: 12px;
+}
+.dialog::-webkit-scrollbar-track {
+  background: transparent;
+}
+.dialog::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: rgba(104, 117, 140, 0.38);
+  background-clip: padding-box;
+}
+.dialog::-webkit-scrollbar-thumb:hover {
+  background: rgba(73, 103, 217, 0.58);
+  background-clip: padding-box;
 }
 .dialog-wide {
   width: min(680px, 100%);
@@ -3631,6 +3754,7 @@ button.status-toggle {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+  margin-top: 10px;
 }
 .sidebar-backdrop,
 .menu-button {
@@ -3690,6 +3814,9 @@ button.status-toggle {
   background: rgba(255, 255, 255, 0.88);
   box-shadow: var(--shadow-lg);
 }
+.landing-deactivated-shell {
+  justify-content: space-between;
+}
 .landing-header,
 .landing-footer {
   display: flex;
@@ -3736,6 +3863,52 @@ button.status-toggle {
 }
 .landing-copy {
   width: min(100%, 560px);
+}
+.landing-deactivated-card {
+  width: min(100%, 620px);
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 14px;
+  margin: auto;
+  padding: clamp(24px, 5vw, 56px) 0;
+  text-align: center;
+}
+.landing-deactivated-icon {
+  display: grid;
+  width: 56px;
+  height: 56px;
+  place-items: center;
+  margin-bottom: 8px;
+  border: 1px solid #f1c7ce;
+  border-radius: 18px;
+  color: #b94359;
+  background: #fff1f3;
+  box-shadow: 0 10px 24px rgba(185, 67, 89, 0.12);
+  font-family: var(--display);
+  font-size: 30px;
+  font-weight: 800;
+}
+.landing-deactivated-card .eyebrow {
+  margin: 0;
+  color: #b94359;
+}
+.landing-deactivated-card h1 {
+  max-width: 590px;
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(36px, 4.6vw, 62px);
+  line-height: 1.06;
+}
+.landing-deactivated-card > p:not(.eyebrow) {
+  max-width: 500px;
+  margin: 0 0 10px;
+  color: var(--ink-soft);
+  font-size: 16px;
+  line-height: 1.65;
+}
+.landing-deactivated-card .microsoft-login {
+  margin-top: 8px;
 }
 .landing-copy .eyebrow {
   color: var(--primary);
@@ -4322,6 +4495,13 @@ button.status-toggle {
 }
 
 @media (max-width: 460px) {
+  .ticket-details-heading {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .ticket-details-heading .timeline-toggle {
+    align-self: flex-start;
+  }
   .timeline-trigger {
     grid-template-columns: 1fr;
   }

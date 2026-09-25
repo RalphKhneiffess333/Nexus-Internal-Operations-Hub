@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm'
 import { useNavigate } from 'react-router-dom'
 import { sendAssistantMessage } from '../../features/assistant/assistant-api'
 import { useAssistantConversation } from '../../features/assistant/use-assistant-conversation'
+import { useNotifications } from '../../features/notifications/use-notifications'
 import styles from './AssistantPage.module.css'
 
 const NETWORK_FALLBACK_MESSAGE =
@@ -23,6 +24,7 @@ function isSafeMarkdownUrl(url) {
 export function AssistantPage() {
   const navigate = useNavigate()
   const { conversationId, setConversationId, messages, setMessages } = useAssistantConversation()
+  const { playChatReceivedSound, unlockAudio } = useNotifications()
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
   const messagesRef = useRef(null)
@@ -37,6 +39,9 @@ export function AssistantPage() {
     const message = draft.trim()
     if (!message || sending) return
 
+    // This runs in response to the user's submit gesture, which lets the
+    // browser authorize the sound that will play when the reply arrives.
+    void unlockAudio()
     setDraft('')
     setMessages((current) => [
       ...current,
@@ -56,6 +61,7 @@ export function AssistantPage() {
           action: response?.action,
         },
       ])
+      void playChatReceivedSound()
     } catch {
       setMessages((current) => [
         ...current,
@@ -71,7 +77,7 @@ export function AssistantPage() {
   }
 
   return (
-    <section className="ticket-chat-full" aria-labelledby="assistant-chat-heading">
+    <section className="ticket-chat-full content-reveal" aria-labelledby="assistant-chat-heading">
       <div className="ticket-chat-heading ticket-chat-full-heading">
         <span id="assistant-chat-heading">Nexus assistant conversation</span>
       </div>

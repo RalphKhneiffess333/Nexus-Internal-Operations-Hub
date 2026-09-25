@@ -47,13 +47,28 @@ export class AuthenticationController {
     @Res() response: Response,
   ): Promise<void> {
     const cookies = parseCookieHeader(request.headers.cookie);
-    const login = await this.authenticationService.completeMicrosoftLogin(
-      code,
-      state,
-      cookies[AUTH_STATE_COOKIE_NAME],
-      cookies[SESSION_COOKIE_NAME],
-      this.getDevice(request),
-    );
+    let login;
+    try {
+      login = await this.authenticationService.completeMicrosoftLogin(
+        code,
+        state,
+        cookies[AUTH_STATE_COOKIE_NAME],
+        cookies[SESSION_COOKIE_NAME],
+        this.getDevice(request),
+      );
+    } catch (error) {
+      if (!this.isInactiveAccountError(error)) throw error;
+
+      response.setHeader('Set-Cookie', [
+        this.clearCookie(SESSION_COOKIE_NAME, '/'),
+        this.clearCookie(
+          AUTH_STATE_COOKIE_NAME,
+          '/authentication/microsoft/callback',
+        ),
+      ]);
+      response.redirect(this.getDeactivatedAccountUrl());
+      return;
+    }
 
     response.setHeader('Set-Cookie', [
       this.buildSessionCookie(login.session.sessionId),
@@ -148,5 +163,23 @@ export class AuthenticationController {
 
   private getFrontendUrl(): string {
     return this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:5173';
+  }
+
+  private getDeactivatedAccountUrl(): string {
+    const url = new URL(this.getFrontendUrl());
+    url.searchParams.set('account', 'deactivated');
+    return url.toString();
+  }
+
+  private isInactiveAccountError(error: unknown): boolean {
+    if (!(error instanceof UnauthorizedException)) return false;
+    const response = error.getResponse();
+    return (
+      response === 'User account is inactive' ||
+      (typeof response === 'object' &&
+        response !== null &&
+        'message' in response &&
+        response.message === 'User account is inactive')
+    );
   }
 }

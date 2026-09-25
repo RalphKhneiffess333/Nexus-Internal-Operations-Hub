@@ -19,6 +19,7 @@ export function TicketAttachments({
               <button
                 type="button"
                 className="ticket-attachment"
+                title={attachment.originalName}
                 onClick={() => onOpen(attachment)}
                 disabled={downloadingAttachmentId === attachment.attachmentId}
               >

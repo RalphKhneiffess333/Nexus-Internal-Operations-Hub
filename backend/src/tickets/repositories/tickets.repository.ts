@@ -352,6 +352,36 @@ export class TicketsRepository {
     }
   }
 
+  async findActiveSubmittedOrClaimedByUser(
+    userId: string,
+    client: Prisma.TransactionClient,
+  ): Promise<Array<{ ticketId: string }>> {
+    try {
+      return await client.ticket.findMany({
+        where: {
+          active: true,
+          OR: [
+            {
+              submittedBy: userId,
+              status: {
+                in: [
+                  TicketStatus.OPEN,
+                  TicketStatus.REOPENED,
+                  TicketStatus.CLAIMED,
+                ],
+              },
+            },
+            { agentId: userId, status: TicketStatus.CLAIMED },
+          ],
+        },
+        select: { ticketId: true },
+        orderBy: { ticketId: 'asc' },
+      });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }
+
   async create(
     ticket: CreateTicketInput,
     client: TicketPersistenceClient = this.prisma,

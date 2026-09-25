@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import notificationSound from '../../assets/notification.mp3'
+import chatReceivedSound from '../../assets/chatrec.mp3'
 import { useOperationsSocket } from '../realtime/use-operations-socket'
 import { useAuthentication } from '../authentication/use-authentication'
 import {
@@ -19,6 +20,7 @@ function pageTitle(pathname, resourceTitle = '') {
   if (pathname === '/dashboard') return 'Dashboard - Nexus'
   if (pathname === '/chats') return 'Chats - Nexus'
   if (pathname.startsWith('/chats/')) return resourceTitle || 'Ticket Chat - Nexus'
+  if (pathname === '/assistant') return 'Assistant - Nexus'
   if (pathname === '/tickets') return 'My Tickets - Nexus'
   if (pathname === '/tickets/pool') return 'Ticket Pools - Nexus'
   if (pathname === '/tickets/handoffs') return 'Handoffs - Nexus'
@@ -44,6 +46,7 @@ export function NotificationProvider({ children }) {
   const [resourceTitleState, setResourceTitleState] = useState(null)
   const audioContextRef = useRef(null)
   const audioBufferRef = useRef(null)
+  const chatReceivedAudioBufferRef = useRef(null)
   const titleCountRef = useRef(0)
   const focusedRef = useRef(!document.hidden)
   const timersRef = useRef(new Set())
@@ -179,10 +182,20 @@ export function NotificationProvider({ children }) {
       if (!audioContextRef.current) audioContextRef.current = new AudioContext()
       const context = audioContextRef.current
       if (context.state !== 'running') await context.resume()
-      if (!audioBufferRef.current) {
-        const response = await fetch(notificationSound)
-        audioBufferRef.current = await context.decodeAudioData(await response.arrayBuffer())
-      }
+      await Promise.allSettled([
+        audioBufferRef.current
+          ? Promise.resolve()
+          : fetch(notificationSound)
+            .then((response) => response.arrayBuffer())
+            .then((data) => context.decodeAudioData(data))
+            .then((buffer) => { audioBufferRef.current = buffer }),
+        chatReceivedAudioBufferRef.current
+          ? Promise.resolve()
+          : fetch(chatReceivedSound)
+            .then((response) => response.arrayBuffer())
+            .then((data) => context.decodeAudioData(data))
+            .then((buffer) => { chatReceivedAudioBufferRef.current = buffer }),
+      ])
     } catch {
       // Browser autoplay and decoding failures must never affect live updates.
     }
@@ -201,6 +214,21 @@ export function NotificationProvider({ children }) {
       // A suspended context is an expected browser restriction.
     }
   }, [])
+
+  const playChatReceivedSound = useCallback(async () => {
+    await unlockAudio()
+    const context = audioContextRef.current
+    const buffer = chatReceivedAudioBufferRef.current
+    if (!context || !buffer || context.state !== 'running') return
+    try {
+      const source = context.createBufferSource()
+      source.buffer = buffer
+      source.connect(context.destination)
+      source.start()
+    } catch {
+      // A suspended context is an expected browser restriction.
+    }
+  }, [unlockAudio])
 
   const dismissToast = useCallback((toastId) => {
     setToasts((current) => current.map((toast) => toast.id === toastId ? { ...toast, leaving: true } : toast))
@@ -281,7 +309,10 @@ export function NotificationProvider({ children }) {
       && notification.ticketId
       && location.pathname === `/chats/${notification.ticketId}`
       && focusedRef.current
-    if (isCurrentChat) return
+    if (isCurrentChat) {
+      playChatReceivedSound()
+      return
+    }
     if (notification.type === 'CHAT_MESSAGE') {
       markChatUnread(notification.ticketId)
     }
@@ -298,7 +329,7 @@ export function NotificationProvider({ children }) {
       titleCountRef.current += 1
       applyTitle()
     }
-  }), [applyTitle, dismissToast, location.pathname, markChatUnread, playSound, scheduleNotificationCountRefresh, subscribeToNotifications])
+  }), [applyTitle, dismissToast, location.pathname, markChatUnread, playChatReceivedSound, playSound, scheduleNotificationCountRefresh, subscribeToNotifications])
 
   const value = useMemo(() => ({
     unreadChats,
@@ -310,7 +341,9 @@ export function NotificationProvider({ children }) {
     markChatRead,
     refreshNotificationCounts,
     setResourceTitle,
-  }), [chatInboxVersion, isChatUnread, markChatRead, pendingIncomingHandoffs, refreshNotificationCounts, setResourceTitle, unclaimedTickets, unreadChats, unreadChatsReady])
+    unlockAudio,
+    playChatReceivedSound,
+  }), [chatInboxVersion, isChatUnread, markChatRead, pendingIncomingHandoffs, playChatReceivedSound, refreshNotificationCounts, setResourceTitle, unlockAudio, unclaimedTickets, unreadChats, unreadChatsReady])
 
   return (
     <NotificationsContext.Provider value={value}>
