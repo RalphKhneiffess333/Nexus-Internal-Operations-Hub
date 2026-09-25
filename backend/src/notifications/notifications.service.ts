@@ -25,7 +25,9 @@ export class NotificationsService {
   ) {}
 
   notify(input: NotificationInput): void {
-    const recipientUserIds = [...new Set(input.recipientUserIds)].filter(Boolean);
+    const recipientUserIds = [...new Set(input.recipientUserIds)].filter(
+      Boolean,
+    );
     if (!recipientUserIds.length) return;
     const event: AppNotificationRealtimeEvent = {
       eventId: randomUUID(),
@@ -53,6 +55,23 @@ export class NotificationsService {
       recipientUserIds:
         await this.notificationsRepository.findActiveDepartmentRecipientIds(
           departmentId,
+          excludeUserId,
+        ),
+    });
+  }
+
+  async notifyChatViewers(
+    departmentId: string,
+    submitterId: string,
+    input: Omit<NotificationInput, 'recipientUserIds'>,
+    excludeUserId?: string,
+  ): Promise<void> {
+    this.notify({
+      ...input,
+      recipientUserIds:
+        await this.notificationsRepository.findActiveChatRecipientIds(
+          departmentId,
+          submitterId,
           excludeUserId,
         ),
     });

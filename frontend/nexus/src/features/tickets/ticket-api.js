@@ -52,7 +52,7 @@ export function getChatConversations(params = {}, requestOptions = {}) {
 }
 
 export function markChatConversationRead(ticketId) {
-  return apiRequest(`/chats/${ticketId}/read`, { method: 'POST' })
+  return apiRequest(`/chats/${ticketId}/read`, { method: 'POST', expectJson: false })
 }
 
 export function createChatMessage(ticketId, content, files = []) {

@@ -33,6 +33,8 @@ export function NotificationProvider({ children }) {
   const [toasts, setToasts] = useState([])
   const [blockingNotification, setBlockingNotification] = useState(null)
   const [unreadChatIds, setUnreadChatIds] = useState(() => new Set())
+  const [unreadChatsReady, setUnreadChatsReady] = useState(false)
+  const [chatInboxVersion, setChatInboxVersion] = useState(0)
   const [unclaimedTickets, setUnclaimedTickets] = useState(0)
   const [resourceTitleState, setResourceTitleState] = useState(null)
   const audioContextRef = useRef(null)
@@ -57,16 +59,6 @@ export function NotificationProvider({ children }) {
       title: typeof title === 'string' ? title.trim() : '',
     })
   }, [location.pathname])
-
-  const markChatRead = useCallback((ticketId) => {
-    if (!ticketId) return
-    setUnreadChatIds((current) => {
-      if (!current.has(ticketId)) return current
-      const next = new Set(current)
-      next.delete(ticketId)
-      return next
-    })
-  }, [])
 
   const loadUnreadChatIds = useCallback(async (signal) => {
     const unreadIds = new Set()
@@ -105,6 +97,8 @@ export function NotificationProvider({ children }) {
     if (!request.isCurrent()) return
     if (unreadChatIdsResult.status === 'fulfilled') {
       setUnreadChatIds(unreadChatIdsResult.value)
+      setUnreadChatsReady(true)
+      setChatInboxVersion((version) => version + 1)
     }
     if (!canViewTicketPool) {
       setUnclaimedTickets(0)
@@ -112,6 +106,43 @@ export function NotificationProvider({ children }) {
       setUnclaimedTickets(Number(poolCountResult.value?.count) || 0)
     }
   }, [beginCountRequest, canViewTicketPool, loadUnreadChatIds, user?.userId])
+
+  const markChatRead = useCallback((ticketId) => {
+    if (!ticketId) return
+    if (countRefreshTimerRef.current) {
+      window.clearTimeout(countRefreshTimerRef.current)
+      countRefreshTimerRef.current = null
+    }
+    // A count request may have read the old receipt before this chat was marked
+    // read. Cancel it so it cannot restore stale unread state afterwards.
+    cancelCountRequest()
+    setUnreadChatIds((current) => {
+      if (!current.has(ticketId)) return current
+      const next = new Set(current)
+      next.delete(ticketId)
+      return next
+    })
+    setChatInboxVersion((version) => version + 1)
+    // The read receipt has already been persisted by the caller. Re-read the
+    // authoritative server state after invalidating any older snapshot.
+    void refreshNotificationCounts()
+  }, [cancelCountRequest, refreshNotificationCounts])
+
+  const markChatUnread = useCallback((ticketId) => {
+    if (!ticketId) return
+    setUnreadChatIds((current) => {
+      if (current.has(ticketId)) return current
+      const next = new Set(current)
+      next.add(ticketId)
+      return next
+    })
+    setChatInboxVersion((version) => version + 1)
+  }, [])
+
+  const isChatUnread = useCallback(
+    (ticketId) => Boolean(ticketId && unreadChatIds.has(ticketId)),
+    [unreadChatIds],
+  )
 
   const scheduleNotificationCountRefresh = useCallback(() => {
     if (countRefreshTimerRef.current) window.clearTimeout(countRefreshTimerRef.current)
@@ -180,6 +211,8 @@ export function NotificationProvider({ children }) {
       // Reset badge state when the authenticated session disappears.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setUnreadChatIds(new Set())
+      setUnreadChatsReady(false)
+      setChatInboxVersion((version) => version + 1)
       setUnclaimedTickets(0)
       return
     }
@@ -207,6 +240,7 @@ export function NotificationProvider({ children }) {
       focusedRef.current = true
       titleCountRef.current = 0
       applyTitle()
+      scheduleNotificationCountRefresh()
     }
     const handleVisibility = () => {
       focusedRef.current = !document.hidden
@@ -218,7 +252,7 @@ export function NotificationProvider({ children }) {
       window.removeEventListener('focus', reset)
       document.removeEventListener('visibilitychange', handleVisibility)
     }
-  }, [applyTitle])
+  }, [applyTitle, scheduleNotificationCountRefresh])
 
   useEffect(() => subscribeToNotifications((event) => {
     const notification = event.payload
@@ -232,6 +266,9 @@ export function NotificationProvider({ children }) {
       && location.pathname === `/chats/${notification.ticketId}`
       && focusedRef.current
     if (isCurrentChat) return
+    if (notification.type === 'CHAT_MESSAGE') {
+      markChatUnread(notification.ticketId)
+    }
     scheduleNotificationCountRefresh()
     const toast = { id: event.eventId, ...notification }
     setToasts((current) => [...current.slice(-3), toast])
@@ -245,15 +282,18 @@ export function NotificationProvider({ children }) {
       titleCountRef.current += 1
       applyTitle()
     }
-  }), [applyTitle, dismissToast, location.pathname, playSound, scheduleNotificationCountRefresh, subscribeToNotifications])
+  }), [applyTitle, dismissToast, location.pathname, markChatUnread, playSound, scheduleNotificationCountRefresh, subscribeToNotifications])
 
   const value = useMemo(() => ({
     unreadChats,
+    unreadChatsReady,
+    isChatUnread,
+    chatInboxVersion,
     unclaimedTickets,
     markChatRead,
     refreshNotificationCounts,
     setResourceTitle,
-  }), [markChatRead, refreshNotificationCounts, setResourceTitle, unclaimedTickets, unreadChats])
+  }), [chatInboxVersion, isChatUnread, markChatRead, refreshNotificationCounts, setResourceTitle, unclaimedTickets, unreadChats, unreadChatsReady])
 
   return (
     <NotificationsContext.Provider value={value}>

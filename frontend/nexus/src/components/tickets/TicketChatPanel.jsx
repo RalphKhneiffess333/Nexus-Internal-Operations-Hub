@@ -28,6 +28,10 @@ function mergeMessages(current, incoming) {
   return sortMessages([...byId.values()])
 }
 
+function isConversationVisible() {
+  return document.visibilityState === 'visible' && document.hasFocus()
+}
+
 export function TicketChatPanel({
   ticket,
   currentUser,
@@ -50,6 +54,7 @@ export function TicketChatPanel({
   const messageListRef = useRef(null)
   const messagePageRef = useRef(1)
   const shouldFollowLatestRef = useRef(true)
+  const hasLoadedMessagesRef = useRef(false)
   const ticketId = ticket?.ticketId
   const { beginRequest } = useLatestRequest()
 
@@ -69,17 +74,20 @@ export function TicketChatPanel({
         { page: nextPage, pageSize: 50 },
         { signal: request.controller.signal },
       )
-      if (!request.isCurrent()) return
+      if (!request.isCurrent()) return false
       const incoming = result?.items ?? (Array.isArray(result) ? result : [])
       setMessages((current) => (append || silent ? mergeMessages(current, incoming) : incoming))
       const highestPage = Math.max(messagePageRef.current, nextPage)
       messagePageRef.current = highestPage
       setMessagePage(highestPage)
       if (nextPage === highestPage) setHasMoreMessages(Boolean(result?.hasMore))
+      if (!append) hasLoadedMessagesRef.current = true
+      return true
     } catch (loadError) {
       if (request.isCurrent() && !silent) {
         setError(loadError.message || 'Unable to load the conversation.')
       }
+      return false
     } finally {
       if (request.isCurrent()) {
         if (append) {
@@ -95,6 +103,7 @@ export function TicketChatPanel({
   useEffect(() => {
     // Reset paginated history when the selected ticket changes.
     messagePageRef.current = 1
+    hasLoadedMessagesRef.current = false
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMessagePage(1)
     setHasMoreMessages(false)
@@ -102,24 +111,44 @@ export function TicketChatPanel({
   }, [ticketId])
 
   useEffect(() => {
-    // The authoritative history request intentionally synchronizes this panel.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadMessages()
-    void onConversationRead?.()
+    // Do not write a read receipt until the conversation is available to the
+    // user in the active browser window.
+    void (async () => {
+      const loaded = await loadMessages()
+      if (loaded && isConversationVisible()) {
+        void onConversationRead?.()
+      }
+    })()
   }, [loadMessages, onConversationRead])
 
   useEffect(() => subscribeToChat(ticketId, (event) => {
     if (event?.type === 'reconnected') {
-      void loadMessages({ silent: true })
+      void loadMessages({ silent: true }).then((loaded) => {
+        if (loaded && isConversationVisible()) void onConversationRead?.()
+      })
       return
     }
     if (event?.payload?.messageId) {
       setMessages((current) => mergeMessages(current, [event.payload]))
-      if (event.payload.sender?.userId !== currentUser?.userId) {
+      if (event.payload.sender?.userId !== currentUser?.userId && isConversationVisible()) {
         void onConversationRead?.()
       }
     }
   }), [currentUser?.userId, loadMessages, onConversationRead, subscribeToChat, ticket?.status, ticketId])
+
+  useEffect(() => {
+    const markReadWhenVisible = () => {
+      if (hasLoadedMessagesRef.current && isConversationVisible()) {
+        void onConversationRead?.()
+      }
+    }
+    window.addEventListener('focus', markReadWhenVisible)
+    document.addEventListener('visibilitychange', markReadWhenVisible)
+    return () => {
+      window.removeEventListener('focus', markReadWhenVisible)
+      document.removeEventListener('visibilitychange', markReadWhenVisible)
+    }
+  }, [onConversationRead])
 
   useLayoutEffect(() => {
     if (!shouldFollowLatestRef.current) return

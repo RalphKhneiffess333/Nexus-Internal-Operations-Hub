@@ -5,6 +5,7 @@ import { IllustratedEmptyState } from '../../components/ui/IllustratedEmptyState
 import noChatsImage from '../../assets/NoChats.png'
 import { DebouncedSearchInput } from '../../components/ui/DebouncedSearchInput'
 import { TicketStatusBadge } from '../../components/tickets/TicketStatusBadge'
+import { useNotifications } from '../../features/notifications/use-notifications'
 import { getChatConversations } from '../../features/tickets/ticket-api'
 import { formatDateTime } from '../../features/tickets/ticket-types'
 import { useLatestRequest } from '../../lib/api/use-latest-request'
@@ -26,6 +27,7 @@ export function ChatsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const { beginRequest } = useLatestRequest()
+  const { chatInboxVersion, isChatUnread, unreadChatsReady } = useNotifications()
 
   const loadConversations = useCallback(async () => {
     const request = beginRequest()
@@ -52,7 +54,7 @@ export function ChatsPage() {
     // The inbox is synchronized from the server when this route is mounted.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadConversations()
-  }, [loadConversations])
+  }, [chatInboxVersion, loadConversations])
 
   function updateSearch(value) {
     const nextParams = new URLSearchParams(searchParams)
@@ -137,7 +139,7 @@ export function ChatsPage() {
                       {formatDateTime(conversation.lastMessage.createdAt)}
                     </time>
                   ) : null}
-                  {conversation.unread ? <span className="chat-unread-dot" aria-label="Unread messages" /> : null}
+                  {(unreadChatsReady ? isChatUnread(conversation.ticketId) : conversation.unread) ? <span className="chat-unread-dot" aria-label="Unread messages" /> : null}
                 </div>
               </Link>
             </li>
