@@ -3018,9 +3018,22 @@ h3 {
 }
 .ticket-chat-empty-state {
   width: min(760px, 100%);
+  align-content: center;
+  gap: 0;
   min-height: 320px;
   margin: 0 auto;
+  padding: 20px 24px 24px;
   box-shadow: none;
+}
+.ticket-chat-empty-state > img {
+  width: min(430px, 100%);
+  height: min(290px, 38vh);
+}
+.ticket-chat-empty-state .illustrated-empty-state-copy {
+  gap: 4px;
+}
+.ticket-chat-empty-state .illustrated-empty-state-copy p {
+  margin-bottom: 0;
 }
 .ticket-chat-full > .ticket-chat-empty-state {
   flex: 1 1 auto;
@@ -3030,8 +3043,8 @@ h3 {
   align-self: stretch;
 }
 .ticket-chat-full > .ticket-chat-empty-state > img {
-  width: min(320px, 100%);
-  height: min(250px, 32vh);
+  margin-bottom: 20px;
+  height: min(290px, 38vh);
 }
 .not-found-page {
   min-height: 100svh;

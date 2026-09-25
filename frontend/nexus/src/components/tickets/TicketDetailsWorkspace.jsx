@@ -65,8 +65,14 @@ export function TicketDetailsWorkspace({
             timelineOpen={timelineOpen}
             attachments={attachments?.attachments}
             downloadingAttachmentId={attachmentState.downloadingAttachmentId}
-            onOpenAttachment={attachmentState.openAttachment}
-            onDownloadAttachment={attachmentState.downloadAttachment}
+            onOpenAttachment={(attachment) => attachmentState.openAttachment(
+              attachment,
+              attachments?.ticketEventId,
+            )}
+            onDownloadAttachment={(attachment) => attachmentState.downloadAttachment(
+              attachment,
+              attachments?.ticketEventId,
+            )}
             onToggleTimeline={onToggleTimeline}
           />
         )}
