@@ -3,7 +3,11 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import notificationSound from '../../assets/notification.mp3'
 import { useOperationsSocket } from '../realtime/use-operations-socket'
 import { useAuthentication } from '../authentication/use-authentication'
-import { getChatConversations, getTicketPoolCount } from '../tickets/ticket-api'
+import {
+  getChatConversations,
+  getIncomingPendingHandoffCount,
+  getTicketPoolCount,
+} from '../tickets/ticket-api'
 import { UserRole } from '../tickets/ticket-types'
 import { useLatestRequest } from '../../lib/api/use-latest-request'
 import { Dialog } from '../../components/ui/Dialog'
@@ -36,6 +40,7 @@ export function NotificationProvider({ children }) {
   const [unreadChatsReady, setUnreadChatsReady] = useState(false)
   const [chatInboxVersion, setChatInboxVersion] = useState(0)
   const [unclaimedTickets, setUnclaimedTickets] = useState(0)
+  const [pendingIncomingHandoffs, setPendingIncomingHandoffs] = useState(0)
   const [resourceTitleState, setResourceTitleState] = useState(null)
   const audioContextRef = useRef(null)
   const audioBufferRef = useRef(null)
@@ -88,10 +93,14 @@ export function NotificationProvider({ children }) {
     const poolCountPromise = canViewTicketPool
       ? getTicketPoolCount({ signal: request.controller.signal })
       : Promise.resolve(null)
+    const pendingIncomingHandoffsPromise = canViewTicketPool
+      ? getIncomingPendingHandoffCount({ signal: request.controller.signal })
+      : Promise.resolve(null)
     const unreadChatIdsPromise = loadUnreadChatIds(request.controller.signal)
-    const [poolCountResult, unreadChatIdsResult] = await Promise.allSettled([
+    const [poolCountResult, unreadChatIdsResult, pendingIncomingHandoffsResult] = await Promise.allSettled([
       poolCountPromise,
       unreadChatIdsPromise,
+      pendingIncomingHandoffsPromise,
     ])
 
     if (!request.isCurrent()) return
@@ -102,8 +111,14 @@ export function NotificationProvider({ children }) {
     }
     if (!canViewTicketPool) {
       setUnclaimedTickets(0)
-    } else if (poolCountResult.status === 'fulfilled') {
-      setUnclaimedTickets(Number(poolCountResult.value?.count) || 0)
+      setPendingIncomingHandoffs(0)
+    } else {
+      if (poolCountResult.status === 'fulfilled') {
+        setUnclaimedTickets(Number(poolCountResult.value?.count) || 0)
+      }
+      if (pendingIncomingHandoffsResult.status === 'fulfilled') {
+        setPendingIncomingHandoffs(pendingIncomingHandoffsResult.value)
+      }
     }
   }, [beginCountRequest, canViewTicketPool, loadUnreadChatIds, user?.userId])
 
@@ -214,6 +229,7 @@ export function NotificationProvider({ children }) {
       setUnreadChatsReady(false)
       setChatInboxVersion((version) => version + 1)
       setUnclaimedTickets(0)
+      setPendingIncomingHandoffs(0)
       return
     }
     // Badges are initialized from server state instead of inferred from realtime deltas.
@@ -290,10 +306,11 @@ export function NotificationProvider({ children }) {
     isChatUnread,
     chatInboxVersion,
     unclaimedTickets,
+    pendingIncomingHandoffs,
     markChatRead,
     refreshNotificationCounts,
     setResourceTitle,
-  }), [chatInboxVersion, isChatUnread, markChatRead, refreshNotificationCounts, setResourceTitle, unclaimedTickets, unreadChats, unreadChatsReady])
+  }), [chatInboxVersion, isChatUnread, markChatRead, pendingIncomingHandoffs, refreshNotificationCounts, setResourceTitle, unclaimedTickets, unreadChats, unreadChatsReady])
 
   return (
     <NotificationsContext.Provider value={value}>

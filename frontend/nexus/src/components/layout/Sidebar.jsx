@@ -16,7 +16,7 @@ import { NavIcon } from './NavIcon'
 export function Sidebar({ open, onNavigate }) {
   const { user, logoutCurrentSession } = useAuthentication()
   const { connectionState } = useOperationsSocket()
-  const { unreadChats, unclaimedTickets } = useNotifications()
+  const { unreadChats, unclaimedTickets, pendingIncomingHandoffs } = useNotifications()
   const showWorkQueues = canWorkTickets(user)
   const showAdministration = user?.role === UserRole.ADMIN
 
@@ -91,7 +91,7 @@ export function Sidebar({ open, onNavigate }) {
               onClick={onNavigate}
             >
               <NavIcon src={handoffsIcon} crop="handoffs" />
-              Handoffs
+              Handoffs {pendingIncomingHandoffs > 0 ? <span className="nav-notification-badge">{pendingIncomingHandoffs > 99 ? '99+' : pendingIncomingHandoffs}</span> : null}
             </NavLink>
           </>
         ) : null}

@@ -104,6 +104,14 @@ export function getHandoffs(params = {}, requestOptions = {}) {
   return apiRequest(withQuery('/handoffs', params), requestOptions)
 }
 
+export async function getIncomingPendingHandoffCount(requestOptions = {}) {
+  const result = await getHandoffs(
+    { direction: 'incoming', status: 'PENDING', page: 1, pageSize: 1 },
+    requestOptions,
+  )
+  return Number(result?.pendingCount) || 0
+}
+
 export function getHandoffParticipants(requestOptions = {}) {
   return apiRequest('/handoffs/participants', requestOptions)
 }

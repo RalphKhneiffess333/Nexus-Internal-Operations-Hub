@@ -60,6 +60,9 @@ export function TicketChatPanel({
 
   const writable = ticket?.active !== false && ticket?.status === 'CLAIMED' &&
     (ticket?.submittedBy?.userId === currentUser?.userId || ticket?.agent?.userId === currentUser?.userId)
+  const readOnlyReason = ticket?.active !== false && ticket?.status === 'CLAIMED'
+    ? 'This chat is read-only because it is not assigned to you.'
+    : 'This chat is read-only because the ticket is not currently claimed.'
 
   const loadMessages = useCallback(async ({ silent = false, append = false, nextPage = 1 } = {}) => {
     const request = beginRequest()
@@ -287,7 +290,7 @@ export function TicketChatPanel({
           <div className="ticket-chat-actions"><span>{content.length}/{MAX_CHAT_MESSAGE_LENGTH}</span><button type="submit" className="btn primary" disabled={sending || (!content.trim() && files.length === 0)}>{sending ? 'Sending…' : 'Send message'}</button></div>
         </form>
       ) : (
-        <p className="ticket-chat-read-only">This chat is read-only because the ticket is not currently claimed.</p>
+        <p className="ticket-chat-read-only">{readOnlyReason}</p>
       )}
     </section>
   )
