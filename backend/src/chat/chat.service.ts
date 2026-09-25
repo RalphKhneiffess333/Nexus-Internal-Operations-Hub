@@ -162,11 +162,9 @@ export class ChatService {
     actor: AuthenticatedRequestUser,
     query: ChatInboxQueryDto = {},
   ): Promise<ChatConversationPageResponse> {
-    const actorDepartmentIds = await this.getActorDepartmentIds(actor.userId);
     const result: ChatInboxPage = await this.chatRepository.findInboxTickets(
       actor.userId,
       actor.role,
-      actorDepartmentIds,
       query.page,
       query.pageSize,
       query.search,

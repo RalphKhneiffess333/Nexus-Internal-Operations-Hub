@@ -18,12 +18,14 @@ import {
   submitOpenTicket,
 } from '../tickets/tickets.test-utils';
 import { TicketsService } from '../tickets/tickets.service';
+import { HandoffsService } from '../tickets/handoffs/handoffs.service';
 import { RealtimeInternalEvent } from '../realtime/realtime-events';
 import { resetTicketData, seedTestDatabase } from '../database/seed';
 
 describe('Chat integration', () => {
   let chat: ChatService;
   let tickets: TicketsService;
+  let handoffs: HandoffsService;
   let prisma: PrismaService;
   let events: EventEmitter2;
   let moduleRef: Awaited<ReturnType<typeof createModule>>;
@@ -32,6 +34,7 @@ describe('Chat integration', () => {
     moduleRef = await createModule();
     chat = moduleRef.get(ChatService);
     tickets = moduleRef.get(TicketsService);
+    handoffs = moduleRef.get(HandoffsService);
     prisma = moduleRef.get(PrismaService);
     events = moduleRef.get(EventEmitter2);
   });
@@ -105,6 +108,38 @@ describe('Chat integration', () => {
       identityProviderUserId: EMPLOYEE_2_ID,
     });
     expect(await chat.listConversations(unrelatedEmployee)).toEqual([]);
+  });
+
+  it('lists chats only after a message and for agents who currently or previously owned the ticket', async () => {
+    const open = await submitOpenTicket(tickets);
+    await claimTicket(tickets, open.ticketId);
+
+    expect(await chat.listConversations(agentUser())).toEqual([]);
+
+    await chat.createMessage(
+      open.ticketId,
+      { content: 'Could you share the device serial number?' },
+      requestUser(),
+    );
+
+    expect(
+      (await chat.listConversations(agentUser())).map((conversation) => conversation.ticketId),
+    ).toContain(open.ticketId);
+    expect(
+      (await chat.listConversations(agentUser(IT_AGENT_2_ID))).map((conversation) => conversation.ticketId),
+    ).not.toContain(open.ticketId);
+
+    const handoff = await handoffs.create(
+      open.ticketId,
+      { requestedAgentId: IT_AGENT_2_ID },
+      agentUser(),
+    );
+    await handoffs.accept(handoff.handoffId, agentUser(IT_AGENT_2_ID));
+
+    const formerOwnerInbox = await chat.listConversations(agentUser());
+    const currentOwnerInbox = await chat.listConversations(agentUser(IT_AGENT_2_ID));
+    expect(formerOwnerInbox.map((conversation) => conversation.ticketId)).toContain(open.ticketId);
+    expect(currentOwnerInbox.map((conversation) => conversation.ticketId)).toContain(open.ticketId);
   });
 
   it('searches conversations by ticket metadata and latest message context', async () => {
