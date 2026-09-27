@@ -105,7 +105,6 @@ FRONTEND_URL=http://localhost:5173
 The seeded identity-provider record uses the code `MICROSOFT_ENTRA_ID`. Users are linked to Microsoft accounts by `identity_provider_id` and `identity_provider_user_id` after login.
 
 In the organization-locked setup, users are checked through the configured Microsoft tenant to ensure only internal accounts can use the app.
-For current testing, the backend uses Microsoft's `common` login endpoint so any Microsoft work, school, or personal account can be used.
 
 ## 8. Optional Integrations
 
@@ -348,6 +347,63 @@ npm run verify:release
 It builds and type-checks both workspaces, then runs backend unit, integration, API/browser E2E, and model-backed AI eval checks. It exits at the first failed check; a passing exit code means all release checks passed. It requires the test database, Playwright browsers, and a Groq API key with enough available quota.
 
 ## 13. How to run the app
+
+### Build and deployment workflows
+
+Build both workspaces from the repository root:
+
+```bash
+npm run build
+```
+
+The backend build is written to `backend/dist`. The frontend build is written
+to `frontend/nexus/dist`, which can be uploaded to a static hosting provider.
+
+For the backend, run the interactive deployment workflow:
+
+```bash
+npm run deploy:backend
+```
+
+It runs these steps in order using `backend/.env`:
+
+1. Build the NestJS backend.
+2. Apply pending Prisma migrations with `prisma migrate deploy`.
+3. Run the idempotent baseline seed.
+4. Ask whether you want to add or modify an application user.
+5. Run the backend test suite. Tests use `backend/.env.integration`.
+6. Start the compiled backend with `start:prod`.
+
+The non-interactive preparation workflow is useful for CI or deployment
+platforms that start the process separately:
+
+```bash
+npm run deploy:ci --workspace=backend
+npm run start:prod --workspace=backend
+```
+
+For the frontend, build and type-check the deployable static assets with:
+
+```bash
+npm run deploy:frontend
+```
+
+To preview those assets locally:
+
+```bash
+npm run start:prod --workspace=@nexus/frontend
+```
+
+To run the frontend build followed by the interactive backend deployment:
+
+```bash
+npm run deploy
+```
+
+The deployment scripts do not create a hosting service, container, or cloud
+resource automatically. They prepare the frontend artifact and start the
+backend process; the hosting platform or process supervisor remains
+responsible for serving/restarting them.
 
 From the repository root:
 

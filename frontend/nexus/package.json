@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "deploy": "npm run typecheck && npm run build",
+    "start:prod": "vite preview --host 0.0.0.0",
     "typecheck": "tsc --project tsconfig.json",
     "lint": "eslint .",
     "preview": "vite preview"
