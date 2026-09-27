@@ -17,7 +17,7 @@
     "seed:bulk:test": "npm run seed:bulk:test --workspace=backend",
     "eval": "npm run eval --workspace=backend",
     "test": "npm run test:prepare --workspace=backend && npm run test:unit:run --workspace=backend && npm run test:integration:run --workspace=backend && npm run test:e2e:run --workspace=backend",
-    "verify:release": "npm run build --workspace=@nexus/frontend && npm run build --workspace=backend && npm run typecheck --workspace=@nexus/frontend && npm run typecheck --workspace=backend && npm run test && npm run eval --workspace=backend && node -e \"console.log('Release gate passed: all checks are green.')\""
+    "verify:release": "npm run build --workspace=@nexus/frontend && npm run build --workspace=backend && npm run typecheck --workspace=@nexus/frontend && npm run typecheck --workspace=backend && npm run test:smoke --workspace=backend && npm run test && npm run eval --workspace=backend && node -e \"console.log('Release gate passed: all checks are green.')\""
   },
   "devDependencies": {
     "concurrently": "^9.2.1"

@@ -306,6 +306,17 @@ npm run test:browser:e2e --workspace=backend
 npm run test:e2e --workspace=backend
 ```
 
+The dedicated release smoke suite runs a small API and browser E2E subset:
+
+```bash
+npm run test:smoke --workspace=backend
+```
+
+It uses the isolated integration database, test-mode sessions, the real NestJS
+API, PostgreSQL, frontend, and Chromium. The optional external AI smoke check
+is enabled with `SMOKE_AI=true`; otherwise the suite verifies the local AI
+fallback when Groq is not configured.
+
 All require `backend/.env.integration` pointing at a separate PostgreSQL database. Each test command applies Prisma migrations once before its test run. Individual tests then seed sample users/departments and reset ticket data for isolation.
 
 - `npm test` runs Jest unit tests and any `.spec.ts` tests in `backend/src`.
