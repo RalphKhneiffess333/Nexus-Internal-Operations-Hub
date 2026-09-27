@@ -97,6 +97,16 @@ describe('GroqProvider', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('exposes Groq retry-after data for a rate-limited response', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({}, 429, { 'retry-after': '2' }));
+
+    await expect(provider.generate(request())).rejects.toMatchObject({
+      statusCode: 429,
+      retryAfterMs: 2000,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects malformed provider output as an AI response error', async () => {
     fetchMock.mockResolvedValue(
       jsonResponse({ choices: [{ message: { content: '' } }] }),
@@ -130,10 +140,14 @@ describe('GroqProvider', () => {
     };
   }
 
-  function jsonResponse(body: unknown, status = 200): Response {
+  function jsonResponse(
+    body: unknown,
+    status = 200,
+    extraHeaders: Record<string, string> = {},
+  ): Response {
     return new Response(JSON.stringify(body), {
       status,
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...extraHeaders },
     });
   }
 });

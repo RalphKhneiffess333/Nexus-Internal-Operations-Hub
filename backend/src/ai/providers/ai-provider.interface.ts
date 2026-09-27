@@ -43,6 +43,7 @@ export class AiProviderError extends Error {
     readonly retryable = false,
     readonly statusCode?: number,
     readonly failureType: AiFailureType = 'service',
+    readonly retryAfterMs?: number,
   ) {
     super(message);
     this.name = 'AiProviderError';

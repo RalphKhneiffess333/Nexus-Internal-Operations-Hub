@@ -146,9 +146,22 @@ function parseProviderResult(payload: unknown): AiProviderResult {
 
 function supportsStrictStructuredOutputs(model: string): boolean {
   return (
-    model === DEFAULT_MODEL ||
-    /^openai\/gpt-oss-(?:20b|120b)$/.test(model)
+    model === DEFAULT_MODEL || /^openai\/gpt-oss-(?:20b|120b)$/.test(model)
   );
+}
+
+function readRetryAfterMs(headers: Headers): number | undefined {
+  const value = headers.get('retry-after')?.trim();
+  if (!value) return undefined;
+
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.ceil(seconds * 1000);
+  }
+
+  const retryAt = Date.parse(value);
+  if (Number.isNaN(retryAt)) return undefined;
+  return Math.max(0, retryAt - Date.now());
 }
 
 @Injectable()
@@ -220,6 +233,8 @@ export class GroqProvider implements AiProvider {
               'Groq request rate limit exceeded',
               false,
               429,
+              'service',
+              readRetryAfterMs(response.headers),
             );
           }
           const retryable = response.status === 408 || response.status >= 500;

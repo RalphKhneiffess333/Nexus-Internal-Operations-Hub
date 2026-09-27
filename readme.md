@@ -304,9 +304,9 @@ Run the representative AI evaluations from the repository root:
 npm run eval
 ```
 
-This command runs only the model-backed AI eval runner. It uses the existing Groq provider, so `backend/.env` must contain `GROQ_API_KEY`; `GROQ_MODEL` is optional. The runner uses fixed in-memory departments, priorities, and ticket-access results, so it does not require PostgreSQL or a running Nexus server. It makes real Groq requests and reports the clear, thin, ambiguous, trusted-context, conditional-prefill, supplied-evidence, damage-prevention, and repeatability cases separately.
+This command runs only the model-backed AI eval runner. It uses the existing Groq provider, so `backend/.env` must contain `GROQ_API_KEY`; `GROQ_MODEL` is optional. The runner uses fixed in-memory departments and priorities, so it does not require PostgreSQL or a running Nexus server. It makes real Groq requests and reports the clear, thin, ambiguous, trusted-context, conditional-prefill, supplied-evidence, and repeatability cases separately.
 
-NOTICE: If you're on a limited tier, only a select number of evals may pass before getting hit with a rate limit failure.
+If Groq responds with `429`, the runner respects its `Retry-After` value and retries that model request up to three times. `AI_EVAL_MAX_RATE_LIMIT_RETRIES` and `AI_EVAL_MAX_RATE_LIMIT_WAIT_MS` can change those defaults. The runner stops instead of waiting longer than the configured maximum, which avoids hanging when a daily quota is exhausted.
 
 ## 13. How to run the app
 
