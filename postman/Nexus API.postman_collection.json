@@ -1,0 +1,212 @@
+{
+  "info": {
+    "name": "Nexus API",
+    "description": "Complete reference collection for the implemented Nexus HTTP API. Use the Nexus Local Test environment with npm run start:test for seeded-user sessions. Backend routes are direct routes without a global /api prefix.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" }
+  ],
+  "item": [
+    {
+      "name": "Local test authentication",
+      "description": "Test-only requests. These routes exist only when npm run start:test is running.",
+      "item": [
+        {
+          "name": "List seeded test users",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": "{{baseUrl}}/__test/auth",
+            "description": "Returns the seven seeded users and their departments."
+          }
+        },
+        {
+          "name": "Login as Employee 1",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"userId\": \"{{employeeId}}\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/__test/auth/login" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const value = pm.response.headers.get('Set-Cookie') || '';", "const match = /(?:^|,\\s*)nexus_session=([^;,\\s]+)/i.exec(value);", "pm.test('sets a test session cookie', () => pm.expect(match).to.not.be.null);", "if (match) pm.environment.set('sessionEmployee', match[1]);"] } }]
+        },
+        {
+          "name": "Login as Employee 2",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"userId\": \"{{employee2Id}}\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/__test/auth/login" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const value = pm.response.headers.get('Set-Cookie') || '';", "const match = /(?:^|,\\s*)nexus_session=([^;,\\s]+)/i.exec(value);", "pm.test('sets a test session cookie', () => pm.expect(match).to.not.be.null);", "if (match) pm.environment.set('sessionEmployee2', match[1]);"] } }]
+        },
+        {
+          "name": "Login as IT Agent 1",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"userId\": \"{{agentId}}\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/__test/auth/login" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const value = pm.response.headers.get('Set-Cookie') || '';", "const match = /(?:^|,\\s*)nexus_session=([^;,\\s]+)/i.exec(value);", "pm.test('sets a test session cookie', () => pm.expect(match).to.not.be.null);", "if (match) pm.environment.set('sessionAgent', match[1]);"] } }]
+        },
+        {
+          "name": "Login as IT Agent 2",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"userId\": \"{{agent2Id}}\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/__test/auth/login" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const value = pm.response.headers.get('Set-Cookie') || '';", "const match = /(?:^|,\\s*)nexus_session=([^;,\\s]+)/i.exec(value);", "pm.test('sets a test session cookie', () => pm.expect(match).to.not.be.null);", "if (match) pm.environment.set('sessionItAgent2', match[1]);"] } }]
+        },
+        {
+          "name": "Login as HR Agent 1",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"userId\": \"{{hrAgentId}}\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/__test/auth/login" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const value = pm.response.headers.get('Set-Cookie') || '';", "const match = /(?:^|,\\s*)nexus_session=([^;,\\s]+)/i.exec(value);", "pm.test('sets a test session cookie', () => pm.expect(match).to.not.be.null);", "if (match) pm.environment.set('sessionAgent2', match[1]);"] } }]
+        },
+        {
+          "name": "Login as HR Agent 2",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"userId\": \"{{hrAgent2Id}}\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/__test/auth/login" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const value = pm.response.headers.get('Set-Cookie') || '';", "const match = /(?:^|,\\s*)nexus_session=([^;,\\s]+)/i.exec(value);", "pm.test('sets a test session cookie', () => pm.expect(match).to.not.be.null);", "if (match) pm.environment.set('sessionHrAgent2', match[1]);"] } }]
+        },
+        {
+          "name": "Login as Admin",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"userId\": \"{{adminId}}\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/__test/auth/login" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const value = pm.response.headers.get('Set-Cookie') || '';", "const match = /(?:^|,\\s*)nexus_session=([^;,\\s]+)/i.exec(value);", "pm.test('sets a test session cookie', () => pm.expect(match).to.not.be.null);", "if (match) pm.environment.set('sessionAdmin', match[1]);"] } }]
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Ping",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/health/ping", "description": "Public liveness check." }
+        },
+        {
+          "name": "Detailed health report",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{healthSecret}}" }], "url": "{{baseUrl}}/health", "description": "Requires HEALTH_CHECK_SECRET. May return 503 when an external dependency is down." }
+        }
+      ]
+    },
+    {
+      "name": "Authentication",
+      "item": [
+        { "name": "Current authentication - employee", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/authentication/me" } },
+        { "name": "Microsoft login redirect", "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/authentication/microsoft/login", "description": "Browser-assisted OAuth start. The response sets nexus_auth_state and redirects to Microsoft Entra ID." } },
+        { "name": "Microsoft callback", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_auth_state={{authStateCookie}}" }], "url": "{{baseUrl}}/authentication/microsoft/callback?code={{oauthCode}}&state={{oauthState}}", "description": "Manual OAuth callback. Supply code and state from the identity provider." } },
+        { "name": "Logout - employee", "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/authentication/logout" } },
+        { "name": "Logout all devices - employee", "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/authentication/logout-all-devices" } }
+      ]
+    },
+    {
+      "name": "Shared lookups",
+      "item": [
+        { "name": "List all departments", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/departments?scope=all" } },
+        { "name": "List my departments", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAgent}}" }], "url": "{{baseUrl}}/departments?scope=mine" } },
+        { "name": "List active priorities", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/priorities" } },
+        { "name": "List filter options", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/filters" } },
+        { "name": "Dashboard summary", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/dashboard/summary" } },
+        { "name": "Get user profile", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/users/{{userId}}" } }
+      ]
+    },
+    {
+      "name": "Tickets",
+      "item": [
+        {
+          "name": "Create ticket - JSON",
+          "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"title\": \"Postman ticket {{$timestamp}}\",\n  \"description\": \"Created from the Nexus API reference collection.\",\n  \"priority\": \"MODERATE\",\n  \"departmentId\": \"{{itDepartmentId}}\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/tickets" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const body = pm.response.json();", "if (body.ticketId) pm.environment.set('ticketId', body.ticketId);", "pm.test('ticket was created', () => pm.expect(body.ticketId).to.be.a('string'));" ] } }]
+        },
+        {
+          "name": "Create ticket - multipart with attachment",
+          "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "body": { "mode": "formdata", "formdata": [ { "key": "title", "value": "Postman attachment ticket", "type": "text" }, { "key": "description", "value": "Created with the smoke attachment fixture.", "type": "text" }, { "key": "priority", "value": "HIGH", "type": "text" }, { "key": "departmentId", "value": "{{itDepartmentId}}", "type": "text" }, { "key": "files", "type": "file", "src": "postman/fixtures/smoke.txt" } ] }, "url": "{{baseUrl}}/tickets", "description": "Select postman/fixtures/smoke.txt if Postman does not resolve the relative file path." }
+        },
+        { "name": "List tickets", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/tickets?scope=all&page=1&pageSize=50&includeInactive=false" } },
+        { "name": "List tickets with filters", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/tickets?scope=department&page=2&pageSize=25&search=VPN&status=OPEN&departmentId={{itDepartmentId}}&priority=HIGH&includeInactive=false" } },
+        { "name": "List submitted tickets", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/tickets?scope=submitted&page=1&pageSize=50" } },
+        { "name": "List agent pool", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAgent}}" }], "url": "{{baseUrl}}/tickets?scope=pool&page=1&pageSize=50" } },
+        { "name": "Count agent pool", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAgent}}" }], "url": "{{baseUrl}}/tickets/pool/count" } },
+        { "name": "Get ticket details", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/tickets/{{ticketId}}" } },
+        { "name": "Get ticket chat context", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/tickets/{{ticketId}}?view=chat" } },
+        { "name": "Modify ticket - JSON", "request": { "method": "PATCH", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"title\": \"Updated by Postman\",\n  \"priority\": \"HIGH\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/tickets/{{ticketId}}" } },
+        { "name": "Modify ticket - multipart", "request": { "method": "PATCH", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "body": { "mode": "formdata", "formdata": [ { "key": "description", "value": "Updated with multipart data.", "type": "text" }, { "key": "removedAttachmentIds", "value": "[]", "type": "text" }, { "key": "files", "type": "file", "src": "postman/fixtures/smoke.txt", "disabled": true } ] }, "url": "{{baseUrl}}/tickets/{{ticketId}}" } },
+        { "name": "Claim ticket", "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAgent}}" }], "url": "{{baseUrl}}/tickets/{{ticketId}}/claim" } },
+        { "name": "Close ticket", "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAgent}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"completionNotes\": \"Closed from Postman.\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/tickets/{{ticketId}}/close" } },
+        { "name": "Close ticket - multipart", "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAgent}}" }], "body": { "mode": "formdata", "formdata": [ { "key": "completionNotes", "value": "Closed with multipart data.", "type": "text" }, { "key": "files", "type": "file", "src": "postman/fixtures/smoke.txt", "disabled": true } ] }, "url": "{{baseUrl}}/tickets/{{ticketId}}/close" } },
+        { "name": "Reopen ticket", "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"description\": \"Reopened from Postman.\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/tickets/{{ticketId}}/reopen" } },
+        { "name": "Cancel ticket", "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/tickets/{{ticketId}}/cancel" } },
+        { "name": "List ticket events", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/tickets/{{ticketId}}/events?page=1&pageSize=50" } },
+        { "name": "Get ticket event", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/tickets/{{ticketId}}/events/{{ticketEventId}}" } },
+        { "name": "List ticket attachments", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/tickets/{{ticketId}}/attachments" } },
+        { "name": "Download ticket attachment", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/tickets/{{ticketId}}/events/{{ticketEventId}}/attachments/{{attachmentId}}" } }
+      ]
+    },
+    {
+      "name": "Chat",
+      "item": [
+        { "name": "List conversations", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/chats?page=1&pageSize=50" } },
+        { "name": "List conversations by search", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/chats?search=Postman&page=1&pageSize=25" } },
+        { "name": "List ticket messages", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAgent}}" }], "url": "{{baseUrl}}/tickets/{{ticketId}}/chat/messages?page=1&pageSize=50" } },
+        { "name": "Create chat message - JSON", "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"content\": \"Message created from Postman.\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/tickets/{{ticketId}}/chat/messages" } },
+        { "name": "Create chat message - multipart", "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "body": { "mode": "formdata", "formdata": [ { "key": "content", "value": "Multipart chat message.", "type": "text" }, { "key": "files", "type": "file", "src": "postman/fixtures/smoke.txt" } ] }, "url": "{{baseUrl}}/tickets/{{ticketId}}/chat/messages" } },
+        { "name": "Mark conversation read", "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/chats/{{ticketId}}/read" } },
+        { "name": "Download chat attachment", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/tickets/{{ticketId}}/chat/messages/{{messageId}}/attachments/{{attachmentId}}" } }
+      ]
+    },
+    {
+      "name": "Handoffs",
+      "item": [
+        { "name": "List all handoffs", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAgent}}" }], "url": "{{baseUrl}}/handoffs?direction=all&page=1&pageSize=25" } },
+        { "name": "List handoffs with filters", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAgent}}" }], "url": "{{baseUrl}}/handoffs?direction=all&status=PENDING&ticketId={{ticketId}}&search=Postman&departmentId={{itDepartmentId}}&requesterId={{agentId}}&requestedAgentId={{agent2Id}}" } },
+        { "name": "List incoming handoffs", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionItAgent2}}" }], "url": "{{baseUrl}}/handoffs?direction=incoming&status=PENDING&page=1&pageSize=25" } },
+        { "name": "List outgoing handoffs", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAgent}}" }], "url": "{{baseUrl}}/handoffs?direction=outgoing&page=1&pageSize=25" } },
+        { "name": "List handoff participants", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAgent}}" }], "url": "{{baseUrl}}/handoffs/participants" } },
+        { "name": "List eligible handoff agents", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAgent}}" }], "url": "{{baseUrl}}/tickets/{{ticketId}}/handoffs/eligible-agents" } },
+        { "name": "List ticket handoffs", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAgent}}" }], "url": "{{baseUrl}}/tickets/{{ticketId}}/handoffs?direction=all&page=1&pageSize=25" } },
+        { "name": "Create handoff", "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAgent}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"requestedAgentId\": \"{{agent2Id}}\",\n  \"message\": \"Please take over this request.\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/tickets/{{ticketId}}/handoffs" } },
+        { "name": "Accept handoff", "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionItAgent2}}" }], "url": "{{baseUrl}}/handoffs/{{handoffId}}/accept" } },
+        { "name": "Reject handoff", "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionItAgent2}}" }], "url": "{{baseUrl}}/handoffs/{{handoffId}}/reject" } },
+        { "name": "Cancel handoff", "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAgent}}" }], "url": "{{baseUrl}}/handoffs/{{handoffId}}/cancel" } }
+      ]
+    },
+    {
+      "name": "Administration",
+      "description": "All requests in this folder require the Admin role. Mutations are manual reference requests and are not part of the smoke collection.",
+      "item": [
+        { "name": "List users", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAdmin}}" }], "url": "{{baseUrl}}/admin/users?page=1&pageSize=25&status=active" } },
+        { "name": "List users with filters", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAdmin}}" }], "url": "{{baseUrl}}/admin/users?search=agent&departmentId={{itDepartmentId}}&hasLogged=true&page=1&pageSize=25" } },
+        { "name": "Pre-provision user", "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAdmin}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"email\": \"postman-{{$timestamp}}@company.com\",\n  \"fullName\": \"Postman User {{$timestamp}}\",\n  \"phoneNumber\": \"+10000000000\",\n  \"role\": \"Employee\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/admin/users" } },
+        { "name": "Change user role", "request": { "method": "PATCH", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAdmin}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"role\": \"Agent\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/admin/users/{{userId}}/role" } },
+        { "name": "Change user status", "request": { "method": "PATCH", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAdmin}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"active\": true\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/admin/users/{{userId}}/status" } },
+        { "name": "Add user department", "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAdmin}}" }], "url": "{{baseUrl}}/admin/users/{{userId}}/departments/{{departmentId}}" } },
+        { "name": "Remove user department", "request": { "method": "DELETE", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAdmin}}" }], "url": "{{baseUrl}}/admin/users/{{userId}}/departments/{{departmentId}}" } },
+        { "name": "List departments", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAdmin}}" }], "url": "{{baseUrl}}/admin/departments?page=1&pageSize=25" } },
+        { "name": "List departments with search", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAdmin}}" }], "url": "{{baseUrl}}/admin/departments?page=1&pageSize=25&search=IT" } },
+        { "name": "Create department", "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAdmin}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"code\": \"POSTMAN_{{$timestamp}}\",\n  \"name\": \"Postman Department {{$timestamp}}\",\n  \"description\": \"Department created for manual Postman testing.\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/admin/departments" } },
+        { "name": "Update department", "request": { "method": "PATCH", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAdmin}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"description\": \"Updated from Postman.\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/admin/departments/{{departmentId}}" } },
+        { "name": "Deactivate department", "request": { "method": "DELETE", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAdmin}}" }], "url": "{{baseUrl}}/admin/departments/{{departmentId}}" } },
+        { "name": "Reactivate department", "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAdmin}}" }], "url": "{{baseUrl}}/admin/departments/{{departmentId}}/reactivate" } },
+        { "name": "List department members", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAdmin}}" }], "url": "{{baseUrl}}/admin/departments/{{departmentId}}/members?page=1&pageSize=25&search=agent" } },
+        { "name": "List all priorities", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAdmin}}" }], "url": "{{baseUrl}}/admin/priorities" } },
+        { "name": "Create priority", "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAdmin}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"code\": \"POSTMAN_{{$timestamp}}\",\n  \"name\": \"Postman Priority {{$timestamp}}\",\n  \"reminderIntervalMinutes\": 240\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/admin/priorities" } },
+        { "name": "Update priority", "request": { "method": "PATCH", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAdmin}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"Updated Postman Priority\",\n  \"reminderIntervalMinutes\": 300\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/admin/priorities/{{priorityId}}" } },
+        { "name": "Deactivate priority", "request": { "method": "DELETE", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAdmin}}" }], "url": "{{baseUrl}}/admin/priorities/{{priorityId}}" } },
+        { "name": "Reactivate priority", "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAdmin}}" }], "url": "{{baseUrl}}/admin/priorities/{{priorityId}}/reactivate" } },
+        { "name": "List configurations", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAdmin}}" }], "url": "{{baseUrl}}/admin/configurations" } },
+        { "name": "Update configuration", "request": { "method": "PATCH", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAdmin}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"value\": \"240\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/admin/configurations/{{configurationKey}}" } },
+        { "name": "List combined activity", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAdmin}}" }], "url": "{{baseUrl}}/admin/audit-logs/activity?page=1&pageSize=25&source=all" } },
+        { "name": "List audit activity by action", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAdmin}}" }], "url": "{{baseUrl}}/admin/audit-logs/activity?page=1&pageSize=25&source=audit&auditAction=USER_PREPROVISIONING&ticketAction=CLAIM" } },
+        { "name": "Get audit log", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAdmin}}" }], "url": "{{baseUrl}}/admin/audit-logs/{{auditLogId}}" } }
+      ]
+    },
+    {
+      "name": "AI",
+      "item": [
+        { "name": "Start assistant conversation", "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"message\": \"Help me submit an IT request.\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/ai/messages" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const body = pm.response.json();", "if (body.conversationId) pm.environment.set('conversationId', body.conversationId);", "pm.test('returns an assistant response', () => pm.expect(body.message).to.be.a('string'));" ] } }] },
+        { "name": "Continue assistant conversation", "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"message\": \"Please summarize the next step.\",\n  \"conversationId\": \"{{conversationId}}\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/ai/messages" } }
+      ]
+    },
+    {
+      "name": "Negative and authorization checks",
+      "item": [
+        { "name": "Protected route without session", "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/tickets", "description": "Expected 401." } },
+        { "name": "Employee cannot list admin users", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/admin/users", "description": "Expected 403." } },
+        { "name": "Employee cannot claim ticket", "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/tickets/{{ticketId}}/claim", "description": "Expected 403. The ticket must be open and unclaimed." } },
+        { "name": "Second employee cannot view ticket", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee2}}" }], "url": "{{baseUrl}}/tickets/{{ticketId}}", "description": "Expected 403 when the ticket is outside the user's access scope." } },
+        { "name": "Second employee cannot view chat", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee2}}" }], "url": "{{baseUrl}}/tickets/{{ticketId}}/chat/messages", "description": "Expected 403 when the conversation is outside the user's access scope." } },
+        { "name": "Reject unknown ticket fields", "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"title\": \"Invalid request\",\n  \"description\": \"Unknown fields must be rejected.\",\n  \"priority\": \"LOW\",\n  \"departmentId\": \"{{itDepartmentId}}\",\n  \"agentId\": \"{{employee2Id}}\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/tickets" }, "description": "Expected 400 because whitelist validation forbids agentId." },
+        { "name": "Reject invalid identifier", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/tickets/not.valid.id", "description": "Expected 400 from IdentifierValidationPipe." } }
+      ]
+    },
+    {
+      "name": "Realtime reference",
+      "description": "The operations gateway is Socket.IO, not a REST endpoint. Create a Postman Socket.IO request using http://localhost:3000/operations, path /socket.io, credentials enabled, and the nexus_session cookie. Emit join ticket room or join chat room with { ticketId }, then listen for operations.connected, operations.error, ticket.updated, ticket.event.created, chat.message.created, app.notification, and filter.options.updated.",
+      "item": [
+        { "name": "Socket.IO operations namespace - manual setup", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/operations", "description": "Documentation placeholder. Use Postman's Socket.IO request type rather than sending this HTTP request." } }
+      ]
+    }
+  ]
+}
