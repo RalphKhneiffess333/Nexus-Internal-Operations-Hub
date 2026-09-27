@@ -62,8 +62,6 @@ export class MicrosoftAuthStrategy implements AuthenticationStrategy<MicrosoftAu
   getAuthorizationUrl(state: string): string {
     const url = new URL(
       `https://login.microsoftonline.com/${this.authenticationTenant}/oauth2/v2.0/authorize`,
-      // Tenant-locked organization login:
-      // `https://login.microsoftonline.com/${this.tenantId}/oauth2/v2.0/authorize`,
     );
 
     url.searchParams.set('client_id', this.clientId);
@@ -127,8 +125,6 @@ export class MicrosoftAuthStrategy implements AuthenticationStrategy<MicrosoftAu
 
     const response = await this.fetchWithRetries(
       `https://login.microsoftonline.com/${this.authenticationTenant}/oauth2/v2.0/token`,
-      // Tenant-locked organization token exchange:
-      // `https://login.microsoftonline.com/${this.tenantId}/oauth2/v2.0/token`,
       {
         method: 'POST',
         headers: {
@@ -216,11 +212,18 @@ export class MicrosoftAuthStrategy implements AuthenticationStrategy<MicrosoftAu
       );
     }
 
+    if (
+      !payload.tid ||
+      payload.tid.toLowerCase() !== this.tenantId.toLowerCase()
+    ) {
+      throw new UnauthorizedException(
+        'Microsoft identity token belongs to a different organization',
+      );
+    }
+
     const expectedIssuer = openIdConfiguration.issuer.replace(
       '{tenantid}',
-      payload.tid ?? this.authenticationTenant,
-      // Tenant-locked organization issuer fallback:
-      // payload.tid ?? this.tenantId,
+      this.tenantId,
     );
     if (payload.iss !== expectedIssuer) {
       throw new UnauthorizedException(
@@ -232,8 +235,6 @@ export class MicrosoftAuthStrategy implements AuthenticationStrategy<MicrosoftAu
   private async getOpenIdConfiguration(): Promise<OpenIdConfiguration> {
     const response = await this.fetchWithRetries(
       `https://login.microsoftonline.com/${this.authenticationTenant}/v2.0/.well-known/openid-configuration`,
-      // Tenant-locked organization OpenID discovery:
-      // `https://login.microsoftonline.com/${this.tenantId}/v2.0/.well-known/openid-configuration`,
     );
 
     if (!response.ok) {
@@ -321,11 +322,7 @@ export class MicrosoftAuthStrategy implements AuthenticationStrategy<MicrosoftAu
   }
 
   private get authenticationTenant(): string {
-    // Testing mode: allow personal Microsoft accounts and accounts from any Entra tenant.
-    return 'common';
-
-    // Tenant-locked organization login:
-    // return this.tenantId;
+    return this.tenantId;
   }
 
   private get clientId(): string {

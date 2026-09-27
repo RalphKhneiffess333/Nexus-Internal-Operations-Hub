@@ -12,8 +12,6 @@ import type {
   HealthReport,
 } from './health.types';
 
-const MICROSOFT_OPENID_CONFIGURATION_URL =
-  'https://login.microsoftonline.com/common/v2.0/.well-known/openid-configuration';
 const GROQ_MODELS_URL = 'https://api.groq.com/openai/v1/models';
 const DEFAULT_TIMEOUT_MS = 5000;
 
@@ -72,9 +70,15 @@ export class HealthService {
       throw new Error('Microsoft authentication is not configured');
     }
 
-    const response = await fetch(MICROSOFT_OPENID_CONFIGURATION_URL, {
-      signal: AbortSignal.timeout(this.timeoutMs),
-    });
+    const tenantId = this.config
+      .get<string>('MICROSOFT_ENTRA_TENANT_ID')
+      ?.trim();
+    const response = await fetch(
+      `https://login.microsoftonline.com/${encodeURIComponent(tenantId ?? '')}/v2.0/.well-known/openid-configuration`,
+      {
+        signal: AbortSignal.timeout(this.timeoutMs),
+      },
+    );
     if (!response.ok) {
       throw new Error(`Microsoft OpenID discovery returned ${response.status}`);
     }
@@ -116,6 +120,7 @@ export class HealthService {
 
   private isMicrosoftAuthConfigured(): boolean {
     return [
+      'MICROSOFT_ENTRA_TENANT_ID',
       'MICROSOFT_ENTRA_CLIENT_ID',
       'MICROSOFT_ENTRA_CLIENT_SECRET',
       'MICROSOFT_ENTRA_REDIRECT_URI',

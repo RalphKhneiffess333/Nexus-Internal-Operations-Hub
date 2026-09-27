@@ -44,11 +44,13 @@ describe('MicrosoftAuthStrategy', () => {
     jest.restoreAllMocks();
   });
 
-  it('uses the Microsoft common endpoint while testing account access is open', () => {
+  it('uses the configured organization tenant for login', () => {
     const authorizationUrl = new URL(strategy.getAuthorizationUrl('state-1'));
 
     expect(authorizationUrl.origin).toBe('https://login.microsoftonline.com');
-    expect(authorizationUrl.pathname).toBe('/common/oauth2/v2.0/authorize');
+    expect(authorizationUrl.pathname).toBe(
+      '/organization-tenant-id/oauth2/v2.0/authorize',
+    );
     expect(authorizationUrl.searchParams.get('state')).toBe('state-1');
   });
 
@@ -119,6 +121,19 @@ describe('MicrosoftAuthStrategy', () => {
     );
   });
 
+  it('rejects an identity token from a different organization', async () => {
+    mockMicrosoftResponses(
+      signedToken({
+        tid: 'another-tenant-id',
+        iss: 'https://login.microsoftonline.com/another-tenant-id/v2.0',
+      }),
+    );
+
+    await expect(strategy.authenticate({ code: 'code' })).rejects.toThrow(
+      UnauthorizedException,
+    );
+  });
+
   it('rejects an identity token without required identity information', async () => {
     mockMicrosoftResponses(
       signedToken({
@@ -168,9 +183,9 @@ describe('MicrosoftAuthStrategy', () => {
     };
     const payload = stripUndefined({
       aud: 'client-id',
-      iss: 'https://login.microsoftonline.com/tenant-1/v2.0',
+      iss: 'https://login.microsoftonline.com/organization-tenant-id/v2.0',
       exp: Math.floor(Date.now() / 1000) + 60,
-      tid: 'tenant-1',
+      tid: 'organization-tenant-id',
       oid: 'entra-user-1',
       email: 'alex@company.com',
       name: 'Alex Employee',

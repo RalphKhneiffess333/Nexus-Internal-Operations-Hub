@@ -54,6 +54,7 @@ function createService(overrides: Record<string, string | Error> = {}): {
   const values: Record<string, string> = {
     HEALTH_CHECK_SECRET: 'health-secret',
     HEALTH_CHECK_TIMEOUT_MS: '1000',
+    MICROSOFT_ENTRA_TENANT_ID: 'organization-tenant-id',
     MICROSOFT_ENTRA_CLIENT_ID: 'client-id',
     MICROSOFT_ENTRA_CLIENT_SECRET: 'client-secret',
     MICROSOFT_ENTRA_REDIRECT_URI: 'http://localhost:3000/callback',
