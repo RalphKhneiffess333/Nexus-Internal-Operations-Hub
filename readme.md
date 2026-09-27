@@ -390,6 +390,10 @@ but the backend uses `backend/.env.integration` instead of the normal
 5. Creates an in-memory session for every test user and prints a directly usable
    `Cookie` header value for each one.
 
+The test-mode session identifiers are deterministic per user, so the printed
+cookie values remain stable across restarts. The sessions themselves are still
+held in memory and recreated each time the server starts.
+
 The seeded users are:
 
 | User       | Role       | Department             |

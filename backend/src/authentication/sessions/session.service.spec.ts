@@ -41,6 +41,24 @@ describe('SessionService', () => {
     expect(sessionStore.all()).toHaveLength(2);
   });
 
+  it('creates a stable test session per user', () => {
+    const first = sessionService.createTestSession('user-1', {
+      userAgent: 'Desktop',
+    });
+    const second = sessionService.createTestSession('user-1', {
+      userAgent: 'Mobile',
+    });
+    const other = sessionService.createTestSession('user-2', {
+      userAgent: 'Desktop',
+    });
+
+    expect(first.sessionId).toBe(second.sessionId);
+    expect(first.sessionId).not.toBe(other.sessionId);
+    expect(first.sessionId).toMatch(/^test-/);
+    expect(sessionStore.get(first.sessionId)?.userId).toBe('user-1');
+    expect(sessionStore.all()).toHaveLength(2);
+  });
+
   it('refreshes sessions with a sliding seven-day expiration', () => {
     const session = sessionService.createSession('user-1', {});
 

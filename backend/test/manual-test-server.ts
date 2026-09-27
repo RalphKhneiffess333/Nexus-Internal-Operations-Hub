@@ -92,7 +92,7 @@ async function printTestSessions(
       continue;
     }
 
-    const session = sessionService.createSession(user.userId, {
+    const session = sessionService.createTestSession(user.userId, {
       userAgent: 'nexus-test-mode',
       ip: '127.0.0.1',
     });

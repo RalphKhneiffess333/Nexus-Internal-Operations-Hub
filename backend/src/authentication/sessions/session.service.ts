@@ -1,5 +1,5 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { randomBytes } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import { SESSION_LIFETIME_MS } from '../authentication.constants';
 import { Session, SessionDevice } from './session.entity';
 import { SessionStore } from './session.store';
@@ -25,9 +25,34 @@ export class SessionService implements OnModuleInit, OnModuleDestroy {
   }
 
   createSession(userId: string, device: SessionDevice): Session {
+    return this.createSessionWithId(
+      randomBytes(32).toString('base64url'),
+      userId,
+      device,
+    );
+  }
+
+  /**
+   * Creates the stable session used by the local manual test mode.
+   * Production authentication must continue using createSession so sessions
+   * remain opaque and unique per login.
+   */
+  createTestSession(userId: string, device: SessionDevice): Session {
+    const sessionId = `test-${createHash('sha256')
+      .update(`nexus-test-session:${userId}`)
+      .digest('base64url')}`;
+
+    return this.createSessionWithId(sessionId, userId, device);
+  }
+
+  private createSessionWithId(
+    sessionId: string,
+    userId: string,
+    device: SessionDevice,
+  ): Session {
     const now = new Date();
     const session: Session = {
-      sessionId: randomBytes(32).toString('base64url'),
+      sessionId,
       userId,
       device,
       createdAt: now,
