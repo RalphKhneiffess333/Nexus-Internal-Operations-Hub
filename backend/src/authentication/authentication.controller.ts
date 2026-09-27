@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Header,
   Post,
   Query,
   Req,
@@ -83,6 +84,7 @@ export class AuthenticationController {
 
   @Public()
   @Get('me')
+  @Header('Cache-Control', 'no-store')
   me(@Req() request: AuthenticatedRequest) {
     return { user: request.user };
   }
@@ -125,7 +127,9 @@ export class AuthenticationController {
     return buildCookie(SESSION_COOKIE_NAME, sessionId, {
       httpOnly: true,
       secure: true,
-      sameSite: 'Lax',
+      // The deployed frontend and backend use different sites. None is
+      // required so credentials can be sent on cross-site API requests.
+      sameSite: 'None',
       path: '/',
       maxAgeSeconds: SESSION_LIFETIME_MS / 1000,
     });
@@ -145,7 +149,7 @@ export class AuthenticationController {
     return buildCookie(name, '', {
       httpOnly: true,
       secure: true,
-      sameSite: 'Lax',
+      sameSite: name === SESSION_COOKIE_NAME ? 'None' : 'Lax',
       path,
       maxAgeSeconds: 0,
       expires: new Date(0),
