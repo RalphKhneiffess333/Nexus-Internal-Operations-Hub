@@ -51,6 +51,8 @@ interface MicrosoftIdTokenPayload {
   family_name?: string;
 }
 
+const DEFAULT_REQUEST_TIMEOUT_MS = 10000;
+
 @Injectable()
 export class MicrosoftAuthStrategy implements AuthenticationStrategy<MicrosoftAuthenticationInput> {
   private readonly logger = new Logger(MicrosoftAuthStrategy.name);
@@ -279,7 +281,10 @@ export class MicrosoftAuthStrategy implements AuthenticationStrategy<MicrosoftAu
 
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       try {
-        const response = await fetch(input, init);
+        const response = await fetch(input, {
+          ...init,
+          signal: AbortSignal.timeout(this.requestTimeoutMs),
+        });
         if (response.status < 500) {
           return response;
         }
@@ -340,6 +345,15 @@ export class MicrosoftAuthStrategy implements AuthenticationStrategy<MicrosoftAu
       this.configService.get<string>('MICROSOFT_ENTRA_SCOPES') ??
       'openid profile email'
     );
+  }
+
+  private get requestTimeoutMs(): number {
+    const value = Number(
+      this.configService.get<string>('MICROSOFT_REQUEST_TIMEOUT_MS'),
+    );
+    return Number.isInteger(value) && value > 0
+      ? value
+      : DEFAULT_REQUEST_TIMEOUT_MS;
   }
 
   private requiredConfig(name: string): string {

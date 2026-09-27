@@ -14,6 +14,7 @@ import { logSystemError } from '../../common/logging/system-error.logger';
 const DEFAULT_MODEL = 'qwen/qwen3.8-27b';
 const MAX_ATTEMPTS = 3;
 const DEFAULT_RETRY_DELAY_MS = 250;
+const DEFAULT_REQUEST_TIMEOUT_MS = 30000;
 
 const ASSISTANT_RESPONSE_SCHEMA = {
   type: 'object',
@@ -170,12 +171,17 @@ export class GroqProvider implements AiProvider {
   private readonly logger = new Logger(GroqProvider.name);
   private readonly model: string;
   private readonly retryDelayMs: number;
+  private readonly requestTimeoutMs: number;
 
   constructor(private readonly config: ConfigService) {
     this.model = this.config.get<string>('GROQ_MODEL')?.trim() || DEFAULT_MODEL;
     this.retryDelayMs = this.readPositiveInteger(
       'AI_RETRY_DELAY_MS',
       DEFAULT_RETRY_DELAY_MS,
+    );
+    this.requestTimeoutMs = this.readPositiveInteger(
+      'GROQ_REQUEST_TIMEOUT_MS',
+      DEFAULT_REQUEST_TIMEOUT_MS,
     );
   }
 
@@ -225,6 +231,7 @@ export class GroqProvider implements AiProvider {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify(body),
+            signal: AbortSignal.timeout(this.requestTimeoutMs),
           },
         );
 

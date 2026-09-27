@@ -28,7 +28,11 @@ export function mapPrismaError(error: unknown): never {
     if (
       error.code === 'P1001' ||
       error.code === 'P1002' ||
-      error.code === 'P1017'
+      error.code === 'P1008' ||
+      error.code === 'P1011' ||
+      error.code === 'P1017' ||
+      error.code === 'P2024' ||
+      error.code === 'P2028'
     ) {
       throw new ServiceUnavailableException('Database is unavailable', {
         cause: error,
