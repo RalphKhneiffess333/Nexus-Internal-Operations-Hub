@@ -167,7 +167,7 @@ function applyMigrations(backendRoot: string): void {
   );
   if (!existsSync(prismaCli)) {
     throw new Error(
-      'The Prisma CLI is not installed. Run npm run install before bulk seeding.',
+      'The Prisma CLI is not installed. Run npm install from the repository root before bulk seeding.',
     );
   }
 

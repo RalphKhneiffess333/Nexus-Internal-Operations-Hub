@@ -600,21 +600,13 @@ async function runPrerequisitesStage() {
 async function runDependenciesStage() {
   section(2, "Install Dependencies");
   const rootModules = fs.existsSync(path.join(repoRoot, "node_modules"));
-  const backendModules = fs.existsSync(
-    path.join(repoRoot, "backend", "node_modules"),
-  );
-  const frontendModules = fs.existsSync(
-    path.join(repoRoot, "frontend", "nexus", "node_modules"),
-  );
 
-  if (rootModules && backendModules && frontendModules) {
-    info(
-      "Existing node_modules folders were detected for the root, backend, and frontend.",
-    );
+  if (rootModules) {
+    info("An existing root node_modules folder was detected.");
   }
 
   const effect = await askStageDecision(
-    "The next step will install the root, backend, and frontend dependencies. This may take a few minutes. Continue?",
+    "The next step will install dependencies for the root and both workspaces. The backend Prisma client will be generated during installation. This may take a few minutes. Continue?",
   );
   if (effect === "skip") {
     warning("Dependency installation skipped");

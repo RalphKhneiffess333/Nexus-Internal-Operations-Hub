@@ -37,19 +37,16 @@ Postman is also optional for manual testing.
 Run all install commands from the repository root:
 
 ```bash
-npm run install
+npm install
 ```
 
-This installs the root tooling, backend dependencies, and frontend dependencies. The backend install also generates the Prisma client.
+This single workspace install manages the root tooling, backend dependencies, and frontend dependencies with the root `package-lock.json`. The backend `postinstall` script generates the Prisma client.
 
-If you prefer to step into each app folder, run:
+Run an individual workspace script from the repository root with `--workspace`:
 
 ```bash
-npm install
-cd backend
-npm install
-cd ../frontend/nexus
-npm install
+npm run start:dev --workspace=backend
+npm run dev --workspace=@nexus/frontend
 ```
 
 ## 5. How to set up PostgreSQL
@@ -281,15 +278,14 @@ To run all unit, integration, API E2E, and browser E2E tests, from the root, run
 npm run test
 ```
 
-To individually run the tests, from the `backend` folder:
+To individually run the backend tests from the repository root:
 
 ```bash
-cd backend
-npm test
-npm run test:integration
-npm run test:api:e2e
-npm run test:browser:e2e
-npm run test:e2e
+npm run test --workspace=backend
+npm run test:integration --workspace=backend
+npm run test:api:e2e --workspace=backend
+npm run test:browser:e2e --workspace=backend
+npm run test:e2e --workspace=backend
 ```
 
 All require `backend/.env.integration` pointing at a separate PostgreSQL database. Test startup applies Prisma migrations to that database, then seeds sample users/departments and resets ticket rows.
