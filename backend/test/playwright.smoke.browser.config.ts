@@ -30,7 +30,7 @@ export default defineConfig({
       command:
         'node -r ts-node/register -r tsconfig-paths/register ./test/playwright-server.ts',
       cwd: backendRoot,
-      url: 'http://localhost:3000/authentication/me',
+      url: 'http://localhost:3000/api/authentication/me',
       env: { BACKGROUND_WORKERS_ENABLED: 'false' },
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,

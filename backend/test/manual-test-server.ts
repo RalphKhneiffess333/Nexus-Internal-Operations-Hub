@@ -1,4 +1,4 @@
-import { ValidationPipe } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { config, parse } from 'dotenv';
 import { existsSync, readFileSync } from 'fs';
@@ -10,6 +10,7 @@ import { PrismaService } from '../src/database/prisma.service';
 import { seedTestDatabase, TEST_USER_IDS } from '../src/database/seed';
 import { ManualTestAuthController } from './manual-test-auth.controller';
 import { migrateTestDatabase } from './support/migrate-test-database';
+import { configureHttpApplication } from '../src/app-configuration';
 
 process.env.PORT = process.env.PORT ?? '3000';
 process.env.FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:5173';
@@ -110,17 +111,7 @@ async function bootstrap(): Promise<void> {
     controllers: [ManualTestAuthController],
   }).compile();
   const app = moduleRef.createNestApplication();
-  app.enableCors({
-    origin: process.env.FRONTEND_URL,
-    credentials: true,
-  });
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-    }),
-  );
+  configureHttpApplication(app, app.get(ConfigService));
 
   const prisma = app.get(PrismaService);
   const sessionService = app.get(SessionService);

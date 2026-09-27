@@ -28,7 +28,7 @@ export default defineConfig({
     {
       command: 'npx ts-node ./test/playwright-server.ts',
       cwd: backendRoot,
-      url: 'http://localhost:3000/authentication/me',
+      url: 'http://localhost:3000/api/authentication/me',
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
     },

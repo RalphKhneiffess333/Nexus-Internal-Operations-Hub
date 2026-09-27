@@ -40,6 +40,7 @@ describe('AuthenticationService', () => {
     providerUserId: 'entra-user-1',
     email: 'alex@company.com',
     displayName: 'Alex Employee',
+    phoneNumber: '+1 555 0100',
   };
 
   beforeEach(() => {
@@ -108,7 +109,7 @@ describe('AuthenticationService', () => {
     expect(usersService.create).toHaveBeenCalledWith({
       email: identity.email,
       fullName: identity.displayName,
-      phoneNumber: null,
+      phoneNumber: identity.phoneNumber,
       identityProviderId: 'idp-entra',
       identityProviderUserId: identity.providerUserId,
     });

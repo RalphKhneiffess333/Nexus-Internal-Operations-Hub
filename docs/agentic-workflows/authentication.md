@@ -40,7 +40,7 @@ The current routes are:
 | Method | Route | Access | Result |
 |---|---|---|---|
 | GET | `/authentication/microsoft/login` | Public | Starts Microsoft login and sets temporary authentication state. |
-| GET | `/authentication/microsoft/callback?code=...&state=...` | Public | Completes login, sets the `nexus_session` cookie, and redirects to the frontend. |
+| GET | `/api/authentication/microsoft/callback?code=...&state=...` | Public | Completes login, sets the `nexus_session` cookie, and redirects to the frontend. |
 | GET | `/authentication/me` | Public | `{ user: authenticatedUser \| null }`. |
 | POST | `/authentication/logout` | Public | Clears the current session and returns `{ loggedOut: true }`. |
 | POST | `/authentication/logout-all-devices` | Authenticated | Revokes the user's sessions and returns `{ loggedOut: true }`. |

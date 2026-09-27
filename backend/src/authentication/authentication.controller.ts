@@ -64,7 +64,7 @@ export class AuthenticationController {
         this.clearCookie(SESSION_COOKIE_NAME, '/'),
         this.clearCookie(
           AUTH_STATE_COOKIE_NAME,
-          '/authentication/microsoft/callback',
+          '/api/authentication/microsoft/callback',
         ),
       ]);
       response.redirect(this.getDeactivatedAccountUrl());
@@ -75,7 +75,7 @@ export class AuthenticationController {
       this.buildSessionCookie(login.session.sessionId),
       this.clearCookie(
         AUTH_STATE_COOKIE_NAME,
-        '/authentication/microsoft/callback',
+        '/api/authentication/microsoft/callback',
       ),
     ]);
 
@@ -127,9 +127,8 @@ export class AuthenticationController {
     return buildCookie(SESSION_COOKIE_NAME, sessionId, {
       httpOnly: true,
       secure: true,
-      // The deployed frontend and backend use different sites. None is
-      // required so credentials can be sent on cross-site API requests.
-      sameSite: 'None',
+      // The bundled frontend and backend are served from the same site.
+      sameSite: 'Lax',
       path: '/',
       maxAgeSeconds: SESSION_LIFETIME_MS / 1000,
     });
@@ -140,7 +139,7 @@ export class AuthenticationController {
       httpOnly: true,
       secure: true,
       sameSite: 'Lax',
-      path: '/authentication/microsoft/callback',
+      path: '/api/authentication/microsoft/callback',
       maxAgeSeconds: AUTH_STATE_LIFETIME_MS / 1000,
     });
   }
@@ -149,7 +148,7 @@ export class AuthenticationController {
     return buildCookie(name, '', {
       httpOnly: true,
       secure: true,
-      sameSite: name === SESSION_COOKIE_NAME ? 'None' : 'Lax',
+      sameSite: 'Lax',
       path,
       maxAgeSeconds: 0,
       expires: new Date(0),

@@ -6,8 +6,8 @@ The workflow documents under `docs/agentic-workflows/` describe implementation i
 
 ## Conventions
 
-- The NestJS backend exposes routes directly at the paths below. It does not add a global `/api` prefix.
-- The Vite development server proxies `/api/*` to the backend and removes `/api`; this is a frontend transport convention, not part of the backend route path.
+- The NestJS backend exposes HTTP routes at `/api` plus the controller-relative paths below.
+- The Vite development server proxies `/api/*` to the backend without removing `/api`.
 - Protected routes use the HTTP-only `nexus_session` cookie and explicit `Employee`, `Agent`, or `Admin` role metadata.
 - Validation uses a global whitelist pipe with unknown fields rejected. Validation failures use `400 Bad Request`.
 - Errors are returned as `{ "statusCode": number, "message": string | string[] }`. Internal failures are sanitized.
@@ -25,6 +25,9 @@ The workflow documents under `docs/agentic-workflows/` describe implementation i
 Administration list endpoints that use counted pagination additionally return `total`. Handoff lists additionally return `pendingCount`.
 
 ## Authentication
+
+The routes in the tables below are shown relative to the `/api` prefix. For
+example, `/authentication/me` is exposed as `/api/authentication/me`.
 
 | Method | Route | Access | Contract |
 |---|---|---|---|
