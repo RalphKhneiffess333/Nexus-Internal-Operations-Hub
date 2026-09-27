@@ -110,7 +110,8 @@ export function NotificationProvider({ children }) {
     if (unreadChatIdsResult.status === 'fulfilled') {
       setUnreadChatIds(unreadChatIdsResult.value)
       setUnreadChatsReady(true)
-      setChatInboxVersion((version) => version + 1)
+      // Refreshing notification counts, including after window focus returns,
+      // updates unread badges without forcing the chat list to reload.
     }
     if (!canViewTicketPool) {
       setUnclaimedTickets(0)

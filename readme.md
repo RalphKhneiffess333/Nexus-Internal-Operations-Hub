@@ -195,7 +195,13 @@ In local Vite development you can leave this empty because `/api` is proxied to 
 
 ```
 VITE_API_URL=
+VITE_DEV_API_URL=http://localhost:3000
+VITE_DEV_PORT=5173
 ```
+
+`VITE_DEV_API_URL` controls the local Vite proxy target, and `VITE_DEV_PORT`
+controls the frontend development server port. Set `VITE_API_URL` instead when
+the browser should call a deployed backend directly rather than use the proxy.
 
 Do not commit `.env`. `.env.example` is the template without real credentials.
 
