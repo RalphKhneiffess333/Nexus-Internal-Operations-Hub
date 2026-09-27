@@ -71,6 +71,26 @@ describe('NodemailerEmailProvider', () => {
       createTransport.mockRestore();
     }
   });
+
+  it('verifies a configured SMTP transport without sending an email', async () => {
+    const verify = jest.fn<() => Promise<true>>().mockResolvedValue(true);
+    const sendMail = jest.fn<(options: unknown) => Promise<unknown>>();
+    const createTransport = jest
+      .spyOn(nodemailer, 'createTransport')
+      .mockReturnValue({ sendMail, verify } as never);
+
+    try {
+      const provider = new NodemailerEmailProvider(
+        configFor() as unknown as ConfigService,
+      );
+
+      await expect(provider.checkHealth()).resolves.toBe('healthy');
+      expect(verify).toHaveBeenCalledTimes(1);
+      expect(sendMail).not.toHaveBeenCalled();
+    } finally {
+      createTransport.mockRestore();
+    }
+  });
 });
 
 function configFor(overrides: Record<string, string> = {}) {

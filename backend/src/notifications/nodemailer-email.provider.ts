@@ -5,6 +5,7 @@ import type { EmailProvider, OutboundEmail } from './email-provider';
 
 type EmailTransport = {
   sendMail(options: SendMailOptions): Promise<unknown>;
+  verify(): Promise<true>;
 };
 
 @Injectable()
@@ -58,6 +59,14 @@ export class NodemailerEmailProvider implements EmailProvider {
       text: message.text,
       html: message.html,
     });
+  }
+
+  /** Verifies the SMTP connection without sending an email. */
+  async checkHealth(): Promise<'healthy' | 'disabled'> {
+    if (!this.transporter) return 'disabled';
+
+    await this.transporter.verify();
+    return 'healthy';
   }
 
   private readPositiveInteger(

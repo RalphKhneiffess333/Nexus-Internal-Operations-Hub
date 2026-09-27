@@ -176,6 +176,19 @@ templates are [backend/.env.example](backend/.env.example),
 [backend/.env.integration.example](backend/.env.integration.example), and
 [frontend/nexus/.env.example](frontend/nexus/.env.example).
 
+### Health endpoints
+
+`GET /health/ping` is a public liveness endpoint and returns `{ "status": "ok" }`
+when the backend process is running. It does not contact any dependencies.
+
+`GET /health` is a protected readiness endpoint. Set a long, random
+`HEALTH_CHECK_SECRET` in `backend/.env` and send it as
+`Authorization: Bearer <HEALTH_CHECK_SECRET>`. It reports the backend version
+and the status of PostgreSQL, Microsoft Entra OpenID discovery, SMTP, and Groq.
+It does not send an email or generate an AI response. Disabled optional email or
+Groq integrations are reported as `disabled`; a required or configured service
+that cannot be reached produces an `unhealthy` report with HTTP status `503`.
+
 ## 9. Frontend Optional Configuration
 
 For the frontend, copy `frontend/nexus/.env.example` if you need to override the API origin:

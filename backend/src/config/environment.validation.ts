@@ -11,6 +11,7 @@ const positiveIntegerKeys = [
   'UNCLAIMED_TICKET_REMINDER_INTERVAL_MS',
   'FILE_ORPHAN_GRACE_PERIOD_MS',
   'AI_RETRY_DELAY_MS',
+  'HEALTH_CHECK_TIMEOUT_MS',
 ] as const;
 
 const booleanKeys = [
