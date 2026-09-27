@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -13,6 +14,7 @@ import {
 import { MICROSOFT_ENTRA_PROVIDER_CODE } from '../authentication.constants';
 import { AuthenticatedIdentity } from './authenticated-identity';
 import { AuthenticationStrategy } from './authentication.strategy';
+import { logSystemError } from '../../common/logging/system-error.logger';
 
 export interface MicrosoftAuthenticationInput {
   code: string;
@@ -51,6 +53,8 @@ interface MicrosoftIdTokenPayload {
 
 @Injectable()
 export class MicrosoftAuthStrategy implements AuthenticationStrategy<MicrosoftAuthenticationInput> {
+  private readonly logger = new Logger(MicrosoftAuthStrategy.name);
+
   constructor(private readonly configService: ConfigService) {}
 
   getAuthorizationUrl(state: string): string {
@@ -231,8 +235,16 @@ export class MicrosoftAuthStrategy implements AuthenticationStrategy<MicrosoftAu
     );
 
     if (!response.ok) {
+      const error = new Error(
+        `Microsoft OpenID discovery returned HTTP ${response.status}`,
+      );
+      logSystemError(this.logger, error, {
+        operation: 'microsoft-auth.openid-discovery',
+        object: { type: 'external-service', id: 'microsoft-entra' },
+      });
       throw new ServiceUnavailableException(
         'Microsoft OpenID configuration is unavailable',
+        { cause: error },
       );
     }
 
@@ -243,8 +255,16 @@ export class MicrosoftAuthStrategy implements AuthenticationStrategy<MicrosoftAu
     const response = await this.fetchWithRetries(jwksUri);
 
     if (!response.ok) {
+      const error = new Error(
+        `Microsoft signing-key lookup returned HTTP ${response.status}`,
+      );
+      logSystemError(this.logger, error, {
+        operation: 'microsoft-auth.signing-keys',
+        object: { type: 'external-service', id: 'microsoft-entra' },
+      });
       throw new ServiceUnavailableException(
         'Microsoft signing keys are unavailable',
+        { cause: error },
       );
     }
 
@@ -269,9 +289,15 @@ export class MicrosoftAuthStrategy implements AuthenticationStrategy<MicrosoftAu
       }
     }
 
-    void lastError;
+    const error =
+      lastError ?? new Error('Microsoft authentication did not respond');
+    logSystemError(this.logger, error, {
+      operation: 'microsoft-auth.request',
+      object: { type: 'external-service', id: 'microsoft-entra' },
+    });
     throw new ServiceUnavailableException(
       'Microsoft authentication is unavailable',
+      { cause: error },
     );
   }
 
@@ -319,8 +345,14 @@ export class MicrosoftAuthStrategy implements AuthenticationStrategy<MicrosoftAu
   private requiredConfig(name: string): string {
     const value = this.configService.get<string>(name);
     if (!value) {
+      const error = new Error(`${name} is not configured`);
+      logSystemError(this.logger, error, {
+        operation: 'microsoft-auth.configuration',
+        object: { type: 'configuration', id: name },
+      });
       throw new ServiceUnavailableException(
         `${name} must be configured for Microsoft Entra authentication`,
+        { cause: error },
       );
     }
 

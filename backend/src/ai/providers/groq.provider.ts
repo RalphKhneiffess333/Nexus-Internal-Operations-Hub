@@ -9,6 +9,7 @@ import {
   type AiProviderResult,
   type AiToolCall,
 } from './ai-provider.interface';
+import { logSystemError } from '../../common/logging/system-error.logger';
 
 const DEFAULT_MODEL = 'qwen/qwen3.8-27b';
 const MAX_ATTEMPTS = 3;
@@ -254,9 +255,11 @@ export class GroqProvider implements AiProvider {
       } catch (error) {
         if (error instanceof AiProviderError && !error.retryable) throw error;
         if (attempt >= MAX_ATTEMPTS) {
-          this.logger.warn(
-            `Groq request failed after ${attempt} attempt(s): ${this.describeError(error)}`,
-          );
+          logSystemError(this.logger, error, {
+            operation: 'groq.generate',
+            object: { type: 'external-service', id: 'groq' },
+            context: { attempt, model: this.model },
+          });
           throw new AiProviderError('Groq is temporarily unavailable', true);
         }
         await this.delay(attempt);
@@ -271,11 +274,6 @@ export class GroqProvider implements AiProvider {
       setTimeout(resolve, this.retryDelayMs * 2 ** (attempt - 1)),
     );
   }
-
-  private describeError(error: unknown): string {
-    return error instanceof Error ? error.message : String(error);
-  }
-
   private readPositiveInteger(key: string, fallback: number): number {
     const value = Number(this.config.get<string>(key));
     return Number.isInteger(value) && value > 0 ? value : fallback;

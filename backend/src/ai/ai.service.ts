@@ -7,9 +7,8 @@ import {
   type AssistantResponse,
   type AssistantTurn,
 } from './agent/agent.service';
-import {
-  AiProviderError,
-} from './providers/ai-provider.interface';
+import { AiProviderError } from './providers/ai-provider.interface';
+import { logSystemError } from '../common/logging/system-error.logger';
 
 const MAX_TURNS = 8;
 const MAX_CONVERSATIONS_PER_USER = 20;
@@ -64,16 +63,19 @@ export class AiService {
         conversation.turns,
       );
     } catch (error) {
-      if (error instanceof AiProviderError) {
-        this.logger.warn(
-          `AI request failed [status=${error.statusCode ?? 'unknown'}, failure=${error.failureType}]: ${error.message}`,
-        );
-      } else {
-        this.logger.error(
-          'AI request failed unexpectedly',
-          error instanceof Error ? error.stack : String(error),
-        );
-      }
+      logSystemError(this.logger, error, {
+        operation: 'ai.respond',
+        object: { type: 'assistant-conversation', id: conversationId },
+        context: {
+          userId: actor.userId,
+          ...(error instanceof AiProviderError
+            ? {
+                providerStatus: error.statusCode ?? 'unknown',
+                failureType: error.failureType,
+              }
+            : {}),
+        },
+      });
       response = { message: fallbackAssistantMessage(dto.message) };
     }
 

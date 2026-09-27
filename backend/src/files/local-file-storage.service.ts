@@ -1,16 +1,18 @@
 import { promises as fs } from 'node:fs';
 import type { Dirent, Stats } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { FileStorage, FileStorageEntry } from './file-storage.interface';
 import {
   invalidStorageKey,
   throwFileStorageError,
 } from './file-storage-errors';
+import { logSystemError } from '../common/logging/system-error.logger';
 
 @Injectable()
 export class LocalFileStorageService implements FileStorage {
+  private readonly logger = new Logger(LocalFileStorageService.name);
   private readonly rootDirectory: string;
 
   constructor(config: ConfigService) {
@@ -25,6 +27,7 @@ export class LocalFileStorageService implements FileStorage {
       await fs.mkdir(dirname(path), { recursive: true });
       await fs.writeFile(path, contents, { flag: 'wx' });
     } catch (error) {
+      this.logFailure(error, 'store', storageKey);
       throwFileStorageError(error, 'store');
     }
   }
@@ -34,6 +37,7 @@ export class LocalFileStorageService implements FileStorage {
     try {
       return await fs.readFile(path);
     } catch (error) {
+      this.logFailure(error, 'read', storageKey);
       throwFileStorageError(error, 'read');
     }
   }
@@ -46,6 +50,7 @@ export class LocalFileStorageService implements FileStorage {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         return;
       }
+      this.logFailure(error, 'delete', storageKey);
       throwFileStorageError(error, 'delete');
     }
   }
@@ -57,6 +62,7 @@ export class LocalFileStorageService implements FileStorage {
       return true;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+      this.logFailure(error, 'exists', storageKey);
       throwFileStorageError(error, 'exists');
     }
   }
@@ -75,6 +81,7 @@ export class LocalFileStorageService implements FileStorage {
       return true;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+      this.logFailure(error, 'list', this.rootDirectory);
       throwFileStorageError(error, 'list');
     }
   }
@@ -84,6 +91,7 @@ export class LocalFileStorageService implements FileStorage {
     try {
       entries = await fs.readdir(directory, { withFileTypes: true });
     } catch (error) {
+      this.logFailure(error, 'list', directory);
       throwFileStorageError(error, 'list');
     }
     const files: FileStorageEntry[] = [];
@@ -100,6 +108,7 @@ export class LocalFileStorageService implements FileStorage {
       try {
         stats = await fs.stat(absolutePath);
       } catch (error) {
+        this.logFailure(error, 'list', absolutePath);
         throwFileStorageError(error, 'list');
       }
       files.push({
@@ -140,5 +149,23 @@ export class LocalFileStorageService implements FileStorage {
     }
 
     return path;
+  }
+
+  private logFailure(
+    error: unknown,
+    operation: string,
+    storageKey: string,
+  ): void {
+    if (
+      operation === 'read' &&
+      (error as NodeJS.ErrnoException | undefined)?.code === 'ENOENT'
+    ) {
+      return;
+    }
+
+    logSystemError(this.logger, error, {
+      operation: `file-storage.${operation}`,
+      object: { type: 'stored-file', id: storageKey },
+    });
   }
 }

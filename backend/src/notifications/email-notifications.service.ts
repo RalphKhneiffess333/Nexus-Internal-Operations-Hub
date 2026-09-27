@@ -23,6 +23,10 @@ import {
   EmailTicketRecord,
   NotificationsRepository,
 } from './notifications.repository';
+import {
+  type SystemErrorDetails,
+  logSystemError,
+} from '../common/logging/system-error.logger';
 
 type EmailUser = EmailTicketRecord['submitter'];
 
@@ -50,41 +54,48 @@ export class EmailNotificationsService {
     ticketId: string,
     actorId: string,
   ): Promise<void> {
-    await this.runSafely('ticket submission', async () => {
+    const errorDetails = this.ticketErrorDetails('ticket-submitted', ticketId);
+    await this.runSafely(errorDetails, async () => {
       const ticket = await this.findTicket(ticketId);
       if (!ticket) return;
       const recipients = this.departmentRecipients(ticket, actorId);
       await this.dispatch(
         recipients,
         ticketSubmittedTemplate(this.ticketContext(ticket)),
+        errorDetails,
       );
     });
   }
 
   async notifyTicketClaimed(ticketId: string, actorId: string): Promise<void> {
-    await this.runSafely('ticket claim', async () => {
+    const errorDetails = this.ticketErrorDetails('ticket-claimed', ticketId);
+    await this.runSafely(errorDetails, async () => {
       const ticket = await this.findTicket(ticketId);
       if (!ticket || ticket.submitter.userId === actorId) return;
       await this.dispatch(
         [this.recipient(ticket.submitter)],
         ticketClaimedTemplate(this.ticketContext(ticket)),
+        errorDetails,
       );
     });
   }
 
   async notifyTicketClosed(ticketId: string, actorId: string): Promise<void> {
-    await this.runSafely('ticket close', async () => {
+    const errorDetails = this.ticketErrorDetails('ticket-closed', ticketId);
+    await this.runSafely(errorDetails, async () => {
       const ticket = await this.findTicket(ticketId);
       if (!ticket || ticket.submitter.userId === actorId) return;
       await this.dispatch(
         [this.recipient(ticket.submitter)],
         ticketClosedTemplate(this.ticketContext(ticket)),
+        errorDetails,
       );
     });
   }
 
   async notifyTicketReopened(ticketId: string, actorId: string): Promise<void> {
-    await this.runSafely('ticket reopen', async () => {
+    const errorDetails = this.ticketErrorDetails('ticket-reopened', ticketId);
+    await this.runSafely(errorDetails, async () => {
       const ticket = await this.findTicket(ticketId);
       if (!ticket) return;
       const recipients = [
@@ -96,34 +107,46 @@ export class EmailNotificationsService {
       await this.dispatch(
         recipients,
         ticketReopenedTemplate(this.ticketContext(ticket)),
+        errorDetails,
       );
     });
   }
 
   async notifyTicketReminder(ticketId: string): Promise<void> {
-    await this.runSafely('unclaimed ticket reminder', async () => {
+    const errorDetails = this.ticketErrorDetails('ticket-reminder', ticketId);
+    await this.runSafely(errorDetails, async () => {
       const ticket = await this.findTicket(ticketId);
       if (!ticket) return;
       await this.dispatch(
         this.departmentRecipients(ticket),
         ticketReminderTemplate(this.ticketContext(ticket)),
+        errorDetails,
       );
     });
   }
 
   async notifyHandoffRequested(handoffId: string): Promise<void> {
-    await this.runSafely('handoff request', async () => {
+    const errorDetails = this.handoffErrorDetails(
+      'handoff-requested',
+      handoffId,
+    );
+    await this.runSafely(errorDetails, async () => {
       const handoff = await this.findHandoff(handoffId);
       if (!handoff || handoff.status !== HandoffStatus.PENDING) return;
       await this.dispatch(
         [this.recipient(handoff.requestedAgent)],
         handoffRequestedTemplate(this.handoffContext(handoff)),
+        errorDetails,
       );
     });
   }
 
   async notifyHandoffAccepted(handoffId: string): Promise<void> {
-    await this.runSafely('handoff acceptance', async () => {
+    const errorDetails = this.handoffErrorDetails(
+      'handoff-accepted',
+      handoffId,
+    );
+    await this.runSafely(errorDetails, async () => {
       const handoff = await this.findHandoff(handoffId);
       if (!handoff || handoff.status !== HandoffStatus.ACCEPTED) return;
       await this.dispatch(
@@ -133,17 +156,23 @@ export class EmailNotificationsService {
           this.recipient(handoff.ticket.submitter),
         ],
         handoffAcceptedTemplate(this.handoffContext(handoff)),
+        errorDetails,
       );
     });
   }
 
   async notifyHandoffRejected(handoffId: string): Promise<void> {
-    await this.runSafely('handoff rejection', async () => {
+    const errorDetails = this.handoffErrorDetails(
+      'handoff-rejected',
+      handoffId,
+    );
+    await this.runSafely(errorDetails, async () => {
       const handoff = await this.findHandoff(handoffId);
       if (!handoff || handoff.status !== HandoffStatus.REJECTED) return;
       await this.dispatch(
         [this.recipient(handoff.requester)],
         handoffRejectedTemplate(this.handoffContext(handoff)),
+        errorDetails,
       );
     });
   }
@@ -174,9 +203,7 @@ export class EmailNotificationsService {
     };
   }
 
-  private handoffContext(
-    handoff: EmailHandoffRecord,
-  ): HandoffEmailContext {
+  private handoffContext(handoff: EmailHandoffRecord): HandoffEmailContext {
     return {
       handoffId: handoff.handoffId,
       ticketCode: handoff.ticket.ticketCode,
@@ -210,6 +237,7 @@ export class EmailNotificationsService {
   private async dispatch(
     recipients: EmailRecipient[],
     template: { subject: string; text: string; html: string },
+    errorDetails: SystemErrorDetails,
   ): Promise<void> {
     const uniqueRecipients = new Map<string, EmailRecipient>();
     for (const recipient of recipients) {
@@ -217,25 +245,30 @@ export class EmailNotificationsService {
       uniqueRecipients.set(recipient.email.toLowerCase(), recipient);
     }
     for (const recipient of uniqueRecipients.values()) {
-      await this.sendWithRetry({ ...template, to: recipient });
+      await this.sendWithRetry({ ...template, to: recipient }, errorDetails);
     }
   }
 
-  private async sendWithRetry(message: {
-    to: EmailRecipient;
-    subject: string;
-    text: string;
-    html: string;
-  }): Promise<void> {
+  private async sendWithRetry(
+    message: {
+      to: EmailRecipient;
+      subject: string;
+      text: string;
+      html: string;
+    },
+    errorDetails: SystemErrorDetails,
+  ): Promise<void> {
     for (let attempt = 1; attempt <= this.maxAttempts; attempt += 1) {
       try {
         await this.provider.send(message);
         return;
       } catch (error) {
         if (!this.isTransient(error) || attempt === this.maxAttempts) {
-          this.logger.warn(
-            `Email delivery failed after attempt ${attempt} (${this.describeError(error)}).`,
-          );
+          logSystemError(this.logger, error, {
+            ...errorDetails,
+            operation: 'email.send',
+            context: { attempt, provider: 'smtp' },
+          });
           return;
         }
         await this.delay(this.retryDelayMs * 2 ** (attempt - 1));
@@ -244,13 +277,13 @@ export class EmailNotificationsService {
   }
 
   private async runSafely(
-    label: string,
+    errorDetails: SystemErrorDetails,
     operation: () => Promise<void>,
   ): Promise<void> {
     try {
       await operation();
-    } catch {
-      this.logger.warn(`Email notification for ${label} was dropped.`);
+    } catch (error) {
+      logSystemError(this.logger, error, errorDetails);
     }
   }
 
@@ -279,23 +312,6 @@ export class EmailNotificationsService {
     ].includes(code);
   }
 
-  private describeError(error: unknown): string {
-    if (!error || typeof error !== 'object') return 'unknown error';
-    const details: string[] = [];
-    const code = (error as { code?: unknown }).code;
-    const statusCode = (error as { statusCode?: unknown }).statusCode;
-    const responseCode = (error as { responseCode?: unknown }).responseCode;
-    const command = (error as { command?: unknown }).command;
-    if (typeof code === 'string' && code) details.push(`code=${code}`);
-    if (typeof statusCode === 'number')
-      details.push(`statusCode=${statusCode}`);
-    if (typeof responseCode === 'number')
-      details.push(`responseCode=${responseCode}`);
-    if (typeof command === 'string' && command)
-      details.push(`command=${command}`);
-    return details.join(', ') || 'unknown error';
-  }
-
   private isValidEmail(email: string): boolean {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   }
@@ -306,7 +322,11 @@ export class EmailNotificationsService {
         `/tickets/${encodeURIComponent(ticketId)}`,
         this.baseUrl,
       ).toString();
-    } catch {
+    } catch (error) {
+      logSystemError(this.logger, error, {
+        operation: 'email.build-ticket-link',
+        object: { type: 'ticket', id: ticketId },
+      });
       return undefined;
     }
   }
@@ -318,5 +338,25 @@ export class EmailNotificationsService {
 
   private delay(milliseconds: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, milliseconds));
+  }
+
+  private ticketErrorDetails(
+    operation: string,
+    ticketId: string,
+  ): SystemErrorDetails {
+    return {
+      operation: `email.${operation}`,
+      object: { type: 'ticket', id: ticketId },
+    };
+  }
+
+  private handoffErrorDetails(
+    operation: string,
+    handoffId: string,
+  ): SystemErrorDetails {
+    return {
+      operation: `email.${operation}`,
+      object: { type: 'handoff', id: handoffId },
+    };
   }
 }

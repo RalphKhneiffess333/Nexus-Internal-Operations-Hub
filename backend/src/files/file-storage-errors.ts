@@ -21,7 +21,9 @@ export function throwFileStorageError(
     throw new NotFoundException('Attachment file was not found');
   }
 
-  throw new InternalServerErrorException('File storage operation failed');
+  throw new InternalServerErrorException('File storage operation failed', {
+    cause: error,
+  });
 }
 
 export function invalidStorageKey(message: string): BadRequestException {

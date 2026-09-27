@@ -1,10 +1,11 @@
 import { timingSafeEqual } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../database/prisma.service';
 import { NodemailerEmailProvider } from '../notifications/nodemailer-email.provider';
+import { logSystemError } from '../common/logging/system-error.logger';
 import type {
   DependencyHealth,
   DependencyStatus,
@@ -18,7 +19,8 @@ const DEFAULT_TIMEOUT_MS = 5000;
 
 @Injectable()
 export class HealthService {
-  private readonly version = readBackendVersion();
+  private readonly logger = new Logger(HealthService.name);
+  private readonly version = this.readBackendVersion();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -42,10 +44,10 @@ export class HealthService {
 
   async getReport(): Promise<HealthReport> {
     const [database, microsoftAuth, email, groq] = await Promise.all([
-      this.checkDependency(() => this.checkDatabase()),
-      this.checkDependency(() => this.checkMicrosoftAuth()),
-      this.checkDependency(() => this.emailProvider.checkHealth()),
-      this.checkDependency(() => this.checkGroq()),
+      this.checkDependency('database', () => this.checkDatabase()),
+      this.checkDependency('microsoft-entra', () => this.checkMicrosoftAuth()),
+      this.checkDependency('smtp', () => this.emailProvider.checkHealth()),
+      this.checkDependency('groq', () => this.checkGroq()),
     ]);
 
     const services = { database, microsoftAuth, email, groq };
@@ -96,13 +98,18 @@ export class HealthService {
   }
 
   private async checkDependency(
+    serviceId: string,
     check: () => Promise<Exclude<DependencyStatus, 'down'>>,
   ): Promise<DependencyHealth> {
     const startedAt = Date.now();
     try {
       const status = await check();
       return { status, latencyMs: Date.now() - startedAt };
-    } catch {
+    } catch (error) {
+      logSystemError(this.logger, error, {
+        operation: 'health.check',
+        object: { type: 'external-service', id: serviceId },
+      });
       return { status: 'down', latencyMs: Date.now() - startedAt };
     }
   }
@@ -126,18 +133,29 @@ export class HealthService {
     const value = Number(this.config.get<string>('HEALTH_CHECK_TIMEOUT_MS'));
     return Number.isInteger(value) && value > 0 ? value : DEFAULT_TIMEOUT_MS;
   }
-}
 
-function readBackendVersion(): string {
-  try {
-    const packageJsonPath = resolve(__dirname, '..', '..', 'package.json');
-    const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
-      version?: unknown;
-    };
-    return typeof packageJson.version === 'string'
-      ? packageJson.version
-      : 'unknown';
-  } catch {
-    return 'unknown';
+  private readBackendVersion(): string {
+    try {
+      const packageJsonPath = [
+        resolve(__dirname, '..', '..', 'package.json'),
+        resolve(__dirname, '..', '..', '..', 'package.json'),
+      ].find((candidate) => existsSync(candidate));
+      if (!packageJsonPath) {
+        throw new Error('Backend package.json could not be found');
+      }
+      const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
+        version?: unknown;
+      };
+      if (typeof packageJson.version !== 'string') {
+        throw new Error('Backend package version is missing or invalid');
+      }
+      return packageJson.version;
+    } catch (error) {
+      logSystemError(this.logger, error, {
+        operation: 'health.read-backend-version',
+        object: { type: 'application', id: 'backend' },
+      });
+      return 'unknown';
+    }
   }
 }

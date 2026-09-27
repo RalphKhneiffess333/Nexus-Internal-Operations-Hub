@@ -1,4 +1,9 @@
-import { ArgumentsHost, HttpException, HttpStatus, Logger } from '@nestjs/common';
+import {
+  ArgumentsHost,
+  HttpException,
+  HttpStatus,
+  Logger,
+} from '@nestjs/common';
 import { describe, expect, it, jest } from '@jest/globals';
 import type { Response } from 'express';
 import { SafeExceptionFilter } from './safe-exception.filter';
@@ -82,10 +87,19 @@ describe('SafeExceptionFilter', () => {
 
     context.filter.catch(new Error('database connection failed'), context.host);
 
+    const loggedRecord = JSON.parse(
+      String(loggerSpy.mock.calls[0]?.[0]),
+    ) as Record<string, unknown>;
+    expect(loggedRecord).toMatchObject({
+      event: 'system_error',
+      operation: 'http.request',
+      object: { type: 'http-request', id: 'POST unknown' },
+      context: { method: 'POST', path: '/ai/messages', status: 500 },
+      error: { name: 'Error', message: 'database connection failed' },
+    });
+    expect(typeof loggedRecord.timestamp).toBe('string');
     expect(loggerSpy).toHaveBeenCalledWith(
-      expect.stringContaining(
-        'POST /ai/messages -> 500 Error: database connection failed',
-      ),
+      expect.any(String),
       expect.any(String),
     );
     expect(context.json).toHaveBeenCalledWith({
