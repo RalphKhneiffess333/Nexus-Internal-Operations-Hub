@@ -1,228 +1,277 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { UserLink } from '../users/UserLink'
-import { FilePicker } from './FilePicker'
-import noChatsImage from '../../assets/NoChats.png'
-import { IllustratedEmptyState } from '../ui/IllustratedEmptyState'
-import { formatDateTime } from '../../features/tickets/ticket-types'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { UserLink } from "../users/UserLink";
+import { FilePicker } from "./FilePicker";
+import noChatsImage from "../../assets/NoChats.png";
+import { IllustratedEmptyState } from "../ui/IllustratedEmptyState";
+import { formatDateTime } from "../../features/tickets/ticket-types";
 import {
   createChatMessage,
   downloadChatAttachment,
   getChatMessages,
   openChatAttachment,
-} from '../../features/tickets/ticket-api'
-import { useOperationsSocket } from '../../features/realtime/use-operations-socket'
-import { sanitizePlainText } from '../../lib/content/sanitize'
-import { useLatestRequest } from '../../lib/api/use-latest-request'
-import { MAX_CHAT_MESSAGE_LENGTH } from './ticket-validation'
+} from "../../features/tickets/ticket-api";
+import { useOperationsSocket } from "../../features/realtime/use-operations-socket";
+import { sanitizePlainText } from "../../lib/content/sanitize";
+import { useLatestRequest } from "../../lib/api/use-latest-request";
+import { MAX_CHAT_MESSAGE_LENGTH } from "./ticket-validation";
 
 function sortMessages(messages) {
   return [...messages].sort((left, right) => {
-    const timestamp = new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()
-    return timestamp || left.messageId.localeCompare(right.messageId)
-  })
+    const timestamp =
+      new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime();
+    return timestamp || left.messageId.localeCompare(right.messageId);
+  });
 }
 
 function mergeMessages(current, incoming) {
-  const byId = new Map(current.map((message) => [message.messageId, message]))
-  incoming.forEach((message) => byId.set(message.messageId, message))
-  return sortMessages([...byId.values()])
+  const byId = new Map(current.map((message) => [message.messageId, message]));
+  incoming.forEach((message) => byId.set(message.messageId, message));
+  return sortMessages([...byId.values()]);
 }
 
 function isConversationVisible() {
-  return document.visibilityState === 'visible' && document.hasFocus()
+  return document.visibilityState === "visible" && document.hasFocus();
 }
 
 export function TicketChatPanel({
   ticket,
   currentUser,
   onConversationRead,
-  variant = 'panel',
+  variant = "panel",
 }) {
-  const { connectionState, subscribeToChat } = useOperationsSocket()
-  const [messages, setMessages] = useState([])
-  const [messagePage, setMessagePage] = useState(1)
-  const [hasMoreMessages, setHasMoreMessages] = useState(false)
-  const [loadingMoreMessages, setLoadingMoreMessages] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [content, setContent] = useState('')
-  const [files, setFiles] = useState([])
-  const [filePickerResetKey, setFilePickerResetKey] = useState(0)
-  const [sending, setSending] = useState(false)
-  const [sendError, setSendError] = useState('')
-  const [downloadingAttachmentId, setDownloadingAttachmentId] = useState('')
-  const messageListRef = useRef(null)
-  const messagePageRef = useRef(1)
-  const shouldFollowLatestRef = useRef(true)
-  const hasLoadedMessagesRef = useRef(false)
-  const ticketId = ticket?.ticketId
-  const { beginRequest } = useLatestRequest()
+  const { connectionState, subscribeToChat } = useOperationsSocket();
+  const [messages, setMessages] = useState([]);
+  const [messagePage, setMessagePage] = useState(1);
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [loadingMoreMessages, setLoadingMoreMessages] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [content, setContent] = useState("");
+  const [files, setFiles] = useState([]);
+  const [filePickerResetKey, setFilePickerResetKey] = useState(0);
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState("");
+  const [downloadingAttachmentId, setDownloadingAttachmentId] = useState("");
+  const messageListRef = useRef(null);
+  const messagePageRef = useRef(1);
+  const shouldFollowLatestRef = useRef(true);
+  const hasLoadedMessagesRef = useRef(false);
+  const ticketId = ticket?.ticketId;
+  const { beginRequest } = useLatestRequest();
 
-  const writable = ticket?.active !== false && ticket?.status === 'CLAIMED' &&
-    (ticket?.submittedBy?.userId === currentUser?.userId || ticket?.agent?.userId === currentUser?.userId)
-  const readOnlyReason = ticket?.active !== false && ticket?.status === 'CLAIMED'
-    ? 'This chat is read-only because it is not assigned to you.'
-    : 'This chat is read-only because the ticket is not currently claimed.'
+  const writable =
+    ticket?.active !== false &&
+    ticket?.status === "CLAIMED" &&
+    (ticket?.submittedBy?.userId === currentUser?.userId ||
+      ticket?.agent?.userId === currentUser?.userId);
+  const readOnlyReason =
+    ticket?.active !== false && ticket?.status === "CLAIMED"
+      ? "This chat is read-only because it is not assigned to you."
+      : "This chat is read-only because the ticket is not currently claimed.";
 
-  const loadMessages = useCallback(async ({ silent = false, append = false, nextPage = 1 } = {}) => {
-    const request = beginRequest()
-    if (!silent) {
-      if (append) setLoadingMoreMessages(true)
-      else setLoading(true)
-      setError('')
-    }
-    try {
-      const result = await getChatMessages(
-        ticketId,
-        { page: nextPage, pageSize: 50 },
-        { signal: request.controller.signal },
-      )
-      if (!request.isCurrent()) return false
-      const incoming = result?.items ?? (Array.isArray(result) ? result : [])
-      setMessages((current) => (append || silent ? mergeMessages(current, incoming) : incoming))
-      const highestPage = Math.max(messagePageRef.current, nextPage)
-      messagePageRef.current = highestPage
-      setMessagePage(highestPage)
-      if (nextPage === highestPage) setHasMoreMessages(Boolean(result?.hasMore))
-      if (!append) hasLoadedMessagesRef.current = true
-      return true
-    } catch (loadError) {
-      if (request.isCurrent() && !silent) {
-        setError(loadError.message || 'Unable to load the conversation.')
+  const loadMessages = useCallback(
+    async ({ silent = false, append = false, nextPage = 1 } = {}) => {
+      const request = beginRequest();
+      if (!silent) {
+        if (append) setLoadingMoreMessages(true);
+        else setLoading(true);
+        setError("");
       }
-      return false
-    } finally {
-      if (request.isCurrent()) {
-        if (append) {
-          setLoadingMoreMessages(false)
-        } else {
-          setLoading(false)
-          setLoadingMoreMessages(false)
+      try {
+        const result = await getChatMessages(
+          ticketId,
+          { page: nextPage, pageSize: 50 },
+          { signal: request.controller.signal },
+        );
+        if (!request.isCurrent()) return false;
+        const incoming = result?.items ?? (Array.isArray(result) ? result : []);
+        setMessages((current) =>
+          append || silent ? mergeMessages(current, incoming) : incoming,
+        );
+        const highestPage = Math.max(messagePageRef.current, nextPage);
+        messagePageRef.current = highestPage;
+        setMessagePage(highestPage);
+        if (nextPage === highestPage)
+          setHasMoreMessages(Boolean(result?.hasMore));
+        if (!append) hasLoadedMessagesRef.current = true;
+        return true;
+      } catch (loadError) {
+        if (request.isCurrent() && !silent) {
+          setError(loadError.message || "Unable to load the conversation.");
+        }
+        return false;
+      } finally {
+        if (request.isCurrent()) {
+          if (append) {
+            setLoadingMoreMessages(false);
+          } else {
+            setLoading(false);
+            setLoadingMoreMessages(false);
+          }
         }
       }
-    }
-  }, [beginRequest, ticketId])
+    },
+    [beginRequest, ticketId],
+  );
 
   useEffect(() => {
     // Reset paginated history when the selected ticket changes.
-    messagePageRef.current = 1
-    hasLoadedMessagesRef.current = false
+    messagePageRef.current = 1;
+    hasLoadedMessagesRef.current = false;
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setMessagePage(1)
-    setHasMoreMessages(false)
-    setMessages([])
-  }, [ticketId])
+    setMessagePage(1);
+    setHasMoreMessages(false);
+    setMessages([]);
+  }, [ticketId]);
 
   useEffect(() => {
     // Do not write a read receipt until the conversation is available to the
     // user in the active browser window.
     void (async () => {
-      const loaded = await loadMessages()
+      const loaded = await loadMessages();
       if (loaded && isConversationVisible()) {
-        void onConversationRead?.()
+        void onConversationRead?.();
       }
-    })()
-  }, [loadMessages, onConversationRead])
+    })();
+  }, [loadMessages, onConversationRead]);
 
-  useEffect(() => subscribeToChat(ticketId, (event) => {
-    if (event?.type === 'reconnected') {
-      void loadMessages({ silent: true }).then((loaded) => {
-        if (loaded && isConversationVisible()) void onConversationRead?.()
-      })
-      return
-    }
-    if (event?.payload?.messageId) {
-      setMessages((current) => mergeMessages(current, [event.payload]))
-      if (event.payload.sender?.userId !== currentUser?.userId && isConversationVisible()) {
-        void onConversationRead?.()
-      }
-    }
-  }), [currentUser?.userId, loadMessages, onConversationRead, subscribeToChat, ticket?.status, ticketId])
+  useEffect(
+    () =>
+      subscribeToChat(ticketId, (event) => {
+        if (event?.type === "reconnected") {
+          void loadMessages({ silent: true }).then((loaded) => {
+            if (loaded && isConversationVisible()) void onConversationRead?.();
+          });
+          return;
+        }
+        if (event?.payload?.messageId) {
+          setMessages((current) => mergeMessages(current, [event.payload]));
+          if (
+            event.payload.sender?.userId !== currentUser?.userId &&
+            isConversationVisible()
+          ) {
+            void onConversationRead?.();
+          }
+        }
+      }),
+    [
+      currentUser?.userId,
+      loadMessages,
+      onConversationRead,
+      subscribeToChat,
+      ticket?.status,
+      ticketId,
+    ],
+  );
 
   useEffect(() => {
     const markReadWhenVisible = () => {
       if (hasLoadedMessagesRef.current && isConversationVisible()) {
-        void onConversationRead?.()
+        void onConversationRead?.();
       }
-    }
-    window.addEventListener('focus', markReadWhenVisible)
-    document.addEventListener('visibilitychange', markReadWhenVisible)
+    };
+    window.addEventListener("focus", markReadWhenVisible);
+    document.addEventListener("visibilitychange", markReadWhenVisible);
     return () => {
-      window.removeEventListener('focus', markReadWhenVisible)
-      document.removeEventListener('visibilitychange', markReadWhenVisible)
-    }
-  }, [onConversationRead])
+      window.removeEventListener("focus", markReadWhenVisible);
+      document.removeEventListener("visibilitychange", markReadWhenVisible);
+    };
+  }, [onConversationRead]);
 
   useLayoutEffect(() => {
-    if (!shouldFollowLatestRef.current) return
-    const messageList = messageListRef.current
-    if (messageList) messageList.scrollTop = messageList.scrollHeight
-  }, [messages.length])
+    if (!shouldFollowLatestRef.current) return;
+    const messageList = messageListRef.current;
+    if (messageList) messageList.scrollTop = messageList.scrollHeight;
+  }, [messages.length]);
 
   function handleMessageListScroll(event) {
-    const { clientHeight, scrollHeight, scrollTop } = event.currentTarget
-    shouldFollowLatestRef.current = scrollHeight - clientHeight - scrollTop < 40
+    const { clientHeight, scrollHeight, scrollTop } = event.currentTarget;
+    shouldFollowLatestRef.current =
+      scrollHeight - clientHeight - scrollTop < 40;
   }
 
   async function handleSend(event) {
-    event.preventDefault()
-    const sanitizedContent = sanitizePlainText(content)
-    if (sending || (!sanitizedContent && files.length === 0)) return
+    event.preventDefault();
+    const sanitizedContent = sanitizePlainText(content);
+    if (sending || (!sanitizedContent && files.length === 0)) return;
     if (sanitizedContent.length > MAX_CHAT_MESSAGE_LENGTH) {
-      setSendError(`Message must be ${MAX_CHAT_MESSAGE_LENGTH} characters or fewer.`)
-      return
+      setSendError(
+        `Message must be ${MAX_CHAT_MESSAGE_LENGTH} characters or fewer.`,
+      );
+      return;
     }
 
-    setSending(true)
-    setSendError('')
+    setSending(true);
+    setSendError("");
     try {
-      const created = await createChatMessage(ticket.ticketId, sanitizedContent, files)
-      shouldFollowLatestRef.current = true
-      setMessages((current) => mergeMessages(current, [created]))
-      setContent('')
-      setFiles([])
-      setFilePickerResetKey((value) => value + 1)
+      const created = await createChatMessage(
+        ticket.ticketId,
+        sanitizedContent,
+        files,
+      );
+      shouldFollowLatestRef.current = true;
+      setMessages((current) => mergeMessages(current, [created]));
+      setContent("");
+      setFiles([]);
+      setFilePickerResetKey((value) => value + 1);
     } catch (sendFailure) {
-      setSendError(sendFailure.message || 'Unable to send this message.')
+      setSendError(sendFailure.message || "Unable to send this message.");
     } finally {
-      setSending(false)
+      setSending(false);
     }
   }
 
   async function handleOpen(messageId, attachment) {
-    setDownloadingAttachmentId(attachment.attachmentId)
+    setDownloadingAttachmentId(attachment.attachmentId);
     try {
-      await openChatAttachment(ticket.ticketId, messageId, attachment.attachmentId, {
-        mimeType: attachment.mimeType,
-        filename: attachment.originalName,
-      })
+      await openChatAttachment(
+        ticket.ticketId,
+        messageId,
+        attachment.attachmentId,
+        {
+          mimeType: attachment.mimeType,
+          filename: attachment.originalName,
+        },
+      );
     } catch (openError) {
-      setError(openError.message || 'Unable to open this attachment.')
+      setError(openError.message || "Unable to open this attachment.");
     } finally {
-      setDownloadingAttachmentId('')
+      setDownloadingAttachmentId("");
     }
   }
 
   async function handleDownload(messageId, attachmentId) {
-    setDownloadingAttachmentId(attachmentId)
+    setDownloadingAttachmentId(attachmentId);
     try {
-      await downloadChatAttachment(ticket.ticketId, messageId, attachmentId)
+      await downloadChatAttachment(ticket.ticketId, messageId, attachmentId);
     } catch (downloadError) {
-      setError(downloadError.message || 'Unable to download this attachment.')
+      setError(downloadError.message || "Unable to download this attachment.");
     } finally {
-      setDownloadingAttachmentId('')
+      setDownloadingAttachmentId("");
     }
   }
 
   const connectionNote = useMemo(() => {
-    if (connectionState === 'reconnecting') return 'Reconnecting — synchronizing chat…'
-    if (connectionState === 'error') return 'Live updates are unavailable; refresh to synchronize.'
-    return null
-  }, [connectionState])
+    if (connectionState === "reconnecting")
+      return "Reconnecting — synchronizing chat…";
+    if (connectionState === "error")
+      return "Live updates are unavailable; refresh to synchronize.";
+    return null;
+  }, [connectionState]);
 
   return (
-    <section className={`ticket-chat-panel ticket-chat-${variant} clay-card`} aria-labelledby="ticket-chat-heading">
-      {variant === 'panel' ? (
+    <section
+      className={`ticket-chat-panel ticket-chat-${variant} clay-card`}
+      aria-labelledby="ticket-chat-heading"
+    >
+      {variant === "panel" ? (
         <div className="ticket-chat-heading">
           <div>
             <p className="eyebrow">Conversation</p>
@@ -237,20 +286,41 @@ export function TicketChatPanel({
         </div>
       )}
 
-      {connectionNote ? <p className="ticket-chat-connection">{connectionNote}</p> : null}
+      {connectionNote ? (
+        <p className="ticket-chat-connection">{connectionNote}</p>
+      ) : null}
       {loading ? (
-        <div className="ticket-chat-state ticket-chat-loading" role="status" aria-live="polite">
+        <div
+          className="ticket-chat-state ticket-chat-loading"
+          role="status"
+          aria-live="polite"
+        >
           <span className="loading-spinner" aria-hidden="true" />
           <span>Loading conversation…</span>
         </div>
       ) : null}
-      {!loading && error ? <div className="ticket-chat-state ticket-chat-error"><p>{error}</p><button type="button" className="btn ghost" onClick={() => void loadMessages()}>Try again</button></div> : null}
+      {!loading && error ? (
+        <div className="ticket-chat-state ticket-chat-error">
+          <p>{error}</p>
+          <button
+            type="button"
+            className="btn ghost"
+            onClick={() => void loadMessages()}
+          >
+            Try again
+          </button>
+        </div>
+      ) : null}
       {!loading && !error && messages.length === 0 ? (
         <IllustratedEmptyState
           className="ticket-chat-empty-state"
           image={noChatsImage}
           title="No messages yet"
-          message={writable ? 'Start the conversation.' : 'This conversation is read-only.'}
+          message={
+            writable
+              ? "Start the conversation."
+              : "This conversation is read-only."
+          }
         />
       ) : null}
 
@@ -261,10 +331,57 @@ export function TicketChatPanel({
           onScroll={handleMessageListScroll}
         >
           {messages.map((message) => (
-            <li key={message.messageId} className={`ticket-chat-message${message.sender?.userId === currentUser?.userId ? ' is-mine' : ''}`}>
-              <div className="ticket-chat-message-meta"><UserLink user={message.sender} /><time dateTime={message.createdAt}>{formatDateTime(message.createdAt)}</time></div>
+            <li
+              key={message.messageId}
+              className={`ticket-chat-message${message.sender?.userId === currentUser?.userId ? " is-mine" : ""}`}
+            >
+              <div className="ticket-chat-message-meta">
+                <UserLink user={message.sender} />
+                <time dateTime={message.createdAt}>
+                  {formatDateTime(message.createdAt)}
+                </time>
+              </div>
               {message.content ? <p>{message.content}</p> : null}
-              {message.attachments?.length ? <ul className="ticket-chat-attachments">{message.attachments.map((attachment) => <li key={attachment.attachmentId}><div><button type="button" className="ticket-chat-attachment-name" title={attachment.originalName} onClick={() => void handleOpen(message.messageId, attachment)} disabled={downloadingAttachmentId === attachment.attachmentId}>📎 <span>{attachment.originalName}</span></button><button type="button" className="ticket-chat-attachment-download" onClick={() => void handleDownload(message.messageId, attachment.attachmentId)} disabled={downloadingAttachmentId === attachment.attachmentId}>{downloadingAttachmentId === attachment.attachmentId ? 'Working…' : 'Download'}</button></div></li>)}</ul> : null}
+              {message.attachments?.length ? (
+                <ul className="ticket-chat-attachments">
+                  {message.attachments.map((attachment) => (
+                    <li key={attachment.attachmentId}>
+                      <div>
+                        <button
+                          type="button"
+                          className="ticket-chat-attachment-name"
+                          title={attachment.originalName}
+                          onClick={() =>
+                            void handleOpen(message.messageId, attachment)
+                          }
+                          disabled={
+                            downloadingAttachmentId === attachment.attachmentId
+                          }
+                        >
+                          📎 <span>{attachment.originalName}</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="ticket-chat-attachment-download"
+                          onClick={() =>
+                            void handleDownload(
+                              message.messageId,
+                              attachment.attachmentId,
+                            )
+                          }
+                          disabled={
+                            downloadingAttachmentId === attachment.attachmentId
+                          }
+                        >
+                          {downloadingAttachmentId === attachment.attachmentId
+                            ? "Working…"
+                            : "Download"}
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
             </li>
           ))}
         </ol>
@@ -274,24 +391,53 @@ export function TicketChatPanel({
         <button
           type="button"
           className="btn ghost"
-          onClick={() => void loadMessages({ append: true, nextPage: messagePage + 1 })}
+          onClick={() =>
+            void loadMessages({ append: true, nextPage: messagePage + 1 })
+          }
           disabled={loadingMoreMessages}
         >
-          {loadingMoreMessages ? 'Loading older messages…' : 'Load older messages'}
+          {loadingMoreMessages
+            ? "Loading older messages…"
+            : "Load older messages"}
         </button>
       ) : null}
 
       {writable ? (
         <form className="ticket-chat-composer" onSubmit={handleSend}>
           <label htmlFor={`chat-message-${ticket.ticketId}`}>New message</label>
-          <textarea id={`chat-message-${ticket.ticketId}`} value={content} onChange={(event) => setContent(event.target.value)} maxLength={MAX_CHAT_MESSAGE_LENGTH} rows="3" placeholder="Write a message…" disabled={sending} />
-          <FilePicker key={filePickerResetKey} onChange={setFiles} disabled={sending} />
-          {sendError ? <p className="ticket-chat-send-error">{sendError}</p> : null}
-          <div className="ticket-chat-actions"><span>{content.length}/{MAX_CHAT_MESSAGE_LENGTH}</span><button type="submit" className="btn primary" disabled={sending || (!content.trim() && files.length === 0)}>{sending ? 'Sending…' : 'Send message'}</button></div>
+          <textarea
+            id={`chat-message-${ticket.ticketId}`}
+            value={content}
+            onChange={(event) => setContent(event.target.value)}
+            maxLength={MAX_CHAT_MESSAGE_LENGTH}
+            rows={3}
+            placeholder="Write a message…"
+            disabled={sending}
+          />
+          <FilePicker
+            key={filePickerResetKey}
+            onChange={setFiles}
+            disabled={sending}
+          />
+          {sendError ? (
+            <p className="ticket-chat-send-error">{sendError}</p>
+          ) : null}
+          <div className="ticket-chat-actions">
+            <span>
+              {content.length}/{MAX_CHAT_MESSAGE_LENGTH}
+            </span>
+            <button
+              type="submit"
+              className="btn primary"
+              disabled={sending || (!content.trim() && files.length === 0)}
+            >
+              {sending ? "Sending…" : "Send message"}
+            </button>
+          </div>
         </form>
       ) : (
         <p className="ticket-chat-read-only">{readOnlyReason}</p>
       )}
     </section>
-  )
+  );
 }

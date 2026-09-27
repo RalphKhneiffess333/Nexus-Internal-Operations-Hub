@@ -1,7 +1,6 @@
 import { existsSync } from 'fs';
 import { resolve } from 'path';
 import { config } from 'dotenv';
-import { migrateTestDatabase } from './support/migrate-test-database';
 
 const envPath = resolve(__dirname, '../.env.integration');
 
@@ -13,4 +12,3 @@ if (!existsSync(envPath)) {
 
 config({ path: envPath, override: true });
 process.env.NODE_ENV = 'test';
-migrateTestDatabase();

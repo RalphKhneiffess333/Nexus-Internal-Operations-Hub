@@ -1,13 +1,30 @@
-import { useState } from 'react'
-import { sanitizePlainText } from '../../lib/content/sanitize'
-import { FilePicker } from './FilePicker'
-import { AppSelect } from '../ui/AppSelect'
-import { MAX_FILES_PER_EVENT, attachmentCountError } from './file-validation'
+import { useState } from "react";
+import { sanitizePlainText } from "../../lib/content/sanitize";
+import { FilePicker } from "./FilePicker";
+import { AppSelect } from "../ui/AppSelect";
+import { MAX_FILES_PER_EVENT, attachmentCountError } from "./file-validation";
 import {
   MAX_TICKET_TEXT_LENGTH,
   MAX_TICKET_TITLE_LENGTH,
-} from './ticket-validation'
+} from "./ticket-validation";
 
+/**
+ * @param {{
+ *   initialValues?: { title?: string; description?: string; priority?: string; departmentId?: string };
+ *   departments?: any[];
+ *   priorities?: any[];
+ *   submitLabel: string;
+ *   submittingLabel: string;
+ *   submitting?: boolean;
+ *   error?: string;
+ *   fieldErrors?: Record<string, string>;
+ *   onSubmit: (values: any) => void;
+ *   onCancel?: () => void;
+ *   includeSubmittedBy?: boolean;
+ *   includeAttachments?: boolean;
+ *   existingAttachments?: any[];
+ * }} props
+ */
 export function TicketForm({
   initialValues,
   departments = [],
@@ -23,58 +40,65 @@ export function TicketForm({
   includeAttachments = false,
   existingAttachments = [],
 }) {
-  const [files, setFiles] = useState([])
-  const [removedAttachmentIds, setRemovedAttachmentIds] = useState([])
-  const [attachmentError, setAttachmentError] = useState('')
+  const [files, setFiles] = useState([]);
+  const [removedAttachmentIds, setRemovedAttachmentIds] = useState([]);
+  const [attachmentError, setAttachmentError] = useState("");
   const defaultDepartmentId =
-    initialValues?.departmentId ?? departments[0]?.departmentId ?? ''
-  const currentInactivePriority = initialValues?.priority &&
+    initialValues?.departmentId ?? departments[0]?.departmentId ?? "";
+  const currentInactivePriority =
+    initialValues?.priority &&
     !priorities.some((priority) => priority.code === initialValues.priority)
-    ? { code: initialValues.priority, name: `${initialValues.priority} (inactive)` }
-    : null
+      ? {
+          code: initialValues.priority,
+          name: `${initialValues.priority} (inactive)`,
+        }
+      : null;
   const remainingAttachmentCount = existingAttachments.filter(
     (attachment) => !removedAttachmentIds.includes(attachment.attachmentId),
-  ).length
-  const maxNewFiles = Math.max(0, MAX_FILES_PER_EVENT - remainingAttachmentCount)
+  ).length;
+  const maxNewFiles = Math.max(
+    0,
+    MAX_FILES_PER_EVENT - remainingAttachmentCount,
+  );
 
   function handleFilesChange(nextFiles) {
-    setFiles(nextFiles)
+    setFiles(nextFiles);
     setAttachmentError(
       attachmentCountError(remainingAttachmentCount + nextFiles.length),
-    )
+    );
   }
 
   return (
     <form
       className="ticket-form clay-card content-reveal"
       onSubmit={(event) => {
-        event.preventDefault()
-        const form = new FormData(event.currentTarget)
-        const totalAttachmentCount = remainingAttachmentCount + files.length
-        const nextAttachmentError = attachmentCountError(totalAttachmentCount)
+        event.preventDefault();
+        const form = new FormData(event.currentTarget);
+        const totalAttachmentCount = remainingAttachmentCount + files.length;
+        const nextAttachmentError = attachmentCountError(totalAttachmentCount);
         if (nextAttachmentError) {
-          setAttachmentError(nextAttachmentError)
-          return
+          setAttachmentError(nextAttachmentError);
+          return;
         }
-        setAttachmentError('')
+        setAttachmentError("");
         onSubmit({
-          title: sanitizePlainText(form.get('title')),
-          description: sanitizePlainText(form.get('description')),
-          priority: String(form.get('priority') ?? ''),
-          departmentId: String(form.get('departmentId') ?? ''),
+          title: sanitizePlainText(form.get("title")),
+          description: sanitizePlainText(form.get("description")),
+          priority: String(form.get("priority") ?? ""),
+          departmentId: String(form.get("departmentId") ?? ""),
           submittedBy: includeSubmittedBy
-            ? String(form.get('submittedBy') ?? '')
+            ? String(form.get("submittedBy") ?? "")
             : undefined,
           files: includeAttachments ? files : [],
           removedAttachmentIds: includeAttachments ? removedAttachmentIds : [],
-        })
+        });
       }}
     >
       <label className="field">
         <span>Title</span>
         <input
           name="title"
-          defaultValue={initialValues?.title ?? ''}
+          defaultValue={initialValues?.title ?? ""}
           required
           maxLength={MAX_TICKET_TITLE_LENGTH}
         />
@@ -87,7 +111,7 @@ export function TicketForm({
         <span>Description</span>
         <textarea
           name="description"
-          defaultValue={initialValues?.description ?? ''}
+          defaultValue={initialValues?.description ?? ""}
           required
           rows={5}
           maxLength={MAX_TICKET_TEXT_LENGTH}
@@ -101,12 +125,24 @@ export function TicketForm({
         <span>Priority</span>
         <AppSelect
           name="priority"
-          defaultValue={initialValues?.priority ?? priorities[0]?.code ?? ''}
+          defaultValue={initialValues?.priority ?? priorities[0]?.code ?? ""}
           required
           options={[
-            ...(priorities.length === 0 ? [{ value: '', label: 'No priorities available' }] : []),
-            ...(currentInactivePriority ? [{ value: currentInactivePriority.code, label: currentInactivePriority.name }] : []),
-            ...priorities.map((priority) => ({ value: priority.code, label: priority.name })),
+            ...(priorities.length === 0
+              ? [{ value: "", label: "No priorities available" }]
+              : []),
+            ...(currentInactivePriority
+              ? [
+                  {
+                    value: currentInactivePriority.code,
+                    label: currentInactivePriority.name,
+                  },
+                ]
+              : []),
+            ...priorities.map((priority) => ({
+              value: priority.code,
+              label: priority.name,
+            })),
           ]}
         />
         {fieldErrors?.priority ? (
@@ -122,8 +158,13 @@ export function TicketForm({
           required
           disabled={departments.length === 0}
           options={[
-            ...(departments.length === 0 ? [{ value: '', label: 'No departments available' }] : []),
-            ...departments.map((department) => ({ value: department.departmentId, label: department.name })),
+            ...(departments.length === 0
+              ? [{ value: "", label: "No departments available" }]
+              : []),
+            ...departments.map((department) => ({
+              value: department.departmentId,
+              label: department.name,
+            })),
           ]}
         />
         {fieldErrors?.departmentId ? (
@@ -140,7 +181,9 @@ export function TicketForm({
 
       {includeAttachments ? (
         <div className="field">
-          <span>Attachments <small>(optional, up to 5 files total)</small></span>
+          <span>
+            Attachments <small>(optional, up to 5 files total)</small>
+          </span>
           {existingAttachments.length > 0 ? (
             <div className="existing-file-list">
               <span className="file-picker-section-label">Current files</span>
@@ -152,7 +195,10 @@ export function TicketForm({
                   )
                   .map((attachment) => (
                     <li key={attachment.attachmentId}>
-                      <span className="file-name" title={attachment.originalName}>
+                      <span
+                        className="file-name"
+                        title={attachment.originalName}
+                      >
                         <span aria-hidden="true">📎</span>
                         {attachment.originalName}
                       </span>
@@ -179,7 +225,9 @@ export function TicketForm({
             maxFiles={maxNewFiles}
             disabled={submitting}
           />
-          {attachmentError ? <em className="field-error">{attachmentError}</em> : null}
+          {attachmentError ? (
+            <em className="field-error">{attachmentError}</em>
+          ) : null}
         </div>
       ) : null}
 
@@ -191,11 +239,16 @@ export function TicketForm({
             Cancel
           </button>
         ) : null}
-        <button type="submit" className="btn primary" disabled={submitting || departments.length === 0 || priorities.length === 0}>
+        <button
+          type="submit"
+          className="btn primary"
+          disabled={
+            submitting || departments.length === 0 || priorities.length === 0
+          }
+        >
           {submitting ? submittingLabel : submitLabel}
         </button>
       </div>
     </form>
-  )
+  );
 }
-
