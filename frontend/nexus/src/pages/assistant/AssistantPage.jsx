@@ -1,99 +1,109 @@
-import { useLayoutEffect, useRef, useState } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { useNavigate } from 'react-router-dom'
-import { sendAssistantMessage } from '../../features/assistant/assistant-api'
-import { useAssistantConversation } from '../../features/assistant/use-assistant-conversation'
-import { useNotifications } from '../../features/notifications/use-notifications'
-import styles from './AssistantPage.module.css'
+import { useLayoutEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { useNavigate } from "react-router-dom";
+import { sendAssistantMessage } from "../../features/assistant/assistant-api";
+import { useAssistantConversation } from "../../features/assistant/use-assistant-conversation";
+import { useNotifications } from "../../features/notifications/use-notifications";
+import styles from "./AssistantPage.module.css";
 
 const NETWORK_FALLBACK_MESSAGE =
-  'I’m here to help. Tell me what feels most urgent, and we can work through it one small step at a time.'
+  "I’m here to help. Tell me what feels most urgent, and we can work through it one small step at a time.";
 
 function isSafeMarkdownUrl(url) {
-  if (!url) return false
+  if (!url) return false;
 
   try {
-    const protocol = new URL(url, window.location.origin).protocol
-    return protocol === 'http:' || protocol === 'https:' || protocol === 'mailto:'
+    const protocol = new URL(url, window.location.origin).protocol;
+    return (
+      protocol === "http:" || protocol === "https:" || protocol === "mailto:"
+    );
   } catch {
-    return false
+    return false;
   }
 }
 
 export function AssistantPage() {
-  const navigate = useNavigate()
-  const { conversationId, setConversationId, messages, setMessages } = useAssistantConversation()
-  const { playChatReceivedSound, unlockAudio } = useNotifications()
-  const [draft, setDraft] = useState('')
-  const [sending, setSending] = useState(false)
-  const messagesRef = useRef(null)
+  const navigate = useNavigate();
+  const { conversationId, setConversationId, messages, setMessages } =
+    useAssistantConversation();
+  const { playChatReceivedSound, unlockAudio } = useNotifications();
+  const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+  const messagesRef = useRef(null);
 
   useLayoutEffect(() => {
-    const messageList = messagesRef.current
-    if (messageList) messageList.scrollTop = messageList.scrollHeight
-  }, [messages.length, sending])
+    const messageList = messagesRef.current;
+    if (messageList) messageList.scrollTop = messageList.scrollHeight;
+  }, [messages.length, sending]);
 
   async function handleSubmit(event) {
-    event.preventDefault()
-    const message = draft.trim()
-    if (!message || sending) return
+    event.preventDefault();
+    const message = draft.trim();
+    if (!message || sending) return;
 
     // This runs in response to the user's submit gesture, which lets the
     // browser authorize the sound that will play when the reply arrives.
-    void unlockAudio()
-    setDraft('')
+    void unlockAudio();
+    setDraft("");
     setMessages((current) => [
       ...current,
-      { id: String(Date.now()) + '-user', role: 'user', content: message },
-    ])
-    setSending(true)
+      { id: String(Date.now()) + "-user", role: "user", content: message },
+    ]);
+    setSending(true);
 
     try {
-      const response = await sendAssistantMessage(message, conversationId)
-      if (response?.conversationId) setConversationId(response.conversationId)
+      const response = await sendAssistantMessage(message, conversationId);
+      if (response?.conversationId) setConversationId(response.conversationId);
       setMessages((current) => [
         ...current,
         {
-          id: String(Date.now()) + '-assistant',
-          role: 'assistant',
-          content: response?.message || 'I could not prepare a response.',
+          id: String(Date.now()) + "-assistant",
+          role: "assistant",
+          content: response?.message || "I could not prepare a response.",
           action: response?.action,
         },
-      ])
-      void playChatReceivedSound()
+      ]);
+      void playChatReceivedSound();
     } catch {
       setMessages((current) => [
         ...current,
         {
-          id: String(Date.now()) + '-assistant-fallback',
-          role: 'assistant',
+          id: String(Date.now()) + "-assistant-fallback",
+          role: "assistant",
           content: NETWORK_FALLBACK_MESSAGE,
         },
-      ])
+      ]);
     } finally {
-      setSending(false)
+      setSending(false);
     }
   }
 
   return (
-    <section className="ticket-chat-full content-reveal" aria-labelledby="assistant-chat-heading">
+    <section
+      className="ticket-chat-full content-reveal"
+      aria-labelledby="assistant-chat-heading"
+    >
       <div className="ticket-chat-heading ticket-chat-full-heading">
         <span id="assistant-chat-heading">Nexus assistant conversation</span>
       </div>
 
-      <ol ref={messagesRef} className={`ticket-chat-list ${styles.messageList}`} aria-live="polite">
+      <ol
+        ref={messagesRef}
+        className={`ticket-chat-list ${styles.messageList}`}
+        aria-live="polite"
+      >
         {messages.map((item) => (
           <li
-            className={`ticket-chat-message${item.role === 'user' ? ' is-mine' : ''}`}
+            className={`ticket-chat-message${item.role === "user" ? " is-mine" : ""}`}
             key={item.id}
           >
             <div className="ticket-chat-message-meta">
               <span className={styles.messageAuthor}>
-                {item.role === 'user' ? 'You' : 'Nexus assistant'}
+                {item.role === "user" ? "You" : "Nexus assistant"}
               </span>
             </div>
-            {item.role === 'assistant' ? (
+            {item.role === "assistant" ? (
               <div className={styles.messageContent}>
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
@@ -101,7 +111,11 @@ export function AssistantPage() {
                   components={{
                     a: ({ href, children }) =>
                       isSafeMarkdownUrl(href) ? (
-                        <a href={href} target="_blank" rel="noopener noreferrer">
+                        <a
+                          href={href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
                           {children}
                         </a>
                       ) : (
@@ -115,14 +129,17 @@ export function AssistantPage() {
             ) : (
               <p>{item.content}</p>
             )}
-            {item.action?.type === 'PREFILL_TICKET' ? (
+            {item.action?.type === "PREFILL_TICKET" ? (
               <div className={styles.prefill}>
-                <p>I can open the submission form with these suggestions filled in for you to review.</p>
+                <p>
+                  I can open the submission form with these suggestions filled
+                  in for you to review.
+                </p>
                 <button
                   type="button"
                   className="btn primary"
                   onClick={() =>
-                    navigate('/tickets/new', {
+                    navigate("/tickets/new", {
                       state: { prefill: item.action.data },
                     })
                   }
@@ -151,16 +168,20 @@ export function AssistantPage() {
           onChange={(event) => setDraft(event.target.value)}
           placeholder="For example: My laptop keeps disconnecting from the office Wi-Fi…"
           maxLength={4000}
-          rows="3"
+          rows={3}
           disabled={sending}
         />
         <div className="ticket-chat-actions">
           <span>{draft.length}/4000</span>
-          <button type="submit" className="btn primary" disabled={sending || !draft.trim()}>
-            {sending ? 'Sending…' : 'Send message'}
+          <button
+            type="submit"
+            className="btn primary"
+            disabled={sending || !draft.trim()}
+          >
+            {sending ? "Sending…" : "Send message"}
           </button>
         </div>
       </form>
     </section>
-  )
+  );
 }

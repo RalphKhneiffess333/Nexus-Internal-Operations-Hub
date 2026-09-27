@@ -14,6 +14,7 @@ import { BackgroundWorkersModule } from './background-workers/background-workers
 import { PrioritiesModule } from './priorities/priorities.module';
 import { FiltersModule } from './filters/filters.module';
 import { AiModule } from './ai/ai.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { AiModule } from './ai/ai.module';
     PrioritiesModule,
     FiltersModule,
     AiModule,
+    HealthModule,
   ],
 })
 export class AppModule {}

@@ -15,6 +15,10 @@ import { NotificationsRepository } from './notifications.repository';
     NodemailerEmailProvider,
     { provide: EMAIL_PROVIDER, useExisting: NodemailerEmailProvider },
   ],
-  exports: [NotificationsService, EmailNotificationsService],
+  exports: [
+    NotificationsService,
+    EmailNotificationsService,
+    NodemailerEmailProvider,
+  ],
 })
 export class NotificationsModule {}

@@ -8,7 +8,7 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { OnEvent } from '@nestjs/event-emitter';
-import { Logger } from '@nestjs/common';
+import { HttpException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Server, Socket } from 'socket.io';
 import { AuthenticationService } from '../authentication/authentication.service';
@@ -32,6 +32,7 @@ import type {
   FilterOptionsChangedRealtimeEvent,
 } from './realtime-events';
 import { chatRoom, ticketRoom, userRoom } from './realtime-rooms';
+import { logSystemError } from '../common/logging/system-error.logger';
 
 interface OperationsSocketData {
   sessionId?: string;
@@ -85,30 +86,40 @@ export class OperationsGateway
   ) {}
 
   async handleConnection(client: Socket): Promise<void> {
-    const origin = client.handshake.headers.origin;
-    if (origin && !allowedOrigins(this.config).includes(origin)) {
-      client.disconnect(true);
-      return;
-    }
-    const sessionId = parseCookieHeader(client.handshake.headers.cookie)[
-      SESSION_COOKIE_NAME
-    ];
-    const user =
-      await this.authenticationService.authenticateSession(sessionId);
-    if (!user || !sessionId) {
-      client.emit(OperationsServerEvent.Error, { code: 'UNAUTHORIZED' });
-      client.disconnect(true);
-      return;
-    }
+    try {
+      const origin = client.handshake.headers.origin;
+      if (origin && !allowedOrigins(this.config).includes(origin)) {
+        client.disconnect(true);
+        return;
+      }
+      const sessionId = parseCookieHeader(client.handshake.headers.cookie)[
+        SESSION_COOKIE_NAME
+      ];
+      const user =
+        await this.authenticationService.authenticateSession(sessionId);
+      if (!user || !sessionId) {
+        client.emit(OperationsServerEvent.Error, { code: 'UNAUTHORIZED' });
+        client.disconnect(true);
+        return;
+      }
 
-    const data = client.data as OperationsSocketData;
-    data.sessionId = sessionId;
-    data.userId = user.userId;
-    data.user = user;
-    data.joinedTicketIds = new Set<string>();
-    this.trackSocket(client.id, user.userId, sessionId);
-    await client.join(userRoom(user.userId));
-    client.emit(OperationsServerEvent.Connected, { userId: user.userId });
+      const data = client.data as OperationsSocketData;
+      data.sessionId = sessionId;
+      data.userId = user.userId;
+      data.user = user;
+      data.joinedTicketIds = new Set<string>();
+      this.trackSocket(client.id, user.userId, sessionId);
+      await client.join(userRoom(user.userId));
+      client.emit(OperationsServerEvent.Connected, { userId: user.userId });
+    } catch (error) {
+      if (this.isUnexpectedSystemFailure(error)) {
+        logSystemError(this.logger, error, {
+          operation: 'socket.connect',
+          object: { type: 'socket', id: client.id },
+        });
+      }
+      client.disconnect(true);
+    }
   }
 
   handleDisconnect(client: Socket): void {
@@ -143,7 +154,8 @@ export class OperationsGateway
 
     try {
       await this.ticketsService.findOne(ticketId, user);
-    } catch {
+    } catch (error) {
+      this.logUnexpectedRoomFailure(error, ticketId, 'socket.join-ticket-room');
       // Never reveal whether an inaccessible ticket exists.
       return { ok: false, code: 'TICKET_UNAVAILABLE' };
     }
@@ -181,7 +193,8 @@ export class OperationsGateway
     if (!user) return { ok: false, code: 'UNAUTHORIZED' };
     try {
       await this.chatService.assertCanViewChat(ticketId, user);
-    } catch {
+    } catch (error) {
+      this.logUnexpectedRoomFailure(error, ticketId, 'socket.join-chat-room');
       return { ok: false, code: 'TICKET_UNAVAILABLE' };
     }
     await client.join(chatRoom(ticketId));
@@ -266,15 +279,19 @@ export class OperationsGateway
           if (!user) return;
           data.user = user;
           const payload = await this.filterOptionsService.listForUser(user);
-          this.server.to(userRoom(userId)).emit(
-            OperationsServerEvent.FilterOptionsUpdated,
-            { ...event, payload },
-          );
+          this.server
+            .to(userRoom(userId))
+            .emit(OperationsServerEvent.FilterOptionsUpdated, {
+              ...event,
+              payload,
+            });
         } catch (error) {
-          this.logger.error(
-            `Unable to publish filter options for ${userId}`,
-            error instanceof Error ? error.message : String(error),
-          );
+          if (this.isUnexpectedSystemFailure(error)) {
+            logSystemError(this.logger, error, {
+              operation: 'socket.publish-filter-options',
+              object: { type: 'user', id: userId },
+            });
+          }
         }
       }),
     );
@@ -298,16 +315,41 @@ export class OperationsGateway
 
   private async authenticatePacket(client: Socket) {
     const data = client.data as OperationsSocketData;
-    const user = await this.authenticationService.authenticateSession(
-      data.sessionId,
-    );
-    if (user) {
-      return user;
-    }
+    try {
+      const user = await this.authenticationService.authenticateSession(
+        data.sessionId,
+      );
+      if (user) return user;
 
-    client.emit(OperationsServerEvent.Error, { code: 'UNAUTHORIZED' });
-    client.disconnect(true);
-    return null;
+      client.emit(OperationsServerEvent.Error, { code: 'UNAUTHORIZED' });
+      client.disconnect(true);
+      return null;
+    } catch (error) {
+      if (this.isUnexpectedSystemFailure(error)) {
+        logSystemError(this.logger, error, {
+          operation: 'socket.authenticate-packet',
+          object: { type: 'socket', id: client.id },
+        });
+      }
+      client.disconnect(true);
+      return null;
+    }
+  }
+
+  private logUnexpectedRoomFailure(
+    error: unknown,
+    ticketId: string,
+    operation: string,
+  ): void {
+    if (!this.isUnexpectedSystemFailure(error)) return;
+    logSystemError(this.logger, error, {
+      operation,
+      object: { type: 'ticket', id: ticketId },
+    });
+  }
+
+  private isUnexpectedSystemFailure(error: unknown): boolean {
+    return !(error instanceof HttpException) || error.getStatus() >= 500;
   }
 
   private trackSocket(

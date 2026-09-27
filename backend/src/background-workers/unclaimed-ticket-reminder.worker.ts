@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { NotificationsService } from '../notifications/notifications.service';
 import { EmailNotificationsService } from '../notifications/email-notifications.service';
 import { UnclaimedTicketReminderRepository } from './unclaimed-ticket-reminder.repository';
+import { logSystemError } from '../common/logging/system-error.logger';
 
 @Injectable()
 export class UnclaimedTicketReminderWorker {
@@ -15,9 +16,9 @@ export class UnclaimedTicketReminderWorker {
 
   async runOnce(now = new Date()): Promise<void> {
     const candidates = await this.repository.findCandidates();
-    const intervals = await this.readIntervals(
-      [...new Set(candidates.map((ticket) => ticket.priority))],
-    );
+    const intervals = await this.readIntervals([
+      ...new Set(candidates.map((ticket) => ticket.priority)),
+    ]);
 
     for (const ticket of candidates) {
       const intervalMinutes = intervals.get(ticket.priority) ?? 0;
@@ -46,9 +47,10 @@ export class UnclaimedTicketReminderWorker {
           link,
         });
       } catch (error) {
-        this.logger.warn(
-          `Realtime reminder notification failed for ${ticket.ticketCode}: ${this.describeError(error)}`,
-        );
+        logSystemError(this.logger, error, {
+          operation: 'ticket-reminder.notify',
+          object: { type: 'ticket', id: ticket.ticketId },
+        });
       }
 
       await this.emailNotifications.notifyTicketReminder(ticket.ticketId);
@@ -63,9 +65,5 @@ export class UnclaimedTicketReminderWorker {
         priority.reminderIntervalMinutes,
       ]),
     );
-  }
-
-  private describeError(error: unknown): string {
-    return error instanceof Error ? error.message : 'unknown error';
   }
 }

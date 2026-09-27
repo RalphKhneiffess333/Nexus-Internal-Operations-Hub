@@ -9,10 +9,12 @@ import {
   type AiProviderResult,
   type AiToolCall,
 } from './ai-provider.interface';
+import { logSystemError } from '../../common/logging/system-error.logger';
 
 const DEFAULT_MODEL = 'qwen/qwen3.8-27b';
 const MAX_ATTEMPTS = 3;
 const DEFAULT_RETRY_DELAY_MS = 250;
+const DEFAULT_REQUEST_TIMEOUT_MS = 30000;
 
 const ASSISTANT_RESPONSE_SCHEMA = {
   type: 'object',
@@ -146,9 +148,22 @@ function parseProviderResult(payload: unknown): AiProviderResult {
 
 function supportsStrictStructuredOutputs(model: string): boolean {
   return (
-    model === DEFAULT_MODEL ||
-    /^openai\/gpt-oss-(?:20b|120b)$/.test(model)
+    model === DEFAULT_MODEL || /^openai\/gpt-oss-(?:20b|120b)$/.test(model)
   );
+}
+
+function readRetryAfterMs(headers: Headers): number | undefined {
+  const value = headers.get('retry-after')?.trim();
+  if (!value) return undefined;
+
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.ceil(seconds * 1000);
+  }
+
+  const retryAt = Date.parse(value);
+  if (Number.isNaN(retryAt)) return undefined;
+  return Math.max(0, retryAt - Date.now());
 }
 
 @Injectable()
@@ -156,12 +171,17 @@ export class GroqProvider implements AiProvider {
   private readonly logger = new Logger(GroqProvider.name);
   private readonly model: string;
   private readonly retryDelayMs: number;
+  private readonly requestTimeoutMs: number;
 
   constructor(private readonly config: ConfigService) {
     this.model = this.config.get<string>('GROQ_MODEL')?.trim() || DEFAULT_MODEL;
     this.retryDelayMs = this.readPositiveInteger(
       'AI_RETRY_DELAY_MS',
       DEFAULT_RETRY_DELAY_MS,
+    );
+    this.requestTimeoutMs = this.readPositiveInteger(
+      'GROQ_REQUEST_TIMEOUT_MS',
+      DEFAULT_REQUEST_TIMEOUT_MS,
     );
   }
 
@@ -211,6 +231,7 @@ export class GroqProvider implements AiProvider {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify(body),
+            signal: AbortSignal.timeout(this.requestTimeoutMs),
           },
         );
 
@@ -220,6 +241,8 @@ export class GroqProvider implements AiProvider {
               'Groq request rate limit exceeded',
               false,
               429,
+              'service',
+              readRetryAfterMs(response.headers),
             );
           }
           const retryable = response.status === 408 || response.status >= 500;
@@ -239,9 +262,11 @@ export class GroqProvider implements AiProvider {
       } catch (error) {
         if (error instanceof AiProviderError && !error.retryable) throw error;
         if (attempt >= MAX_ATTEMPTS) {
-          this.logger.warn(
-            `Groq request failed after ${attempt} attempt(s): ${this.describeError(error)}`,
-          );
+          logSystemError(this.logger, error, {
+            operation: 'groq.generate',
+            object: { type: 'external-service', id: 'groq' },
+            context: { attempt, model: this.model },
+          });
           throw new AiProviderError('Groq is temporarily unavailable', true);
         }
         await this.delay(attempt);
@@ -256,11 +281,6 @@ export class GroqProvider implements AiProvider {
       setTimeout(resolve, this.retryDelayMs * 2 ** (attempt - 1)),
     );
   }
-
-  private describeError(error: unknown): string {
-    return error instanceof Error ? error.message : String(error);
-  }
-
   private readPositiveInteger(key: string, fallback: number): number {
     const value = Number(this.config.get<string>(key));
     return Number.isInteger(value) && value > 0 ? value : fallback;

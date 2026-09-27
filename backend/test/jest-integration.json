@@ -3,6 +3,7 @@
   "rootDir": "..",
   "testEnvironment": "node",
   "verbose": true,
+  "testTimeout": 30000,
   "testRegex": ".integration-spec.ts$",
   "setupFiles": ["<rootDir>/test/setup-integration-env.ts"],
   "transform": {

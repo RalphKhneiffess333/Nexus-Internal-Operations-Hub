@@ -8,6 +8,10 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import type { Response } from 'express';
+import {
+  type FailedObject,
+  logSystemError,
+} from '../logging/system-error.logger';
 
 @Catch()
 export class SafeExceptionFilter implements ExceptionFilter {
@@ -27,22 +31,11 @@ export class SafeExceptionFilter implements ExceptionFilter {
     if (status >= 500) {
       const method = request?.method ?? 'UNKNOWN';
       const path = request?.originalUrl ?? request?.url ?? 'unknown path';
-      const errorName =
-        exception instanceof Error ? exception.name : 'UnhandledException';
-      const errorMessage =
-        exception instanceof HttpException
-          ? 'HTTP exception'
-          : exception instanceof Error
-            ? exception.message
-            : String(exception);
-      this.logger.error(
-        `${method} ${path} -> ${status} ${errorName}: ${errorMessage}`,
-        exception instanceof HttpException
-          ? undefined
-          : exception instanceof Error
-            ? exception.stack
-            : undefined,
-      );
+      logSystemError(this.logger, this.loggableException(exception), {
+        operation: 'http.request',
+        object: this.failedObject(request),
+        context: { method, path, status },
+      });
     }
     response.status(status).json({ statusCode: status, message });
   }
@@ -58,5 +51,31 @@ export class SafeExceptionFilter implements ExceptionFilter {
       if (typeof message === 'string' || Array.isArray(message)) return message;
     }
     return 'Request failed';
+  }
+
+  private failedObject(request: Request | undefined): FailedObject {
+    const identifier = Object.entries(request?.params ?? {}).find(
+      ([key, value]) => key.endsWith('Id') && typeof value === 'string',
+    );
+    if (identifier) {
+      return {
+        type: identifier[0].slice(0, -2) || 'resource',
+        id: identifier[1] as string,
+      };
+    }
+
+    return {
+      type: 'http-request',
+      id: `${request?.method ?? 'UNKNOWN'} ${request?.path ?? 'unknown'}`,
+    };
+  }
+
+  private loggableException(exception: unknown): unknown {
+    if (!(exception instanceof HttpException)) return exception;
+
+    const safeException = new Error('HTTP exception');
+    safeException.name = exception.name;
+    if (exception.cause) safeException.cause = exception.cause;
+    return safeException;
   }
 }

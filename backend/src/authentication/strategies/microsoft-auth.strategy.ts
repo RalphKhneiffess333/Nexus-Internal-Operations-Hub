@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -13,6 +14,7 @@ import {
 import { MICROSOFT_ENTRA_PROVIDER_CODE } from '../authentication.constants';
 import { AuthenticatedIdentity } from './authenticated-identity';
 import { AuthenticationStrategy } from './authentication.strategy';
+import { logSystemError } from '../../common/logging/system-error.logger';
 
 export interface MicrosoftAuthenticationInput {
   code: string;
@@ -49,15 +51,17 @@ interface MicrosoftIdTokenPayload {
   family_name?: string;
 }
 
+const DEFAULT_REQUEST_TIMEOUT_MS = 10000;
+
 @Injectable()
 export class MicrosoftAuthStrategy implements AuthenticationStrategy<MicrosoftAuthenticationInput> {
+  private readonly logger = new Logger(MicrosoftAuthStrategy.name);
+
   constructor(private readonly configService: ConfigService) {}
 
   getAuthorizationUrl(state: string): string {
     const url = new URL(
       `https://login.microsoftonline.com/${this.authenticationTenant}/oauth2/v2.0/authorize`,
-      // Tenant-locked organization login:
-      // `https://login.microsoftonline.com/${this.tenantId}/oauth2/v2.0/authorize`,
     );
 
     url.searchParams.set('client_id', this.clientId);
@@ -121,8 +125,6 @@ export class MicrosoftAuthStrategy implements AuthenticationStrategy<MicrosoftAu
 
     const response = await this.fetchWithRetries(
       `https://login.microsoftonline.com/${this.authenticationTenant}/oauth2/v2.0/token`,
-      // Tenant-locked organization token exchange:
-      // `https://login.microsoftonline.com/${this.tenantId}/oauth2/v2.0/token`,
       {
         method: 'POST',
         headers: {
@@ -210,11 +212,18 @@ export class MicrosoftAuthStrategy implements AuthenticationStrategy<MicrosoftAu
       );
     }
 
+    if (
+      !payload.tid ||
+      payload.tid.toLowerCase() !== this.tenantId.toLowerCase()
+    ) {
+      throw new UnauthorizedException(
+        'Microsoft identity token belongs to a different organization',
+      );
+    }
+
     const expectedIssuer = openIdConfiguration.issuer.replace(
       '{tenantid}',
-      payload.tid ?? this.authenticationTenant,
-      // Tenant-locked organization issuer fallback:
-      // payload.tid ?? this.tenantId,
+      this.tenantId,
     );
     if (payload.iss !== expectedIssuer) {
       throw new UnauthorizedException(
@@ -226,13 +235,19 @@ export class MicrosoftAuthStrategy implements AuthenticationStrategy<MicrosoftAu
   private async getOpenIdConfiguration(): Promise<OpenIdConfiguration> {
     const response = await this.fetchWithRetries(
       `https://login.microsoftonline.com/${this.authenticationTenant}/v2.0/.well-known/openid-configuration`,
-      // Tenant-locked organization OpenID discovery:
-      // `https://login.microsoftonline.com/${this.tenantId}/v2.0/.well-known/openid-configuration`,
     );
 
     if (!response.ok) {
+      const error = new Error(
+        `Microsoft OpenID discovery returned HTTP ${response.status}`,
+      );
+      logSystemError(this.logger, error, {
+        operation: 'microsoft-auth.openid-discovery',
+        object: { type: 'external-service', id: 'microsoft-entra' },
+      });
       throw new ServiceUnavailableException(
         'Microsoft OpenID configuration is unavailable',
+        { cause: error },
       );
     }
 
@@ -243,8 +258,16 @@ export class MicrosoftAuthStrategy implements AuthenticationStrategy<MicrosoftAu
     const response = await this.fetchWithRetries(jwksUri);
 
     if (!response.ok) {
+      const error = new Error(
+        `Microsoft signing-key lookup returned HTTP ${response.status}`,
+      );
+      logSystemError(this.logger, error, {
+        operation: 'microsoft-auth.signing-keys',
+        object: { type: 'external-service', id: 'microsoft-entra' },
+      });
       throw new ServiceUnavailableException(
         'Microsoft signing keys are unavailable',
+        { cause: error },
       );
     }
 
@@ -259,7 +282,10 @@ export class MicrosoftAuthStrategy implements AuthenticationStrategy<MicrosoftAu
 
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       try {
-        const response = await fetch(input, init);
+        const response = await fetch(input, {
+          ...init,
+          signal: AbortSignal.timeout(this.requestTimeoutMs),
+        });
         if (response.status < 500) {
           return response;
         }
@@ -269,9 +295,15 @@ export class MicrosoftAuthStrategy implements AuthenticationStrategy<MicrosoftAu
       }
     }
 
-    void lastError;
+    const error =
+      lastError ?? new Error('Microsoft authentication did not respond');
+    logSystemError(this.logger, error, {
+      operation: 'microsoft-auth.request',
+      object: { type: 'external-service', id: 'microsoft-entra' },
+    });
     throw new ServiceUnavailableException(
       'Microsoft authentication is unavailable',
+      { cause: error },
     );
   }
 
@@ -290,11 +322,7 @@ export class MicrosoftAuthStrategy implements AuthenticationStrategy<MicrosoftAu
   }
 
   private get authenticationTenant(): string {
-    // Testing mode: allow personal Microsoft accounts and accounts from any Entra tenant.
-    return 'common';
-
-    // Tenant-locked organization login:
-    // return this.tenantId;
+    return this.tenantId;
   }
 
   private get clientId(): string {
@@ -316,11 +344,26 @@ export class MicrosoftAuthStrategy implements AuthenticationStrategy<MicrosoftAu
     );
   }
 
+  private get requestTimeoutMs(): number {
+    const value = Number(
+      this.configService.get<string>('MICROSOFT_REQUEST_TIMEOUT_MS'),
+    );
+    return Number.isInteger(value) && value > 0
+      ? value
+      : DEFAULT_REQUEST_TIMEOUT_MS;
+  }
+
   private requiredConfig(name: string): string {
     const value = this.configService.get<string>(name);
     if (!value) {
+      const error = new Error(`${name} is not configured`);
+      logSystemError(this.logger, error, {
+        operation: 'microsoft-auth.configuration',
+        object: { type: 'configuration', id: name },
+      });
       throw new ServiceUnavailableException(
         `${name} must be configured for Microsoft Entra authentication`,
+        { cause: error },
       );
     }
 

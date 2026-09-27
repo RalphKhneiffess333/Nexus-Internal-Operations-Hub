@@ -11,7 +11,9 @@ export function mapPrismaError(error: unknown): never {
     error instanceof Prisma.PrismaClientInitializationError ||
     error instanceof Prisma.PrismaClientRustPanicError
   ) {
-    throw new ServiceUnavailableException('Database is unavailable');
+    throw new ServiceUnavailableException('Database is unavailable', {
+      cause: error,
+    });
   }
 
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -26,19 +28,27 @@ export function mapPrismaError(error: unknown): never {
     if (
       error.code === 'P1001' ||
       error.code === 'P1002' ||
-      error.code === 'P1017'
+      error.code === 'P1008' ||
+      error.code === 'P1011' ||
+      error.code === 'P1017' ||
+      error.code === 'P2024' ||
+      error.code === 'P2028'
     ) {
-      throw new ServiceUnavailableException('Database is unavailable');
+      throw new ServiceUnavailableException('Database is unavailable', {
+        cause: error,
+      });
     }
   }
 
   if (error instanceof Prisma.PrismaClientUnknownRequestError) {
     throw new InternalServerErrorException(
       'The database operation could not be completed',
+      { cause: error },
     );
   }
 
   throw new InternalServerErrorException(
     'The database operation could not be completed',
+    { cause: error },
   );
 }

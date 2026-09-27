@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { AuditLogsCleanupWorker } from './audit-logs-cleanup.worker';
 import { OrphanedFilesWorker } from './orphaned-files.worker';
 import { UnclaimedTicketReminderWorker } from './unclaimed-ticket-reminder.worker';
+import { logSystemError } from '../common/logging/system-error.logger';
 
 interface ScheduledWorker {
   name: string;
@@ -83,7 +84,10 @@ export class BackgroundWorkersService implements OnModuleInit, OnModuleDestroy {
     try {
       await worker.run();
     } catch (error) {
-      this.logger.error(`${worker.name} failed: ${this.describeError(error)}`);
+      logSystemError(this.logger, error, {
+        operation: 'background-worker.run',
+        object: { type: 'background-worker', id: worker.name },
+      });
     } finally {
       this.running.delete(worker.name);
     }
@@ -96,9 +100,5 @@ export class BackgroundWorkersService implements OnModuleInit, OnModuleDestroy {
   private readInterval(key: string, fallback: number): number {
     const value = Number(this.config.get<string>(key));
     return Number.isInteger(value) && value > 0 ? value : fallback;
-  }
-
-  private describeError(error: unknown): string {
-    return error instanceof Error ? error.message : 'unknown error';
   }
 }

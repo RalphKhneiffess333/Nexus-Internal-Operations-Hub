@@ -2,6 +2,7 @@ import type { TestType } from '@playwright/test';
 import { PrismaClient } from '@prisma/client';
 import '../setup-integration-env';
 import {
+  ADMIN_ID,
   AGENT_ID,
   EMPLOYEE_ID,
   IT_DEPARTMENT_ID,
@@ -9,7 +10,7 @@ import {
   seedTestDatabase,
 } from '../../src/database/seed';
 
-export { AGENT_ID, EMPLOYEE_ID, IT_DEPARTMENT_ID };
+export { ADMIN_ID, AGENT_ID, EMPLOYEE_ID, IT_DEPARTMENT_ID };
 
 export const prisma = new PrismaClient();
 

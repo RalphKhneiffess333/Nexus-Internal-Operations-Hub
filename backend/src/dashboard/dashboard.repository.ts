@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, TicketStatus } from '@prisma/client';
+import { mapPrismaError } from '../database/prisma-error';
 import { PrismaService } from '../database/prisma.service';
 import { AuditRepository } from '../audit/audit.repository';
 import type { ActivityListRecord } from '../audit/audit.repository';
@@ -64,77 +65,89 @@ export class DashboardRepository {
   async findDepartmentsForUser(
     userId: string,
   ): Promise<DashboardDepartmentRecord[]> {
-    const departments = await this.prisma.department.findMany({
-      where: {
-        active: true,
-        members: { some: { userId } },
-      },
-      select: {
-        departmentId: true,
-        code: true,
-        name: true,
-      },
-      orderBy: { name: 'asc' },
-    });
+    return this.runWithPrismaErrorMapping(async () => {
+      const departments = await this.prisma.department.findMany({
+        where: {
+          active: true,
+          members: { some: { userId } },
+        },
+        select: {
+          departmentId: true,
+          code: true,
+          name: true,
+        },
+        orderBy: { name: 'asc' },
+      });
 
-    return this.withUnclaimedCounts(departments);
+      return this.withUnclaimedCounts(departments);
+    });
   }
 
   async findDepartmentsForAdmin(): Promise<DashboardDepartmentRecord[]> {
-    const departments = await this.prisma.department.findMany({
-      where: { active: true },
-      select: {
-        departmentId: true,
-        code: true,
-        name: true,
-      },
-      orderBy: { name: 'asc' },
-    });
+    return this.runWithPrismaErrorMapping(async () => {
+      const departments = await this.prisma.department.findMany({
+        where: { active: true },
+        select: {
+          departmentId: true,
+          code: true,
+          name: true,
+        },
+        orderBy: { name: 'asc' },
+      });
 
-    return this.withUnclaimedCounts(departments);
+      return this.withUnclaimedCounts(departments);
+    });
   }
 
   async countTicketsByStatus(
     where: Prisma.TicketWhereInput,
   ): Promise<TicketStatusCounts> {
-    const grouped = await this.prisma.ticket.groupBy({
-      by: ['status'],
-      where,
-      _count: { _all: true },
-    });
-    const counts = Object.values(TicketStatus).reduce((result, status) => {
-      result[status] = 0;
-      return result;
-    }, {} as TicketStatusCounts);
+    return this.runWithPrismaErrorMapping(async () => {
+      const grouped = await this.prisma.ticket.groupBy({
+        by: ['status'],
+        where,
+        _count: { _all: true },
+      });
+      const counts = Object.values(TicketStatus).reduce((result, status) => {
+        result[status] = 0;
+        return result;
+      }, {} as TicketStatusCounts);
 
-    grouped.forEach((row) => {
-      counts[row.status] = row._count._all;
+      grouped.forEach((row) => {
+        counts[row.status] = row._count._all;
+      });
+      return counts;
     });
-    return counts;
   }
 
   async findRecentTickets(
     where: Prisma.TicketWhereInput,
     take = 5,
   ): Promise<DashboardTicketRecord[]> {
-    return this.prisma.ticket.findMany({
-      where,
-      select: dashboardTicketSelect,
-      orderBy: [{ updatedAt: 'desc' }, { ticketId: 'desc' }],
-      take,
-    });
+    return this.runWithPrismaErrorMapping(() =>
+      this.prisma.ticket.findMany({
+        where,
+        select: dashboardTicketSelect,
+        orderBy: [{ updatedAt: 'desc' }, { ticketId: 'desc' }],
+        take,
+      }),
+    );
   }
 
   async countPendingIncomingHandoffs(userId: string): Promise<number> {
-    return this.prisma.handoffRequest.count({
-      where: { requestedAgentId: userId, status: 'PENDING' },
-    });
+    return this.runWithPrismaErrorMapping(() =>
+      this.prisma.handoffRequest.count({
+        where: { requestedAgentId: userId, status: 'PENDING' },
+      }),
+    );
   }
 
   async countPendingOutgoingHandoffs(userId: string): Promise<number> {
-    return this.prisma.handoffRequest.count({
-      where: { requesterId: userId, status: 'PENDING' },
-    });
+    return this.runWithPrismaErrorMapping(() =>
+      this.prisma.handoffRequest.count({
+        where: { requesterId: userId, status: 'PENDING' },
+      }),
+    );
   }
 
   async countUsers(): Promise<{
@@ -143,17 +156,21 @@ export class DashboardRepository {
     inactive: number;
     pendingLogin: number;
   }> {
-    const [total, active, inactive, pendingLogin] = await Promise.all([
-      this.prisma.user.count(),
-      this.prisma.user.count({ where: { isActive: true } }),
-      this.prisma.user.count({ where: { isActive: false } }),
-      this.prisma.user.count({ where: { hasLogged: false } }),
-    ]);
-    return { total, active, inactive, pendingLogin };
+    return this.runWithPrismaErrorMapping(async () => {
+      const [total, active, inactive, pendingLogin] = await Promise.all([
+        this.prisma.user.count(),
+        this.prisma.user.count({ where: { isActive: true } }),
+        this.prisma.user.count({ where: { isActive: false } }),
+        this.prisma.user.count({ where: { hasLogged: false } }),
+      ]);
+      return { total, active, inactive, pendingLogin };
+    });
   }
 
   async countActiveDepartments(): Promise<number> {
-    return this.prisma.department.count({ where: { active: true } });
+    return this.runWithPrismaErrorMapping(() =>
+      this.prisma.department.count({ where: { active: true } }),
+    );
   }
 
   async findRecentActivity(take = 6): Promise<DashboardActivityRecord[]> {
@@ -207,5 +224,15 @@ export class DashboardRepository {
       ...department,
       unclaimedCount: counts.get(department.departmentId) ?? 0,
     }));
+  }
+
+  private async runWithPrismaErrorMapping<T>(
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await operation();
+    } catch (error) {
+      mapPrismaError(error);
+    }
   }
 }

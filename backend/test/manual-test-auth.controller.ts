@@ -98,7 +98,7 @@ export class ManualTestAuthController {
         });
 
     const userAgent = request.headers['user-agent'];
-    const session = ManualTestAuthController.sessionService.createSession(
+    const session = ManualTestAuthController.sessionService.createTestSession(
       authenticatedUser.userId,
       {
         userAgent: Array.isArray(userAgent) ? userAgent.join(' ') : userAgent,

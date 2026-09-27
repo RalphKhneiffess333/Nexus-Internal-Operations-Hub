@@ -1,0 +1,247 @@
+{
+  "info": {
+    "name": "Nexus Smoke",
+    "description": "Ordered, repeatable HTTP smoke workflow for local Nexus test mode. Run with npm run start:test and the Nexus Local Test environment. State-changing administration requests are intentionally excluded.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" }
+  ],
+  "item": [
+    {
+      "name": "Health and anonymous access",
+      "item": [
+        {
+          "name": "Ping",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/health/ping" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('returns 200', () => pm.response.to.have.status(200));", "pm.test('reports ok', () => pm.expect(pm.response.json().status).to.eql('ok'));" ] } }]
+        },
+        {
+          "name": "Anonymous current authentication",
+          "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session=invalid-anonymous-session" }], "url": "{{baseUrl}}/authentication/me" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('returns 200', () => pm.response.to.have.status(200));", "pm.test('has no user', () => pm.expect(pm.response.json().user).to.eql(null));" ] } }]
+        }
+      ]
+    },
+    {
+      "name": "Local test authentication",
+      "description": "Each request captures the deterministic nexus_session value returned by the test-only login endpoint.",
+      "item": [
+        {
+          "name": "Login employee",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"userId\": \"{{employeeId}}\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/__test/auth/login" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(201);", "const value = pm.response.headers.get('Set-Cookie') || '';", "const match = /(?:^|,\\s*)nexus_session=([^;,\\s]+)/i.exec(value);", "pm.test('sets employee session', () => pm.expect(match).to.not.be.null);", "if (match) pm.environment.set('sessionEmployee', match[1]);"] } }]
+        },
+        {
+          "name": "Login agent",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"userId\": \"{{agentId}}\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/__test/auth/login" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(201);", "const value = pm.response.headers.get('Set-Cookie') || '';", "const match = /(?:^|,\\s*)nexus_session=([^;,\\s]+)/i.exec(value);", "pm.test('sets agent session', () => pm.expect(match).to.not.be.null);", "if (match) pm.environment.set('sessionAgent', match[1]);"] } }]
+        },
+        {
+          "name": "Login second IT agent",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"userId\": \"{{agent2Id}}\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/__test/auth/login" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(201);", "const value = pm.response.headers.get('Set-Cookie') || '';", "const match = /(?:^|,\\s*)nexus_session=([^;,\\s]+)/i.exec(value);", "pm.test('sets second agent session', () => pm.expect(match).to.not.be.null);", "if (match) pm.environment.set('sessionItAgent2', match[1]);"] } }]
+        },
+        {
+          "name": "Login admin",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"userId\": \"{{adminId}}\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/__test/auth/login" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(201);", "const value = pm.response.headers.get('Set-Cookie') || '';", "const match = /(?:^|,\\s*)nexus_session=([^;,\\s]+)/i.exec(value);", "pm.test('sets admin session', () => pm.expect(match).to.not.be.null);", "if (match) pm.environment.set('sessionAdmin', match[1]);"] } }]
+        }
+      ]
+    },
+    {
+      "name": "Authenticated lookups",
+      "item": [
+        {
+          "name": "Current authentication",
+          "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/authentication/me" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('returns 200', () => pm.response.to.have.status(200));", "pm.test('identifies employee', () => pm.expect(pm.response.json().user.userId).to.eql(pm.environment.get('employeeId')));" ] } }]
+        },
+        {
+          "name": "Departments",
+          "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/departments?scope=all" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('returns 200', () => pm.response.to.have.status(200));", "pm.test('returns departments', () => pm.expect(pm.response.json()).to.be.an('array'));" ] } }]
+        },
+        {
+          "name": "Priorities",
+          "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/priorities" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('returns 200', () => pm.response.to.have.status(200));", "pm.test('includes seeded priority', () => pm.expect(pm.response.json().some((item) => item.code === 'MODERATE')).to.eql(true));" ] } }]
+        },
+        {
+          "name": "Filter options",
+          "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/filters" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('returns 200', () => pm.response.to.have.status(200));", "pm.test('returns a filter payload', () => pm.expect(pm.response.json()).to.be.an('object'));" ] } }]
+        },
+        {
+          "name": "Dashboard summary",
+          "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/dashboard/summary" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('returns 200', () => pm.response.to.have.status(200));", "pm.test('returns a summary', () => pm.expect(pm.response.json()).to.be.an('object'));" ] } }]
+        }
+      ]
+    },
+    {
+      "name": "Ticket, attachment, and chat path",
+      "item": [
+        {
+          "name": "Create ticket with attachment",
+          "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "body": { "mode": "formdata", "formdata": [ { "key": "title", "value": "Postman smoke attachment ticket", "type": "text" }, { "key": "description", "value": "Exercise ticket lifecycle, attachment, and chat behavior.", "type": "text" }, { "key": "priority", "value": "MODERATE", "type": "text" }, { "key": "departmentId", "value": "{{itDepartmentId}}", "type": "text" }, { "key": "files", "type": "file", "src": "postman/fixtures/smoke.txt" } ] }, "url": "{{baseUrl}}/tickets" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('creates an open ticket', () => pm.response.to.have.status(201));", "const body = pm.response.json();", "pm.environment.set('ticketId', body.ticketId);", "pm.test('captures ticket id', () => pm.expect(body.ticketId).to.be.a('string'));" ] } }]
+        },
+        {
+          "name": "Get ticket",
+          "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/tickets/{{ticketId}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('returns 200', () => pm.response.to.have.status(200));", "pm.test('returns the smoke ticket', () => pm.expect(pm.response.json().ticketId).to.eql(pm.environment.get('ticketId')));" ] } }]
+        },
+        {
+          "name": "List tickets",
+          "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/tickets?scope=submitted&page=1&pageSize=50" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('returns 200', () => pm.response.to.have.status(200));", "pm.test('returns a page', () => pm.expect(pm.response.json().items).to.be.an('array'));" ] } }]
+        },
+        {
+          "name": "List ticket events and capture attachment",
+          "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/tickets/{{ticketId}}/events?page=1&pageSize=50" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('returns 200', () => pm.response.to.have.status(200));", "const body = pm.response.json();", "const event = body.items[0];", "if (event) pm.environment.set('ticketEventId', event.ticketEventId);", "pm.test('returns submission event', () => pm.expect(event.action).to.eql('SUBMISSION'));" ] } }]
+        },
+        {
+          "name": "Get ticket event and capture attachment",
+          "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/tickets/{{ticketId}}/events/{{ticketEventId}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('returns 200', () => pm.response.to.have.status(200));", "const body = pm.response.json();", "const attachment = body.attachments && body.attachments[0];", "pm.test('returns an attachment record', () => pm.expect(attachment).to.be.an('object'));", "if (attachment) pm.environment.set('attachmentId', attachment.attachmentId);" ] } }]
+        },
+        {
+          "name": "Download ticket attachment",
+          "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/tickets/{{ticketId}}/events/{{ticketEventId}}/attachments/{{attachmentId}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('downloads successfully', () => pm.response.to.have.status(200));", "pm.test('returns text content', () => pm.expect(pm.response.headers.get('Content-Type')).to.match(/text\\/plain/i));" ] } }]
+        },
+        {
+          "name": "Claim ticket as agent",
+          "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAgent}}" }], "url": "{{baseUrl}}/tickets/{{ticketId}}/claim" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('claims successfully', () => pm.response.to.have.status(201));", "pm.test('ticket is claimed', () => pm.expect(pm.response.json().status).to.eql('CLAIMED'));" ] } }]
+        },
+        {
+          "name": "Create chat message with attachment",
+          "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "body": { "mode": "formdata", "formdata": [ { "key": "content", "value": "Postman smoke chat message.", "type": "text" }, { "key": "files", "type": "file", "src": "postman/fixtures/smoke.txt" } ] }, "url": "{{baseUrl}}/tickets/{{ticketId}}/chat/messages" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('creates a chat message', () => pm.response.to.have.status(201));", "const body = pm.response.json();", "pm.environment.set('messageId', body.messageId);", "const attachment = body.attachments && body.attachments[0];", "if (attachment) pm.environment.set('attachmentId', attachment.attachmentId);", "pm.test('captures message id', () => pm.expect(body.messageId).to.be.a('string'));" ] } }]
+        },
+        {
+          "name": "List chat messages",
+          "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAgent}}" }], "url": "{{baseUrl}}/tickets/{{ticketId}}/chat/messages?page=1&pageSize=50" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('returns 200', () => pm.response.to.have.status(200));", "pm.test('returns the smoke message', () => pm.expect(pm.response.json().items.some((item) => item.messageId === pm.environment.get('messageId'))).to.eql(true));" ] } }]
+        },
+        {
+          "name": "List chat conversations",
+          "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/chats?page=1&pageSize=50" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('returns 200', () => pm.response.to.have.status(200));", "pm.test('returns a conversation page', () => pm.expect(pm.response.json().items).to.be.an('array'));" ] } }]
+        },
+        {
+          "name": "Mark chat conversation read",
+          "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/chats/{{ticketId}}/read" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('marks read successfully', () => pm.expect([200, 201, 204]).to.include(pm.response.code));" ] } }]
+        },
+        {
+          "name": "Download chat attachment",
+          "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/tickets/{{ticketId}}/chat/messages/{{messageId}}/attachments/{{attachmentId}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('downloads chat attachment', () => pm.response.to.have.status(200));", "pm.test('returns content type', () => pm.expect(pm.response.headers.get('Content-Type')).to.match(/text\\/plain/i));" ] } }]
+        },
+        {
+          "name": "Close ticket",
+          "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAgent}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"completionNotes\": \"Postman smoke closure.\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/tickets/{{ticketId}}/close" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('closes successfully', () => pm.response.to.have.status(201));", "pm.test('ticket is closed', () => pm.expect(pm.response.json().status).to.eql('CLOSED'));" ] } }]
+        },
+        {
+          "name": "Reopen ticket",
+          "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"description\": \"Postman smoke reopening.\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/tickets/{{ticketId}}/reopen" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('reopens successfully', () => pm.response.to.have.status(201));", "pm.test('ticket is reopened', () => pm.expect(pm.response.json().status).to.eql('REOPENED'));" ] } }]
+        }
+      ]
+    },
+    {
+      "name": "Handoff path",
+      "item": [
+        {
+          "name": "Create second ticket",
+          "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"title\": \"Postman smoke handoff ticket\",\n  \"description\": \"Exercise the agent handoff path.\",\n  \"priority\": \"LOW\",\n  \"departmentId\": \"{{itDepartmentId}}\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/tickets" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('creates second ticket', () => pm.response.to.have.status(201));", "pm.environment.set('ticketId', pm.response.json().ticketId);" ] } }]
+        },
+        {
+          "name": "Claim second ticket",
+          "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAgent}}" }], "url": "{{baseUrl}}/tickets/{{ticketId}}/claim" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('claims second ticket', () => pm.response.to.have.status(201));" ] } }]
+        },
+        {
+          "name": "Create handoff",
+          "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAgent}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"requestedAgentId\": \"{{agent2Id}}\",\n  \"message\": \"Please take over this smoke ticket.\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/tickets/{{ticketId}}/handoffs" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('creates handoff', () => pm.response.to.have.status(201));", "pm.environment.set('handoffId', pm.response.json().handoffId);" ] } }]
+        },
+        {
+          "name": "List incoming handoffs",
+          "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionItAgent2}}" }], "url": "{{baseUrl}}/handoffs?direction=incoming&status=PENDING&page=1&pageSize=25" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('lists incoming handoffs', () => pm.response.to.have.status(200));", "pm.test('contains smoke handoff', () => pm.expect(pm.response.json().items.some((item) => item.handoffId === pm.environment.get('handoffId'))).to.eql(true));" ] } }]
+        },
+        {
+          "name": "Accept handoff",
+          "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionItAgent2}}" }], "url": "{{baseUrl}}/handoffs/{{handoffId}}/accept" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('accepts handoff', () => pm.response.to.have.status(201));", "pm.test('handoff is accepted', () => pm.expect(pm.response.json().status).to.eql('ACCEPTED'));" ] } }]
+        }
+      ]
+    },
+    {
+      "name": "Administration and authorization",
+      "item": [
+        {
+          "name": "Admin users",
+          "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAdmin}}" }], "url": "{{baseUrl}}/admin/users?page=1&pageSize=25" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('admin users returns 200', () => pm.response.to.have.status(200));", "pm.test('returns users', () => pm.expect(pm.response.json().items).to.be.an('array'));" ] } }]
+        },
+        {
+          "name": "Admin departments",
+          "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAdmin}}" }], "url": "{{baseUrl}}/admin/departments?page=1&pageSize=25" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('admin departments returns 200', () => pm.response.to.have.status(200));" ] } }]
+        },
+        {
+          "name": "Admin priorities",
+          "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAdmin}}" }], "url": "{{baseUrl}}/admin/priorities" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('admin priorities returns 200', () => pm.response.to.have.status(200));" ] } }]
+        },
+        {
+          "name": "Admin activity",
+          "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionAdmin}}" }], "url": "{{baseUrl}}/admin/audit-logs/activity?page=1&pageSize=25&source=all" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('admin activity returns 200', () => pm.response.to.have.status(200));" ] } }]
+        },
+        {
+          "name": "Employee cannot access admin users",
+          "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/admin/users" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('returns forbidden', () => pm.response.to.have.status(403));" ] } }]
+        }
+      ]
+    },
+    {
+      "name": "Optional AI",
+      "description": "Set runAi=true in the environment to execute this request. The backend fallback should still return a response when Groq is not configured.",
+      "item": [
+        {
+          "name": "Assistant message",
+          "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"message\": \"Help me with a laptop issue.\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/ai/messages" },
+          "event": [
+            { "listen": "prerequest", "script": { "type": "text/javascript", "exec": ["if (pm.environment.get('runAi') !== 'true') pm.execution.skipRequest();"] } },
+            { "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('assistant returns 201', () => pm.response.to.have.status(201));", "const body = pm.response.json();", "pm.environment.set('conversationId', body.conversationId);", "pm.test('captures conversation id', () => pm.expect(body.conversationId).to.be.a('string'));" ] } }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Logout",
+      "item": [
+        {
+          "name": "Logout employee",
+          "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/authentication/logout" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('logs out successfully', () => pm.response.to.have.status(200));", "pm.test('reports logged out', () => pm.expect(pm.response.json().loggedOut).to.eql(true));" ] } }]
+        },
+        {
+          "name": "Verify employee session is revoked",
+          "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/authentication/me" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('returns 200', () => pm.response.to.have.status(200));", "pm.test('returns no user after logout', () => pm.expect(pm.response.json().user).to.eql(null));" ] } }]
+        }
+      ]
+    }
+  ]
+}

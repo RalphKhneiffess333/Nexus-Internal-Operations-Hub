@@ -1,6 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
+import { resolve } from 'node:path';
 
 const browserChannel = process.env.PLAYWRIGHT_BROWSER_CHANNEL ?? 'chrome';
+const backendRoot = resolve(__dirname, '..');
+const repositoryRoot = resolve(backendRoot, '..');
 
 export default defineConfig({
   testDir: '.',
@@ -23,14 +26,16 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'npx ts-node ./playwright-server.ts',
+      command: 'npx ts-node ./test/playwright-server.ts',
+      cwd: backendRoot,
       url: 'http://localhost:3000/authentication/me',
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
     },
     {
       command:
-        'npm --prefix ../../frontend/nexus run dev -- --host 127.0.0.1 --port 5173',
+        'npm run dev --workspace=@nexus/frontend -- --host 127.0.0.1 --port 5173',
+      cwd: repositoryRoot,
       url: 'http://localhost:5173',
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,

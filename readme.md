@@ -11,12 +11,14 @@ Sections 2 to 12 cover app setup while sections 13 to 16 cover app behavior and 
 The current HTTP and Socket.io routes, query parameters, request bodies, response envelopes, and intentionally unexposed routes are documented in [docs/api-contract.md](docs/api-contract.md). The longer workflow documents in `docs/agentic-workflows/` contain historical implementation guidance where explicitly noted.
 
 ## 2. Setup CLI
+
 It is recommended to run the setup CLI to help you with installation then skip to section 13.
 To run the setup CLI, from the root, call:
 
 ```bash
 npm run setup
 ```
+
 If setup CLI fails to run, continue reading this file for step by step initialization.
 
 ## 3. What do I need
@@ -37,19 +39,16 @@ Postman is also optional for manual testing.
 Run all install commands from the repository root:
 
 ```bash
-npm run install
+npm install
 ```
 
-This installs the root tooling, backend dependencies, and frontend dependencies. The backend install also generates the Prisma client.
+This single workspace install manages the root tooling, backend dependencies, and frontend dependencies with the root `package-lock.json`. The backend `postinstall` script generates the Prisma client.
 
-If you prefer to step into each app folder, run:
+Run an individual workspace script from the repository root with `--workspace`:
 
 ```bash
-npm install
-cd backend
-npm install
-cd ../frontend/nexus
-npm install
+npm run start:dev --workspace=backend
+npm run dev --workspace=@nexus/frontend
 ```
 
 ## 5. How to set up PostgreSQL
@@ -80,6 +79,7 @@ DATABASE_URL=postgresql://your_user:your_password@localhost:5432/nexus
 ```
 
 ## 6. Testing Environment
+
 Tests use a separate database from the one used in production. Create another database in your PostgreSQL and link it in `backend/.env.integration`, use `backend/.env.integration.example` for the template. The integration template keeps SMTP disabled by default; add a Groq key there only when you want AI responses while running `npm run start:test`.
 
 ## 7. How to configure Microsoft Entra ID
@@ -104,7 +104,7 @@ FRONTEND_URL=http://localhost:5173
 
 The seeded identity-provider record uses the code `MICROSOFT_ENTRA_ID`. Users are linked to Microsoft accounts by `identity_provider_id` and `identity_provider_user_id` after login.
 
-In the organization-locked setup, users are checked through the configured Microsoft tenant to ensure only internal accounts can use the app. 
+In the organization-locked setup, users are checked through the configured Microsoft tenant to ensure only internal accounts can use the app.
 For current testing, the backend uses Microsoft's `common` login endpoint so any Microsoft work, school, or personal account can be used.
 
 ## 8. Optional Integrations
@@ -176,7 +176,21 @@ templates are [backend/.env.example](backend/.env.example),
 [backend/.env.integration.example](backend/.env.integration.example), and
 [frontend/nexus/.env.example](frontend/nexus/.env.example).
 
+### Health endpoints
+
+`GET /health/ping` is a public liveness endpoint and returns `{ "status": "ok" }`
+when the backend process is running. It does not contact any dependencies.
+
+`GET /health` is a protected readiness endpoint. Set a long, random
+`HEALTH_CHECK_SECRET` in `backend/.env` and send it as
+`Authorization: Bearer <HEALTH_CHECK_SECRET>`. It reports the backend version
+and the status of PostgreSQL, Microsoft Entra OpenID discovery, SMTP, and Groq.
+It does not send an email or generate an AI response. Disabled optional email or
+Groq integrations are reported as `disabled`; a required or configured service
+that cannot be reached produces an `unhealthy` report with HTTP status `503`.
+
 ## 9. Frontend Optional Configuration
+
 For the frontend, copy `frontend/nexus/.env.example` if you need to override the API origin:
 
 ```bash
@@ -206,6 +220,7 @@ the browser should call a deployed backend directly rather than use the proxy.
 Do not commit `.env`. `.env.example` is the template without real credentials.
 
 ## 10. Initializing Database
+
 From the repository root, apply migrations and load sample departments in one go:
 
 ```bash
@@ -281,18 +296,28 @@ To run all unit, integration, API E2E, and browser E2E tests, from the root, run
 npm run test
 ```
 
-To individually run the tests, from the `backend` folder:
+To individually run the backend tests from the repository root:
 
 ```bash
-cd backend
-npm test
-npm run test:integration
-npm run test:api:e2e
-npm run test:browser:e2e
-npm run test:e2e
+npm run test --workspace=backend
+npm run test:integration --workspace=backend
+npm run test:api:e2e --workspace=backend
+npm run test:browser:e2e --workspace=backend
+npm run test:e2e --workspace=backend
 ```
 
-All require `backend/.env.integration` pointing at a separate PostgreSQL database. Test startup applies Prisma migrations to that database, then seeds sample users/departments and resets ticket rows.
+The dedicated release smoke suite runs a small API and browser E2E subset:
+
+```bash
+npm run test:smoke --workspace=backend
+```
+
+It uses the isolated integration database, test-mode sessions, the real NestJS
+API, PostgreSQL, frontend, and Chromium. The optional external AI smoke check
+is enabled with `SMOKE_AI=true`; otherwise the suite verifies the local AI
+fallback when Groq is not configured.
+
+All require `backend/.env.integration` pointing at a separate PostgreSQL database. Each test command applies Prisma migrations once before its test run. Individual tests then seed sample users/departments and reset ticket data for isolation.
 
 - `npm test` runs Jest unit tests and any `.spec.ts` tests in `backend/src`.
 - `npm run test:integration` runs the Jest integration suite.
@@ -308,9 +333,19 @@ Run the representative AI evaluations from the repository root:
 npm run eval
 ```
 
-This command runs only the model-backed AI eval runner. It uses the existing Groq provider, so `backend/.env` must contain `GROQ_API_KEY`; `GROQ_MODEL` is optional. The runner uses fixed in-memory departments, priorities, and ticket-access results, so it does not require PostgreSQL or a running Nexus server. It makes real Groq requests and reports the clear, thin, ambiguous, trusted-context, conditional-prefill, supplied-evidence, damage-prevention, and repeatability cases separately.
+This command runs only the model-backed AI eval runner. It uses the existing Groq provider, so `backend/.env` must contain `GROQ_API_KEY`; `GROQ_MODEL` is optional. The runner uses fixed in-memory departments and priorities, so it does not require PostgreSQL or a running Nexus server. It makes real Groq requests and reports the clear, thin, ambiguous, trusted-context, conditional-prefill, supplied-evidence, and repeatability cases separately.
 
-NOTICE: If you're on a limited tier, only a select number of evals may pass before getting hit with a rate limit failure.
+If Groq responds with `429`, the runner respects its `Retry-After` value and retries that model request up to three times. `AI_EVAL_MAX_RATE_LIMIT_RETRIES` and `AI_EVAL_MAX_RATE_LIMIT_WAIT_MS` can change those defaults. The runner stops instead of waiting longer than the configured maximum, which avoids hanging when a daily quota is exhausted.
+
+### Release verification
+
+Run the full release gate from the repository root:
+
+```bash
+npm run verify:release
+```
+
+It builds and type-checks both workspaces, then runs backend unit, integration, API/browser E2E, and model-backed AI eval checks. It exits at the first failed check; a passing exit code means all release checks passed. It requires the test database, Playwright browsers, and a Groq API key with enough available quota.
 
 ## 13. How to run the app
 
@@ -323,9 +358,11 @@ npm run start
 That runs the NestJS backend and the Vite frontend at the same time. Run migrate and seed first, or the API will fail when it talks to PostgreSQL.
 
 Conversely you can also run
+
 ```bash
 npm run start:test
 ```
+
 To run the server in test mode allowing you to bypass third party authentication.
 
 ### Start in local test-authentication mode
@@ -352,6 +389,10 @@ but the backend uses `backend/.env.integration` instead of the normal
 4. Starts test-only authentication endpoints.
 5. Creates an in-memory session for every test user and prints a directly usable
    `Cookie` header value for each one.
+
+The test-mode session identifiers are deterministic per user, so the printed
+cookie values remain stable across restarts. The sessions themselves are still
+held in memory and recreated each time the server starts.
 
 The seeded users are:
 
@@ -403,7 +444,6 @@ If `PORT` is set in the backend environment, that value is used instead of `3000
 
 ## 15. Which folders to look at first
 
-
 | Path                                                | Why                                                               |
 | --------------------------------------------------- | ----------------------------------------------------------------- |
 | `docs/`                                             | Product specs, architecture, data model, and the current workflow |
@@ -414,7 +454,6 @@ If `PORT` is set in the backend environment, that value is used instead of `3000
 | `backend/prisma/`                                   | Schema and migrations                                             |
 | `frontend/nexus/src/`                               | React frontend pages, ticket views, API client, and layout        |
 | `backend/src/users/` and `backend/src/departments/` | Supporting repositories used by tickets                           |
-
 
 Start with `backend/src/tickets/tickets.controller.ts` to see the routes, then `tickets.service.ts` and `tickets/policies/`.
 
@@ -454,6 +493,7 @@ Authenticated routes require the `nexus_session` cookie created by signing in th
 ### Authenticate Postman requests
 
 To query authenticated endpoints in Postman:
+
 1. Run the app in test mode with `npm run start:test`
 2. Copy the cookie value for the specific user you want to send requests as
 3. **Notice:** Postman needs the cookie in this format:
@@ -464,7 +504,8 @@ nexus_session=SESSION_CODE; Path=/; Expires=Thu, 24 Sep 2026 09:06:43 GMT; HttpO
 
 Replace `SESSION_CODE` with the value of the `nexus_session` cookie from DevTools. The expiration date should match the cookie currently issued by the backend (7 days after interaction).
 
-Conversely, if you want to use third party provider accounts: 
+Conversely, if you want to use third party provider accounts:
+
 1. Log in to the app normally using the browser.
 2. While logged in, open the browser DevTools and copy the `nexus_session` cookie information.
 3. In Postman, add the cookie to the cookie jar for `localhost` so Postman sends it with every request.
@@ -485,8 +526,6 @@ Conversely, if you want to use third party provider accounts:
   "departmentId": "dept-it"
 }
 ```
-
-
 
 ### Get one ticket
 
@@ -512,8 +551,6 @@ All fields are optional, but at least one is required. Only `OPEN` tickets can b
 `POST /tickets/:id/claim`
 
 No request body is required. The ticket is assigned to the authenticated agent/admin.
-
-
 
 ### Close (CLAIMED → CLOSED, agent is cleared)
 

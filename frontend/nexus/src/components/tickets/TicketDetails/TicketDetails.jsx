@@ -1,16 +1,23 @@
-import { departmentLabel } from '../../../features/departments/use-departments'
-import { formatDate } from '../../../features/tickets/ticket-types'
-import { priorityLabel } from '../../../features/priorities/use-priorities'
-import { TicketStatusBadge } from '../TicketStatusBadge/TicketStatusBadge'
-import { TicketAttachments } from '../TicketAttachments/TicketAttachments'
-import { UserLink } from '../../users/UserLink/UserLink'
+import { departmentLabel } from "../../../features/departments/use-departments";
+import { formatDate } from "../../../features/tickets/ticket-types";
+import { priorityLabel } from "../../../features/priorities/use-priorities";
+import { TicketStatusBadge } from "../TicketStatusBadge/TicketStatusBadge";
+import { TicketAttachments } from "../TicketAttachments/TicketAttachments";
+import { UserLink } from "../../users/UserLink/UserLink";
 
+/**
+ * @param {{
+ *   label: import('react').ReactNode;
+ *   value?: import('react').ReactNode;
+ *   supplemental?: import('react').ReactNode;
+ * }} props
+ */
 function DetailRow({ label, value, supplemental }) {
   if (
-    (value === null || value === undefined || value === '') &&
+    (value === null || value === undefined || value === "") &&
     !supplemental
   ) {
-    return null
+    return null;
   }
 
   return (
@@ -21,7 +28,7 @@ function DetailRow({ label, value, supplemental }) {
         {supplemental}
       </dd>
     </div>
-  )
+  );
 }
 
 export function TicketDetails({
@@ -35,9 +42,9 @@ export function TicketDetails({
   onOpenAttachment,
   onDownloadAttachment,
 }) {
-  const submitted = formatDate(ticket.createdAt)
-  const updated = formatDate(ticket.updatedAt)
-  const closed = formatDate(ticket.closedAt)
+  const submitted = formatDate(ticket.createdAt);
+  const updated = formatDate(ticket.updatedAt);
+  const closed = formatDate(ticket.closedAt);
   return (
     <article className="ticket-details clay-card content-reveal">
       <div className="ticket-details-heading">
@@ -50,10 +57,10 @@ export function TicketDetails({
             type="button"
             className="btn ghost timeline-toggle"
             aria-expanded={timelineOpen}
-            aria-controls={timelineOpen ? 'ticket-timeline' : undefined}
+            aria-controls={timelineOpen ? "ticket-timeline" : undefined}
             onClick={onToggleTimeline}
           >
-            {timelineOpen ? 'Hide timeline' : 'Show timeline'}
+            {timelineOpen ? "Hide timeline" : "Show timeline"}
           </button>
         ) : null}
       </div>
@@ -72,7 +79,10 @@ export function TicketDetails({
         />
         <DetailRow
           label="Department"
-          value={ticket.department?.name ?? departmentLabel(ticket.departmentId, departments)}
+          value={
+            ticket.department?.name ??
+            departmentLabel(ticket.departmentId, departments)
+          }
         />
         <DetailRow
           label="Assigned agent"
@@ -82,7 +92,7 @@ export function TicketDetails({
           label="Completion notes"
           value={ticket.completionNotes}
           supplemental={
-            ticket.status === 'CLOSED' && attachments.length > 0 ? (
+            ticket.status === "CLOSED" && attachments.length > 0 ? (
               <TicketAttachments
                 attachments={attachments}
                 heading="Files attached to completion notes"
@@ -99,7 +109,7 @@ export function TicketDetails({
       <section className="detail-block">
         <h2>Description</h2>
         <p>{ticket.description}</p>
-        {ticket.status !== 'CLOSED' ? (
+        {ticket.status !== "CLOSED" ? (
           <TicketAttachments
             attachments={attachments}
             heading="Files attached to description"
@@ -119,6 +129,5 @@ export function TicketDetails({
         <DetailRow label="Last updated" value={updated} />
       </dl>
     </article>
-  )
+  );
 }
-

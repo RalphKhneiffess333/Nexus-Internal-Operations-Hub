@@ -1,16 +1,23 @@
-import { departmentLabel } from '../../features/departments/use-departments'
-import { formatDate } from '../../features/tickets/ticket-types'
-import { priorityLabel } from '../../features/priorities/use-priorities'
-import { TicketStatusBadge } from './TicketStatusBadge'
-import { TicketAttachments } from './TicketAttachments'
-import { UserLink } from '../users/UserLink'
+import { departmentLabel } from "../../features/departments/use-departments";
+import { formatDate } from "../../features/tickets/ticket-types";
+import { priorityLabel } from "../../features/priorities/use-priorities";
+import { TicketStatusBadge } from "./TicketStatusBadge";
+import { TicketAttachments } from "./TicketAttachments";
+import { UserLink } from "../users/UserLink";
 
+/**
+ * @param {{
+ *   label: import('react').ReactNode;
+ *   value?: import('react').ReactNode;
+ *   supplemental?: import('react').ReactNode;
+ * }} props
+ */
 function DetailRow({ label, value, supplemental }) {
   if (
-    (value === null || value === undefined || value === '') &&
+    (value === null || value === undefined || value === "") &&
     !supplemental
   ) {
-    return null
+    return null;
   }
 
   return (
@@ -21,7 +28,7 @@ function DetailRow({ label, value, supplemental }) {
         {supplemental}
       </dd>
     </div>
-  )
+  );
 }
 
 export function TicketDetails({
@@ -35,14 +42,15 @@ export function TicketDetails({
   onOpenAttachment,
   onDownloadAttachment,
 }) {
-  const submitted = formatDate(ticket.createdAt)
-  const updated = formatDate(ticket.updatedAt)
-  const closed = formatDate(ticket.closedAt)
-  const attachmentHeading = ticket.status === 'CLOSED'
-    ? 'Files attached to completion notes'
-    : ticket.status === 'REOPENED'
-      ? 'Files attached to reopened description'
-      : 'Files attached to description'
+  const submitted = formatDate(ticket.createdAt);
+  const updated = formatDate(ticket.updatedAt);
+  const closed = formatDate(ticket.closedAt);
+  const attachmentHeading =
+    ticket.status === "CLOSED"
+      ? "Files attached to completion notes"
+      : ticket.status === "REOPENED"
+        ? "Files attached to reopened description"
+        : "Files attached to description";
   return (
     <article className="ticket-details clay-card content-reveal">
       <div className="ticket-details-heading">
@@ -55,10 +63,10 @@ export function TicketDetails({
             type="button"
             className="btn ghost timeline-toggle"
             aria-expanded={timelineOpen}
-            aria-controls={timelineOpen ? 'ticket-timeline' : undefined}
+            aria-controls={timelineOpen ? "ticket-timeline" : undefined}
             onClick={onToggleTimeline}
           >
-            {timelineOpen ? 'Hide timeline' : 'Show timeline'}
+            {timelineOpen ? "Hide timeline" : "Show timeline"}
           </button>
         ) : null}
       </div>
@@ -77,16 +85,16 @@ export function TicketDetails({
         />
         <DetailRow
           label="Department"
-          value={ticket.department?.name ?? departmentLabel(ticket.departmentId, departments)}
+          value={
+            ticket.department?.name ??
+            departmentLabel(ticket.departmentId, departments)
+          }
         />
         <DetailRow
           label="Assigned agent"
           value={ticket.agent ? <UserLink user={ticket.agent} /> : undefined}
         />
-        <DetailRow
-          label="Completion notes"
-          value={ticket.completionNotes}
-        />
+        <DetailRow label="Completion notes" value={ticket.completionNotes} />
         <DetailRow label="Closed" value={closed} />
       </dl>
 
@@ -111,5 +119,5 @@ export function TicketDetails({
         <DetailRow label="Last updated" value={updated} />
       </dl>
     </article>
-  )
+  );
 }

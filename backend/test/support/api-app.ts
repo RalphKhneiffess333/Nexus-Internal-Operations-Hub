@@ -26,8 +26,10 @@ const seed =
 export const {
   ADMIN_ID,
   AGENT_ID,
+  AGENT_2_ID,
   EMPLOYEE_ID,
   EMPLOYEE_2_ID,
+  IT_AGENT_2_ID,
   resetTicketData,
   seedTestDatabase,
 } = seed;

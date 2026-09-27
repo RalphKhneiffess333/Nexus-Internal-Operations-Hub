@@ -2,11 +2,9 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type { FileStorage } from './file-storage.interface';
 import { FILE_STORAGE } from './file-storage.interface';
-import {
-  UploadedFileInput,
-  validateUploadedFiles,
-} from './file-validation';
+import { UploadedFileInput, validateUploadedFiles } from './file-validation';
 import { StoredFileMetadata } from './file-attachments.repository';
+import { logSystemError } from '../common/logging/system-error.logger';
 
 @Injectable()
 export class FilesService {
@@ -47,10 +45,10 @@ export class FilesService {
         try {
           await this.storage.delete(file.storageKey);
         } catch (error) {
-          this.logger.error(
-            `Unable to clean up stored upload ${file.storageKey}`,
-            error instanceof Error ? error.stack : undefined,
-          );
+          logSystemError(this.logger, error, {
+            operation: 'file-storage.cleanup',
+            object: { type: 'stored-file', id: file.storageKey },
+          });
         }
       }),
     );

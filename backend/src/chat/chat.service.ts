@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
   StreamableFile,
 } from '@nestjs/common';
@@ -8,9 +9,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { Prisma } from '@prisma/client';
 import type { AuthenticatedRequestUser } from '../authentication/request-user';
 import { DepartmentsRepository } from '../departments/repositories/departments.repository';
-import {
-  FileAttachmentsRepository,
-} from '../files/file-attachments.repository';
+import { FileAttachmentsRepository } from '../files/file-attachments.repository';
 import { FilesService } from '../files/files.service';
 import type { UploadedFileInput } from '../files/file-validation';
 import {
@@ -19,10 +18,7 @@ import {
 } from '../realtime/realtime-events';
 import { TicketsRepository } from '../tickets/repositories/tickets.repository';
 import { CreateChatMessageDto } from './dto/create-chat-message.dto';
-import {
-  ChatInboxQueryDto,
-  ChatMessagesQueryDto,
-} from './dto/chat-query.dto';
+import { ChatInboxQueryDto, ChatMessagesQueryDto } from './dto/chat-query.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ChatPolicy } from './policies/chat.policy';
 import { sanitizePlainText } from '../common/sanitization/content-sanitizer';
@@ -34,6 +30,7 @@ import {
   type ChatMessageRecord,
   type ChatMessageListRecord,
 } from './repositories/chat.repository';
+import { logSystemError } from '../common/logging/system-error.logger';
 
 export interface ChatAttachmentResponse {
   attachmentId: string;
@@ -110,6 +107,8 @@ export interface ChatConversationPageResponse {
 
 @Injectable()
 export class ChatService {
+  private readonly logger = new Logger(ChatService.name);
+
   constructor(
     private readonly ticketsRepository: TicketsRepository,
     private readonly departmentsRepository: DepartmentsRepository,
@@ -136,14 +135,16 @@ export class ChatService {
     query: ChatMessagesQueryDto = {},
   ): Promise<ChatMessageListPageResponse> {
     const ticket = await this.ticketsRepository.findById(ticketId);
-    if (!ticket || !ticket.active) throw new NotFoundException('Ticket was not found');
+    if (!ticket || !ticket.active)
+      throw new NotFoundException('Ticket was not found');
     const departmentIds = await this.getActorDepartmentIds(actor.userId);
     this.chatPolicy.assertCanView(actor, ticket, departmentIds);
-    const result: ChatMessageListPage = await this.chatRepository.findByTicketId(
-      ticketId,
-      query.page,
-      query.pageSize,
-    );
+    const result: ChatMessageListPage =
+      await this.chatRepository.findByTicketId(
+        ticketId,
+        query.page,
+        query.pageSize,
+      );
     return {
       ...result,
       items: result.items.map((message) => this.toListResponse(message)),
@@ -192,7 +193,10 @@ export class ChatService {
     files?: UploadedFileInput[],
   ): Promise<ChatMessageResponse> {
     const content = dto.content ? sanitizePlainText(dto.content) || null : null;
-    const storedFiles = await this.filesService.storeForUser(files, actor.userId);
+    const storedFiles = await this.filesService.storeForUser(
+      files,
+      actor.userId,
+    );
     if (!content && storedFiles.length === 0) {
       await this.filesService.cleanup(storedFiles);
       throw new BadRequestException(
@@ -202,9 +206,16 @@ export class ChatService {
 
     try {
       const message = await this.chatRepository.transaction(async (tx) => {
-        const ticket = await this.ticketsRepository.findByIdForUpdate(ticketId, tx);
-        if (!ticket || !ticket.active) throw new NotFoundException('Ticket was not found');
-        const departmentIds = await this.getActorDepartmentIds(actor.userId, tx);
+        const ticket = await this.ticketsRepository.findByIdForUpdate(
+          ticketId,
+          tx,
+        );
+        if (!ticket || !ticket.active)
+          throw new NotFoundException('Ticket was not found');
+        const departmentIds = await this.getActorDepartmentIds(
+          actor.userId,
+          tx,
+        );
         this.chatPolicy.assertCanSend(actor, ticket, departmentIds);
         const created = await this.chatRepository.create(
           ticketId,
@@ -230,7 +241,8 @@ export class ChatService {
           created.messageId,
           tx,
         );
-        if (!persisted) throw new NotFoundException('Chat message was not found');
+        if (!persisted)
+          throw new NotFoundException('Chat message was not found');
         return persisted;
       });
       const response = this.toResponse(message);
@@ -249,8 +261,12 @@ export class ChatService {
             },
             actor.userId,
           )
-          .catch(() => {
+          .catch((error: unknown) => {
             // Realtime notification delivery must not fail a persisted message.
+            logSystemError(this.logger, error, {
+              operation: 'chat.notify-viewers',
+              object: { type: 'ticket', id: ticketId },
+            });
           });
       }
       return response;
@@ -265,7 +281,8 @@ export class ChatService {
     actor: AuthenticatedRequestUser,
   ): Promise<void> {
     const ticket = await this.ticketsRepository.findById(ticketId);
-    if (!ticket || !ticket.active) throw new NotFoundException('Ticket was not found');
+    if (!ticket || !ticket.active)
+      throw new NotFoundException('Ticket was not found');
     this.chatPolicy.assertCanView(
       actor,
       ticket,
@@ -293,8 +310,12 @@ export class ChatService {
     });
   }
 
-  private async getActorDepartmentIds(userId: string, client?: Prisma.TransactionClient): Promise<string[]> {
-    if (!client) return this.departmentsRepository.findActiveDepartmentIdsByUserId(userId);
+  private async getActorDepartmentIds(
+    userId: string,
+    client?: Prisma.TransactionClient,
+  ): Promise<string[]> {
+    if (!client)
+      return this.departmentsRepository.findActiveDepartmentIdsByUserId(userId);
     return this.chatRepository.findActiveDepartmentIdsByUserId(userId, client);
   }
 
@@ -367,10 +388,11 @@ export class ChatService {
             hasAttachments: lastMessage.attachments.length > 0,
           }
         : null,
-      unread:
-        Boolean(lastMessage) &&
-        lastMessage!.senderId !== actorId &&
-        (!lastReadAt || lastMessage!.createdAt > lastReadAt),
+      unread: Boolean(
+        lastMessage &&
+        lastMessage.senderId !== actorId &&
+        (!lastReadAt || lastMessage.createdAt > lastReadAt),
+      ),
     };
   }
 }
