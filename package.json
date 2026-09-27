@@ -7,6 +7,12 @@
   ],
   "scripts": {
     "setup": "node scripts/setup.js",
+    "build": "npm run build:frontend && npm run build:backend",
+    "build:backend": "npm run build --workspace=backend",
+    "build:frontend": "npm run build --workspace=@nexus/frontend",
+    "deploy": "npm run deploy:frontend && npm run deploy:backend",
+    "deploy:backend": "npm run deploy --workspace=backend",
+    "deploy:frontend": "npm run deploy --workspace=@nexus/frontend",
     "start": "concurrently \"npm run start:dev --workspace=backend\" \"npm run dev --workspace=@nexus/frontend\"",
     "start:test": "concurrently --kill-others-on-fail \"npm run start:test --workspace=backend\" \"npm run dev --workspace=@nexus/frontend\"",
     "start:backend": "npm run start:dev --workspace=backend",
