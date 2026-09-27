@@ -1,11 +1,12 @@
 {
   "info": {
     "name": "Nexus API",
-    "description": "Complete reference collection for the implemented Nexus HTTP API. Use the Nexus Local Test environment with npm run start:test for seeded-user sessions. Backend routes are direct routes without a global /api prefix.",
+    "description": "Complete reference collection for the implemented Nexus HTTP API. Use the Nexus Local Test environment with npm run start:test for seeded-user sessions. HTTP backend routes use the /api prefix; Socket.IO remains on the origin root.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "baseUrl", "value": "http://localhost:3000" }
+    { "key": "baseUrl", "value": "http://localhost:3000/api" },
+    { "key": "origin", "value": "http://localhost:3000" }
   ],
   "item": [
     {
@@ -76,7 +77,7 @@
       "item": [
         { "name": "Current authentication - employee", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/authentication/me" } },
         { "name": "Microsoft login redirect", "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/authentication/microsoft/login", "description": "Browser-assisted OAuth start. The response sets nexus_auth_state and redirects to Microsoft Entra ID." } },
-        { "name": "Microsoft callback", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_auth_state={{authStateCookie}}" }], "url": "{{baseUrl}}/authentication/microsoft/callback?code={{oauthCode}}&state={{oauthState}}", "description": "Manual OAuth callback. Supply code and state from the identity provider." } },
+        { "name": "Microsoft callback", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_auth_state={{authStateCookie}}" }], "url": "{{baseUrl}}/authentication/microsoft/callback?code={{oauthCode}}&state={{oauthState}}", "description": "Manual OAuth callback at /api/authentication/microsoft/callback. Supply code and state from the identity provider." } },
         { "name": "Logout - employee", "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/authentication/logout" } },
         { "name": "Logout all devices - employee", "request": { "method": "POST", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/authentication/logout-all-devices" } }
       ]
@@ -203,9 +204,9 @@
     },
     {
       "name": "Realtime reference",
-      "description": "The operations gateway is Socket.IO, not a REST endpoint. Create a Postman Socket.IO request using http://localhost:3000/operations, path /socket.io, credentials enabled, and the nexus_session cookie. Emit join ticket room or join chat room with { ticketId }, then listen for operations.connected, operations.error, ticket.updated, ticket.event.created, chat.message.created, app.notification, and filter.options.updated.",
+      "description": "The operations gateway is Socket.IO, not a REST endpoint. Create a Postman Socket.IO request using {{origin}}/operations, path /socket.io, credentials enabled, and the nexus_session cookie. Emit join ticket room or join chat room with { ticketId }, then listen for operations.connected, operations.error, ticket.updated, ticket.event.created, chat.message.created, app.notification, and filter.options.updated.",
       "item": [
-        { "name": "Socket.IO operations namespace - manual setup", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{baseUrl}}/operations", "description": "Documentation placeholder. Use Postman's Socket.IO request type rather than sending this HTTP request." } }
+        { "name": "Socket.IO operations namespace - manual setup", "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "nexus_session={{sessionEmployee}}" }], "url": "{{origin}}/operations", "description": "Documentation placeholder. Use Postman's Socket.IO request type rather than sending this HTTP request." } }
       ]
     }
   ]

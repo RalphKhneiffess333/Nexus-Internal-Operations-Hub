@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { NavLink } from "react-router-dom";
 import { useAuthentication } from "../../features/authentication/use-authentication";
 import { useOperationsSocket } from "../../features/realtime/use-operations-socket";
@@ -13,14 +14,31 @@ import logsIcon from "../../assets/logs.svg";
 import handoffsIcon from "../../assets/handoffs.svg";
 import assistantIcon from "../../assets/assistant.svg";
 import { NavIcon } from "./NavIcon";
+import { Dialog } from "../ui/Dialog";
 
 export function Sidebar({ open, onNavigate }) {
-  const { user, logoutCurrentSession } = useAuthentication();
+  const {
+    user,
+    logoutCurrentSession,
+    logoutAllDevices,
+  } = useAuthentication();
   const { connectionState } = useOperationsSocket();
   const { unreadChats, unclaimedTickets, pendingIncomingHandoffs } =
     useNotifications();
+  const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
+  const [logoutBusy, setLogoutBusy] = useState(false);
   const showWorkQueues = canWorkTickets(user);
   const showAdministration = user?.role === UserRole.ADMIN;
+
+  async function handleLogout(logoutAction) {
+    setLogoutBusy(true);
+    try {
+      await logoutAction();
+    } finally {
+      setLogoutBusy(false);
+      setLogoutDialogOpen(false);
+    }
+  }
 
   return (
     <aside className={`sidebar ${open ? "is-open" : ""}`}>
@@ -157,11 +175,56 @@ export function Sidebar({ open, onNavigate }) {
         <button
           type="button"
           className="sidebar-logout"
-          onClick={logoutCurrentSession}
+          onClick={() => setLogoutDialogOpen(true)}
         >
           Sign out
         </button>
       </div>
+
+      {logoutDialogOpen ? (
+        <Dialog
+          role="alertdialog"
+          ariaLabelledBy="logout-dialog-title"
+          ariaDescribedBy="logout-dialog-description"
+          onClose={() => {
+            if (!logoutBusy) setLogoutDialogOpen(false);
+          }}
+          closeOnEscape={!logoutBusy}
+          closeOnBackdrop={!logoutBusy}
+        >
+          <h2 id="logout-dialog-title">Sign out</h2>
+          <p id="logout-dialog-description">
+            Do you want to sign out only on this device, or end every active
+            session for your account?
+          </p>
+          <div className="form-actions">
+            <button
+              type="button"
+              className="btn ghost"
+              onClick={() => setLogoutDialogOpen(false)}
+              disabled={logoutBusy}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn primary"
+              onClick={() => handleLogout(logoutCurrentSession)}
+              disabled={logoutBusy}
+            >
+              {logoutBusy ? "Signing out…" : "This device"}
+            </button>
+            <button
+              type="button"
+              className="btn danger"
+              onClick={() => handleLogout(logoutAllDevices)}
+              disabled={logoutBusy}
+            >
+              {logoutBusy ? "Signing out…" : "All devices"}
+            </button>
+          </div>
+        </Dialog>
+      ) : null}
     </aside>
   );
 }

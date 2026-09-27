@@ -1,27 +1,20 @@
-import { Logger, ValidationPipe } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module';
-import { SafeExceptionFilter } from './common/filters/safe-exception.filter';
 import { logSystemError } from './common/logging/system-error.logger';
+import {
+  configureFrontendServing,
+  configureHttpApplication,
+} from './app-configuration';
 
 const bootstrapLogger = new Logger('Bootstrap');
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const config = app.get(ConfigService);
-  app.enableCors({
-    origin: config.get<string>('FRONTEND_URL') ?? 'http://localhost:5173',
-    credentials: true,
-  });
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-    }),
-  );
-  app.useGlobalFilters(new SafeExceptionFilter());
+  configureHttpApplication(app, config);
+  configureFrontendServing(app);
   await app.listen(config.get<string>('PORT') ?? 3000);
 }
 process.on('uncaughtExceptionMonitor', (error) => {

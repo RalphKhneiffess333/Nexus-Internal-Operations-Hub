@@ -22,6 +22,7 @@ export interface MicrosoftAuthenticationInput {
 
 interface MicrosoftTokenResponse {
   id_token?: string;
+  access_token?: string;
 }
 
 interface OpenIdConfiguration {
@@ -49,6 +50,15 @@ interface MicrosoftIdTokenPayload {
   name?: string;
   given_name?: string;
   family_name?: string;
+  phone_number?: string;
+  phoneNumber?: string;
+  mobilePhone?: string;
+  telephoneNumber?: string;
+}
+
+interface MicrosoftProfileResponse {
+  mobilePhone?: string | null;
+  businessPhones?: string[] | null;
 }
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 10000;
@@ -107,8 +117,68 @@ export class MicrosoftAuthStrategy implements AuthenticationStrategy<MicrosoftAu
         payload.name ??
         ([payload.given_name, payload.family_name].filter(Boolean).join(' ') ||
           email),
-      phoneNumber: null,
+      phoneNumber: await this.getPhoneNumber(
+        tokenResponse.access_token,
+        payload,
+      ),
     };
+  }
+
+  private async getPhoneNumber(
+    accessToken: string | undefined,
+    payload: MicrosoftIdTokenPayload,
+  ): Promise<string | null> {
+    const tokenPhoneNumber = this.extractPhoneNumber(payload);
+
+    if (!accessToken) {
+      return tokenPhoneNumber;
+    }
+
+    try {
+      const response = await this.fetchWithRetries(
+        'https://graph.microsoft.com/v1.0/me?$select=mobilePhone,businessPhones',
+        {
+          headers: {
+            Accept: 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      );
+
+      if (!response.ok) {
+        this.logger.warn(
+          `Microsoft profile lookup returned HTTP ${response.status}; continuing without Graph phone data`,
+        );
+        return tokenPhoneNumber;
+      }
+
+      const profile = (await response.json()) as MicrosoftProfileResponse;
+      return (
+        this.normalizePhoneNumber(profile.mobilePhone) ??
+        this.normalizePhoneNumber(profile.businessPhones?.[0]) ??
+        tokenPhoneNumber
+      );
+    } catch (error) {
+      logSystemError(this.logger, error, {
+        operation: 'microsoft-auth.profile',
+        object: { type: 'external-service', id: 'microsoft-graph' },
+      });
+      return tokenPhoneNumber;
+    }
+  }
+
+  private extractPhoneNumber(payload: MicrosoftIdTokenPayload): string | null {
+    return (
+      this.normalizePhoneNumber(payload.phone_number) ??
+      this.normalizePhoneNumber(payload.phoneNumber) ??
+      this.normalizePhoneNumber(payload.mobilePhone) ??
+      this.normalizePhoneNumber(payload.telephoneNumber)
+    );
+  }
+
+  private normalizePhoneNumber(value: string | null | undefined): string | null {
+    const normalized = value?.trim();
+    return normalized || null;
   }
 
   private async exchangeCodeForToken(
@@ -340,7 +410,7 @@ export class MicrosoftAuthStrategy implements AuthenticationStrategy<MicrosoftAu
   private get scopes(): string {
     return (
       this.configService.get<string>('MICROSOFT_ENTRA_SCOPES') ??
-      'openid profile email'
+      'openid profile email User.Read'
     );
   }
 

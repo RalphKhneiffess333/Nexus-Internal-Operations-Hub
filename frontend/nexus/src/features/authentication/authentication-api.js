@@ -11,3 +11,7 @@ export function getMicrosoftLoginUrl() {
 export function logout() {
   return apiRequest('/authentication/logout', { method: 'POST' })
 }
+
+export function logoutAllDevices() {
+  return apiRequest('/authentication/logout-all-devices', { method: 'POST' })
+}

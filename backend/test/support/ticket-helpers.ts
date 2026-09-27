@@ -2,6 +2,8 @@ import { expect } from '@playwright/test';
 import type { APIRequestContext, Page } from '@playwright/test';
 import { backendUrl, createSessionCookie } from './browser-auth';
 
+// browser-auth.backendUrl already includes the NestJS /api prefix.
+
 export async function createTicketViaApi(
   request: APIRequestContext,
   userId: string,

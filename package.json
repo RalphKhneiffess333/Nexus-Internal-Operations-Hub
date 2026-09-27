@@ -17,6 +17,7 @@
     "start:test": "concurrently --kill-others-on-fail \"npm run start:test --workspace=backend\" \"npm run dev --workspace=@nexus/frontend\"",
     "start:backend": "npm run start:dev --workspace=backend",
     "start:frontend": "npm run dev --workspace=@nexus/frontend",
+    "start:prod": "npm run start:prod --workspace=backend",
     "db:setup": "npm run prisma:migrate --workspace=backend && npm run prisma:seed --workspace=backend",
     "seed:users": "npm run seed:users --workspace=backend",
     "seed:bulk": "npm run seed:bulk --workspace=backend",

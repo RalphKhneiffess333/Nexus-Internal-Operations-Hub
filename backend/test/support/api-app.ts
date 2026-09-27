@@ -1,6 +1,7 @@
 import '../setup-integration-env';
 
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   expect,
@@ -11,6 +12,7 @@ import type { APIRequestContext } from '@playwright/test';
 import type { AddressInfo } from 'net';
 import type { SessionService as SessionServiceType } from '../../src/authentication/sessions/session.service';
 import type { PrismaService as PrismaServiceType } from '../../src/database/prisma.service';
+import { configureHttpApplication } from '../../src/app-configuration';
 
 const { AppModule } =
   require('../../dist/src/app.module') as typeof import('../../src/app.module');
@@ -97,13 +99,7 @@ async function startE2eApp(): Promise<E2eApp> {
   }).compile();
 
   const app = moduleFixture.createNestApplication();
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-    }),
-  );
+  configureHttpApplication(app, app.get(ConfigService));
 
   const prisma = app.get(PrismaService);
   const sessionService = app.get(SessionService);
@@ -112,9 +108,50 @@ async function startE2eApp(): Promise<E2eApp> {
 
   const address = app.getHttpServer().address() as AddressInfo;
   const baseURL = `http://127.0.0.1:${address.port}`;
-  const api = await playwrightRequest.newContext({ baseURL });
+  const rawApi = await playwrightRequest.newContext({ baseURL });
+  const api = withApiPrefix(rawApi);
 
   return { app, api, baseURL, prisma, sessionService };
+}
+
+function withApiPrefix(context: APIRequestContext): APIRequestContext {
+  const requestMethods = new Set([
+    'delete',
+    'fetch',
+    'get',
+    'head',
+    'patch',
+    'post',
+    'put',
+  ]);
+
+  return new Proxy(context, {
+    get(target, property, receiver) {
+      const value = Reflect.get(target, property, receiver);
+      if (typeof value !== 'function') {
+        return value;
+      }
+
+      if (property === 'dispose') {
+        return value.bind(target);
+      }
+
+      if (requestMethods.has(String(property))) {
+        return (url: string, ...args: unknown[]) =>
+          value.call(target, prefixApiPath(url), ...args);
+      }
+
+      return value.bind(target);
+    },
+  }) as APIRequestContext;
+}
+
+function prefixApiPath(url: string): string {
+  if (/^https?:\/\//i.test(url) || url === '/api' || url.startsWith('/api/')) {
+    return url;
+  }
+
+  return `/api${url.startsWith('/') ? url : `/${url}`}`;
 }
 
 async function stopE2eApp(context: E2eApp | null): Promise<void> {

@@ -87,7 +87,7 @@ Tests use a separate database from the one used in production. Create another da
 Nexus uses Microsoft Entra ID as its third-party identity provider. Create or use an Entra app registration and add this web redirect URI:
 
 ```
-http://localhost:3000/authentication/microsoft/callback
+http://localhost:3000/api/authentication/microsoft/callback
 ```
 
 Then add the Microsoft configuration to `backend/.env`:
@@ -97,10 +97,15 @@ NOTICE: For Eurisko Academy instructors, check your emails for Microsoft tenant 
 MICROSOFT_ENTRA_TENANT_ID=your_tenant_id
 MICROSOFT_ENTRA_CLIENT_ID=your_client_id
 MICROSOFT_ENTRA_CLIENT_SECRET=your_client_secret
-MICROSOFT_ENTRA_REDIRECT_URI=http://localhost:3000/authentication/microsoft/callback
-MICROSOFT_ENTRA_SCOPES=openid profile email
+MICROSOFT_ENTRA_REDIRECT_URI=http://localhost:3000/api/authentication/microsoft/callback
+MICROSOFT_ENTRA_SCOPES=openid profile email User.Read
 FRONTEND_URL=http://localhost:5173
 ```
+
+`User.Read` allows the backend to read the signed-in user's Microsoft Graph
+profile. If Microsoft returns a mobile or business phone number, it is saved
+when Nexus creates the local user account. The phone lookup is optional: a
+missing phone number or an unavailable profile lookup does not prevent login.
 
 The seeded identity-provider record uses the code `MICROSOFT_ENTRA_ID`. Users are linked to Microsoft accounts by `identity_provider_id` and `identity_provider_user_id` after login.
 
@@ -177,10 +182,10 @@ templates are [backend/.env.example](backend/.env.example),
 
 ### Health endpoints
 
-`GET /health/ping` is a public liveness endpoint and returns `{ "status": "ok" }`
+`GET /api/health/ping` is a public liveness endpoint and returns `{ "status": "ok" }`
 when the backend process is running. It does not contact any dependencies.
 
-`GET /health` is a protected readiness endpoint. Set a long, random
+`GET /api/health` is a protected readiness endpoint. Set a long, random
 `HEALTH_CHECK_SECRET` in `backend/.env` and send it as
 `Authorization: Bearer <HEALTH_CHECK_SECRET>`. It reports the backend version
 and the status of PostgreSQL, Microsoft Entra OpenID discovery, SMTP, and Groq.
@@ -214,7 +219,9 @@ VITE_DEV_PORT=5173
 
 `VITE_DEV_API_URL` controls the local Vite proxy target, and `VITE_DEV_PORT`
 controls the frontend development server port. Set `VITE_API_URL` instead when
-the browser should call a deployed backend directly rather than use the proxy.
+the browser should call a deployed backend directly rather than use the proxy;
+the value must include the `/api` prefix, such as
+`https://nexus.example.com/api`.
 
 Do not commit `.env`. `.env.example` is the template without real credentials.
 
@@ -357,7 +364,9 @@ npm run build
 ```
 
 The backend build is written to `backend/dist`. The frontend build is written
-to `frontend/nexus/dist`, which can be uploaded to a static hosting provider.
+to `frontend/nexus/dist`. In the bundled deployment mode, the NestJS backend
+serves that frontend build from the domain root and keeps HTTP API routes under
+`/api`.
 
 For the backend, run the interactive deployment workflow:
 
@@ -381,6 +390,19 @@ platforms that start the process separately:
 npm run deploy:ci --workspace=backend
 npm run start:prod --workspace=backend
 ```
+
+For a single Railway service that serves both applications, configure the
+repository root as the service root and use:
+
+```text
+Root directory: /
+Build command: npm run build
+Pre-deploy command: npm run prisma:migrate --workspace=backend
+Start command: npm run start:prod --workspace=backend
+```
+
+The deployed site is served at `/`, while NestJS HTTP routes are served under
+`/api`. Socket.IO remains at `/socket.io` with the `/operations` namespace.
 
 For the frontend, build and type-check the deployable static assets with:
 
@@ -492,7 +514,7 @@ tickets from the integration database.
 
 ## 14. What URLs does the app open on
 
-The API listens on [http://localhost:3000](http://localhost:3000)
+The API listens on [http://localhost:3000/api](http://localhost:3000/api)
 
 The frontend listens on [http://localhost:5173](http://localhost:5173)
 
@@ -536,7 +558,7 @@ This flow verifies Microsoft login, local user resolution, role-based navigation
 
 ## 17. Manually testing the backend API (URLs, payloads, data to use)
 
-Base URL: `http://localhost:3000`
+Base URL: `http://localhost:3000/api`
 
 Seeded data (loaded by `npm run prisma:seed`, not on every process start):
 

@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   getCurrentAuthentication,
   getMicrosoftLoginUrl,
-  logout,
+  logout as logoutCurrentSessionRequest,
+  logoutAllDevices as logoutAllDevicesRequest,
 } from './authentication-api'
 import { AuthenticationContext } from './authentication-context'
 import { useLatestRequest } from '../../lib/api/use-latest-request'
@@ -43,16 +44,30 @@ export function AuthenticationProvider({ children }) {
     window.location.assign(getMicrosoftLoginUrl())
   }, [])
 
+  const clearLocalAuthentication = useCallback(() => {
+    setUser(null)
+    setError('')
+  }, [])
+
   const logoutCurrentSession = useCallback(async () => {
     try {
-      await logout()
+      await logoutCurrentSessionRequest()
     } catch {
       // Clear the local session even if the server logout request fails.
     } finally {
-      setUser(null)
-      setError('')
+      clearLocalAuthentication()
     }
-  }, [])
+  }, [clearLocalAuthentication])
+
+  const logoutAllDevices = useCallback(async () => {
+    try {
+      await logoutAllDevicesRequest()
+    } catch {
+      // Clear the local session even if the server logout request fails.
+    } finally {
+      clearLocalAuthentication()
+    }
+  }, [clearLocalAuthentication])
 
   const value = useMemo(
     () => ({
@@ -62,6 +77,7 @@ export function AuthenticationProvider({ children }) {
       authenticated: Boolean(user),
       loginWithMicrosoft,
       logoutCurrentSession,
+      logoutAllDevices,
       refreshAuthentication,
     }),
     [
@@ -70,6 +86,7 @@ export function AuthenticationProvider({ children }) {
       error,
       loginWithMicrosoft,
       logoutCurrentSession,
+      logoutAllDevices,
       refreshAuthentication,
     ],
   )

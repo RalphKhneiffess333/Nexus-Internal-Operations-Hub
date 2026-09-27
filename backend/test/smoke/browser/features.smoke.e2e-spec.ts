@@ -37,7 +37,7 @@ test('smoke: participants can chat and closed tickets become read-only', async (
 
   const closeCookie = await createSessionCookie(request, AGENT_ID);
   const closeResponse = await request.post(
-    `http://localhost:3000/tickets/${ticket.ticketId}/close`,
+    `http://localhost:3000/api/tickets/${ticket.ticketId}/close`,
     {
       headers: { Cookie: closeCookie },
       data: { completionNotes: 'Smoke chat closure.' },

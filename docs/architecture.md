@@ -8,7 +8,7 @@ This document describes the major system architecture of Nexus including its maj
 
 ## Current API reference
 
-The implemented HTTP and Socket.io contracts are maintained in [api-contract.md](api-contract.md). This architecture document describes boundaries and responsibilities; it is not a route or payload specification. The backend exposes direct routes without a global `/api` prefix, while the frontend development proxy may add and remove `/api` during local development.
+The implemented HTTP and Socket.io contracts are maintained in [api-contract.md](api-contract.md). This architecture document describes boundaries and responsibilities; it is not a route or payload specification. HTTP backend routes use the global `/api` prefix, while Socket.IO remains at `/socket.io` with the `/operations` namespace.
 
 ## System Overview
 

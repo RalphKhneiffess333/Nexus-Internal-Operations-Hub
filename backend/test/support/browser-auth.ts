@@ -2,7 +2,7 @@ import { expect } from '@playwright/test';
 import type { APIRequestContext, Page } from '@playwright/test';
 import { SESSION_COOKIE_NAME } from '../../src/authentication/authentication.constants';
 
-export const backendUrl = 'http://localhost:3000';
+export const backendUrl = 'http://localhost:3000/api';
 export const frontendUrl = 'http://localhost:5173';
 
 export async function signIn(

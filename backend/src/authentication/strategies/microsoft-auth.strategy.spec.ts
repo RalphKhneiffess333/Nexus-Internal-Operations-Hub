@@ -54,6 +54,26 @@ describe('MicrosoftAuthStrategy', () => {
     expect(authorizationUrl.searchParams.get('state')).toBe('state-1');
   });
 
+  it('loads the Microsoft phone number from the Graph profile', async () => {
+    mockMicrosoftResponses(signedToken(), 'graph-access-token');
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ mobilePhone: '+1 555 0100', businessPhones: [] }),
+    );
+
+    const identity = await strategy.authenticate({ code: 'code' });
+
+    expect(identity.phoneNumber).toBe('+1 555 0100');
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      'https://graph.microsoft.com/v1.0/me?$select=mobilePhone,businessPhones',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: 'Bearer graph-access-token',
+        }),
+      }),
+    );
+  });
+
   it('rejects a missing authorization code', async () => {
     await expect(strategy.authenticate({ code: '' })).rejects.toThrow(
       BadRequestException,
@@ -160,9 +180,17 @@ describe('MicrosoftAuthStrategy', () => {
     );
   });
 
-  function mockMicrosoftResponses(idToken: string): void {
+  function mockMicrosoftResponses(
+    idToken: string,
+    accessToken?: string,
+  ): void {
     fetchMock
-      .mockResolvedValueOnce(jsonResponse({ id_token: idToken }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          id_token: idToken,
+          ...(accessToken ? { access_token: accessToken } : {}),
+        }),
+      )
       .mockResolvedValueOnce(
         jsonResponse({
           issuer: 'https://login.microsoftonline.com/{tenantid}/v2.0',
@@ -230,7 +258,7 @@ describe('MicrosoftAuthStrategy', () => {
           MICROSOFT_ENTRA_CLIENT_ID: 'client-id',
           MICROSOFT_ENTRA_CLIENT_SECRET: 'client-secret',
           MICROSOFT_ENTRA_REDIRECT_URI:
-            'http://localhost:3000/authentication/microsoft/callback',
+            'http://localhost:3000/api/authentication/microsoft/callback',
           MICROSOFT_ENTRA_SCOPES: 'openid profile email',
         };
 
