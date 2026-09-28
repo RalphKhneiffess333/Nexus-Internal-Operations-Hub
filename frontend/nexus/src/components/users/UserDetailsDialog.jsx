@@ -25,41 +25,47 @@ export function UserDetailsDialog({ user, error = '', loading = false, onClose }
             ×
           </button>
         </div>
-        {loading ? <p className="muted">Loading full profile…</p> : null}
+        {loading ? (
+          <div className="user-details-loading" role="status" aria-live="polite">
+            Loading user information…
+          </div>
+        ) : null}
         {error ? (
           <p className="mapping-notice">
             {error} Showing the information available here.
           </p>
         ) : null}
-        <div className="user-details-grid">
-          <ProfileField label="First name" value={firstName} />
-          <ProfileField label="Last name" value={lastName} />
-          <ProfileField label="Email" value={user.email || '—'} />
-          <ProfileField label="Phone" value={user.phoneNumber || 'Not provided'} />
-          <ProfileField label="Role" value={user.role || '—'} />
-          <ProfileField
-            label="Status"
-            value={user.isActive === undefined ? '—' : user.isActive ? 'Active' : 'Inactive'}
-          />
-          <ProfileField
-            label="Login"
-            value={user.hasLogged === undefined ? '—' : user.hasLogged ? 'Logged in' : 'Not yet logged in'}
-          />
-          <div className="user-detail-field user-detail-field-wide">
-            <span>Departments</span>
-            {departments.length ? (
-              <div className="user-department-list">
-                {departments.map((department) => (
-                  <span key={department.departmentId} className="user-department-chip">
-                    {department.name} <small>{department.code}</small>
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <strong>None assigned</strong>
-            )}
+        {!loading ? (
+          <div className="user-details-grid">
+            <ProfileField label="First name" value={firstName} />
+            <ProfileField label="Last name" value={lastName} />
+            <ProfileField label="Email" value={user.email || '—'} />
+            <ProfileField label="Phone" value={user.phoneNumber || 'Not provided'} />
+            <ProfileField label="Role" value={user.role || '—'} />
+            <ProfileField
+              label="Status"
+              value={user.isActive === undefined ? '—' : user.isActive ? 'Active' : 'Inactive'}
+            />
+            <ProfileField
+              label="Login"
+              value={user.hasLogged === undefined ? '—' : user.hasLogged ? 'Logged in' : 'Not yet logged in'}
+            />
+            <div className="user-detail-field user-detail-field-wide">
+              <span>Departments</span>
+              {departments.length ? (
+                <div className="user-department-list">
+                  {departments.map((department) => (
+                    <span key={department.departmentId} className="user-department-chip">
+                      {department.name} <small>{department.code}</small>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <strong>None assigned</strong>
+              )}
+            </div>
           </div>
-        </div>
+        ) : null}
         <div className="dialog-actions">
           <button type="button" className="btn ghost" onClick={onClose}>
             Close

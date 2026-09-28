@@ -20,7 +20,10 @@ import {
 } from '../tickets/tickets.test-utils';
 import { TicketsService } from '../tickets/tickets.service';
 import { HandoffsService } from '../tickets/handoffs/handoffs.service';
-import { RealtimeInternalEvent } from '../realtime/realtime-events';
+import {
+  RealtimeInternalEvent,
+  type AppNotificationRealtimeEvent,
+} from '../realtime/realtime-events';
 import { resetTicketData, seedTestDatabase } from '../database/seed';
 
 describe('Chat integration', () => {
@@ -105,6 +108,31 @@ describe('Chat integration', () => {
     expect(chatMessageEvents[0][1]).toEqual(
       expect.objectContaining({
         payload: expect.objectContaining({ clientMessageId }),
+      }),
+    );
+  });
+
+  it('identifies the sender in chat notification events', async () => {
+    const open = await submitOpenTicket(tickets);
+    await claimTicket(tickets, open.ticketId);
+    const notification = new Promise<AppNotificationRealtimeEvent>((resolve) => {
+      events.once(RealtimeInternalEvent.AppNotification, resolve);
+    });
+
+    await chat.createMessage(
+      open.ticketId,
+      { content: 'I am looking into this now.' },
+      agentUser(),
+    );
+
+    await expect(notification).resolves.toEqual(
+      expect.objectContaining({
+        actorId: AGENT_ID,
+        payload: expect.objectContaining({
+          type: 'CHAT_MESSAGE',
+          actorId: AGENT_ID,
+          ticketId: open.ticketId,
+        }),
       }),
     );
   });

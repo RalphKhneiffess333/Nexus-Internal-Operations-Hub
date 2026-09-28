@@ -24,6 +24,9 @@ export function UserLink({ user, className = '' }) {
       return
     }
 
+    // Open from the lightweight row data immediately; the full profile will
+    // replace it when the request completes.
+    setDetails(user)
     setLoading(true)
     try {
       const result = await getUser(user.userId)

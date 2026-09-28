@@ -109,6 +109,9 @@ export interface AppNotificationRealtimeEvent {
   payload: {
     type: AppNotificationType;
     message: string;
+    // Kept in the payload as well as the envelope for clients that unwrap
+    // socket notification events before forwarding them to the UI.
+    actorId?: string;
     ticketId?: string;
     link?: string;
     blocking: boolean;

@@ -3495,6 +3495,29 @@ button.status-toggle {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
+.user-details-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 156px;
+  margin: 4px 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--ink-soft);
+  background: #fbfcff;
+  font-size: 13px;
+  font-weight: 700;
+}
+.user-details-loading::before {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #dfe5f0;
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: loading-spin 750ms linear infinite;
+  content: "";
+}
 .user-detail-field {
   display: grid;
   gap: 5px;

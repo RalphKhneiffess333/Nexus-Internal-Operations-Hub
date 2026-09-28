@@ -341,9 +341,10 @@ export function NotificationProvider({ children }) {
     () =>
       subscribeToNotifications((event) => {
         const notification = event.payload;
+        const notificationActorId = event.actorId ?? notification.actorId;
         const isOwnChatMessage =
           notification.type === "CHAT_MESSAGE" &&
-          event.actorId === user?.userId;
+          notificationActorId === user?.userId;
         if (isOwnChatMessage) return;
         if (notification.blocking) {
           setBlockingNotification(notification);

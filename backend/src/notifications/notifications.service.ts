@@ -39,6 +39,7 @@ export class NotificationsService {
       payload: {
         type: input.type,
         message: input.message,
+        actorId: input.actorId,
         ticketId: input.ticketId,
         link: input.link,
         blocking: input.blocking ?? false,

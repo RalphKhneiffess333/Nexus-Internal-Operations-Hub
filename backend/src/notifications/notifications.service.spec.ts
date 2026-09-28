@@ -21,7 +21,10 @@ describe('NotificationsService', () => {
 
     expect(events.emit).toHaveBeenCalledWith(
       RealtimeInternalEvent.AppNotification,
-      expect.objectContaining({ actorId: 'sender-1' }),
+      expect.objectContaining({
+        actorId: 'sender-1',
+        payload: expect.objectContaining({ actorId: 'sender-1' }),
+      }),
     );
   });
 });
