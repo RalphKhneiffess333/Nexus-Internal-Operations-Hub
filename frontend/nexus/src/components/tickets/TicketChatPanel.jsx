@@ -110,6 +110,7 @@ export function TicketChatPanel({
   const messageListRef = useRef(null);
   const messagePageRef = useRef(1);
   const activeTicketIdRef = useRef(ticket?.ticketId);
+  const sendQueuesByTicketRef = useRef(new Map());
   const shouldFollowLatestRef = useRef(true);
   const hasLoadedMessagesRef = useRef(false);
   const ticketId = ticket?.ticketId;
@@ -273,6 +274,27 @@ export function TicketChatPanel({
     }
   }
 
+  function enqueueOptimisticMessage(message) {
+    const previous =
+      sendQueuesByTicketRef.current.get(message.ticketId) ?? Promise.resolve();
+    const task = previous
+      .catch(() => undefined)
+      .then(() => sendOptimisticMessage(message));
+    sendQueuesByTicketRef.current.set(message.ticketId, task);
+    void task.then(
+      () => {
+        if (sendQueuesByTicketRef.current.get(message.ticketId) === task) {
+          sendQueuesByTicketRef.current.delete(message.ticketId);
+        }
+      },
+      () => {
+        if (sendQueuesByTicketRef.current.get(message.ticketId) === task) {
+          sendQueuesByTicketRef.current.delete(message.ticketId);
+        }
+      },
+    );
+  }
+
   function handleSend(event) {
     event.preventDefault();
     const sanitizedContent = sanitizePlainText(content);
@@ -297,7 +319,7 @@ export function TicketChatPanel({
     setContent("");
     setFiles([]);
     setFilePickerResetKey((value) => value + 1);
-    void sendOptimisticMessage(message);
+    enqueueOptimisticMessage(message);
   }
 
   function handleRetry(message) {
@@ -314,7 +336,7 @@ export function TicketChatPanel({
           : currentMessage,
       ),
     );
-    void sendOptimisticMessage({
+    enqueueOptimisticMessage({
       ...message,
       deliveryStatus: "sending",
       deliveryError: "",
