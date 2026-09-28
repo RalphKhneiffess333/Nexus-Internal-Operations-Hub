@@ -16,6 +16,15 @@ import { NotificationsContext } from "./notifications-context";
 
 const TOAST_DURATION = 5000;
 
+// Temporary production diagnostics. Remove this helper after the notification
+// sound issue has been identified.
+function traceNotificationAudio(label, details = {}) {
+  console.groupCollapsed(`[Nexus audio] ${label}`);
+  console.table(details);
+  console.trace("Audio trace");
+  console.groupEnd();
+}
+
 function pageTitle(pathname, resourceTitle = "") {
   if (pathname === "/dashboard") return "Dashboard - Nexus";
   if (pathname === "/chats") return "Chats - Nexus";
@@ -229,7 +238,7 @@ export function NotificationProvider({ children }) {
     }
   }, []);
 
-  const playSound = useCallback(() => {
+  const playSound = useCallback((details = {}) => {
     const context = audioContextRef.current;
     const buffer = audioBufferRef.current;
     if (!context || !buffer || context.state !== "running") return;
@@ -237,13 +246,17 @@ export function NotificationProvider({ children }) {
       const source = context.createBufferSource();
       source.buffer = buffer;
       source.connect(context.destination);
+      traceNotificationAudio("notification.mp3 played", {
+        ...details,
+        audioContextState: context.state,
+      });
       source.start();
     } catch {
       // A suspended context is an expected browser restriction.
     }
   }, []);
 
-  const playChatReceivedSound = useCallback(async () => {
+  const playChatReceivedSound = useCallback(async (details = {}) => {
     await unlockAudio();
     const context = audioContextRef.current;
     const buffer = chatReceivedAudioBufferRef.current;
@@ -252,6 +265,10 @@ export function NotificationProvider({ children }) {
       const source = context.createBufferSource();
       source.buffer = buffer;
       source.connect(context.destination);
+      traceNotificationAudio("chatrec.mp3 played", {
+        ...details,
+        audioContextState: context.state,
+      });
       source.start();
     } catch {
       // A suspended context is an expected browser restriction.
@@ -342,13 +359,35 @@ export function NotificationProvider({ children }) {
       subscribeToNotifications((event) => {
         const notification = event.payload;
         const notificationActorId = event.actorId ?? notification.actorId;
+        const debugDetails = {
+          eventId: event.eventId,
+          type: notification.type,
+          ticketId: notification.ticketId,
+          actorId: notificationActorId,
+          currentUserId: user?.userId,
+          currentPath: location.pathname,
+          documentHidden: document.hidden,
+          documentHasFocus: document.hasFocus(),
+          focusedRef: focusedRef.current,
+        };
         const isOwnChatMessage =
           notification.type === "CHAT_MESSAGE" &&
           notificationActorId === user?.userId;
-        if (isOwnChatMessage) return;
+        if (isOwnChatMessage) {
+          traceNotificationAudio("app.notification received: own message ignored", {
+            ...debugDetails,
+            selectedSound: "none",
+          });
+          return;
+        }
         if (notification.blocking) {
           setBlockingNotification(notification);
-          playSound();
+          traceNotificationAudio("app.notification selected generic sound", {
+            ...debugDetails,
+            reason: "blocking notification",
+            selectedSound: "notification.mp3",
+          });
+          playSound({ ...debugDetails, reason: "blocking notification" });
           return;
         }
         const isCurrentChat =
@@ -357,9 +396,18 @@ export function NotificationProvider({ children }) {
           location.pathname === `/chats/${notification.ticketId}` &&
           focusedRef.current;
         if (isCurrentChat) {
-          playChatReceivedSound();
+          traceNotificationAudio("app.notification selected chat sound", {
+            ...debugDetails,
+            selectedSound: "chatrec.mp3",
+          });
+          playChatReceivedSound(debugDetails);
           return;
         }
+        traceNotificationAudio("app.notification selected generic sound", {
+          ...debugDetails,
+          reason: "not current focused chat",
+          selectedSound: "notification.mp3",
+        });
         if (notification.type === "CHAT_MESSAGE") {
           markChatUnread(notification.ticketId);
         }
@@ -371,7 +419,10 @@ export function NotificationProvider({ children }) {
           dismissToast(toast.id);
         }, TOAST_DURATION);
         timersRef.current.add(timer);
-        playSound();
+        playSound({
+          ...debugDetails,
+          reason: "not current focused chat",
+        });
         if (!focusedRef.current) {
           titleCountRef.current += 1;
           applyTitle();
