@@ -5,6 +5,7 @@ import {
   NotFoundException,
   StreamableFile,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { Prisma } from '@prisma/client';
 import type { AuthenticatedRequestUser } from '../authentication/request-user';
@@ -24,6 +25,7 @@ import { ChatPolicy } from './policies/chat.policy';
 import { sanitizePlainText } from '../common/sanitization/content-sanitizer';
 import {
   ChatRepository,
+  ChatMessageClientIdConflictError,
   type ChatInboxPage,
   type ChatInboxTicketRecord,
   type ChatMessageListPage,
@@ -44,6 +46,7 @@ export interface ChatAttachmentResponse {
 
 export interface ChatMessageResponse {
   messageId: string;
+  clientMessageId: string | null;
   ticketId: string;
   content: string | null;
   createdAt: Date;
@@ -59,6 +62,7 @@ export interface ChatMessageResponse {
 
 export interface ChatMessageListResponse {
   messageId: string;
+  clientMessageId: string | null;
   ticketId: string;
   content: string | null;
   createdAt: Date;
@@ -165,7 +169,6 @@ export class ChatService {
   ): Promise<ChatConversationPageResponse> {
     const result: ChatInboxPage = await this.chatRepository.findInboxTickets(
       actor.userId,
-      actor.role,
       query.page,
       query.pageSize,
       query.search,
@@ -193,6 +196,12 @@ export class ChatService {
     files?: UploadedFileInput[],
   ): Promise<ChatMessageResponse> {
     const content = dto.content ? sanitizePlainText(dto.content) || null : null;
+    const clientMessageId = dto.clientMessageId ?? randomUUID();
+    if (!content && (files?.length ?? 0) === 0) {
+      throw new BadRequestException(
+        'A chat message must include text or an attachment',
+      );
+    }
     const storedFiles = await this.filesService.storeForUser(
       files,
       actor.userId,
@@ -204,8 +213,12 @@ export class ChatService {
       );
     }
 
+    let result: { message: ChatMessageRecord; created: boolean };
+    let notificationTicket:
+      | { departmentId: string; submittedBy: string; ticketCode: string }
+      | undefined;
     try {
-      const message = await this.chatRepository.transaction(async (tx) => {
+      result = await this.chatRepository.transaction(async (tx) => {
         const ticket = await this.ticketsRepository.findByIdForUpdate(
           ticketId,
           tx,
@@ -217,9 +230,17 @@ export class ChatService {
           tx,
         );
         this.chatPolicy.assertCanSend(actor, ticket, departmentIds);
+        const existing = await this.chatRepository.findMessageByClientMessageId(
+          ticketId,
+          actor.userId,
+          clientMessageId,
+          tx,
+        );
+        if (existing) return { message: existing, created: false };
         const created = await this.chatRepository.create(
           ticketId,
           actor.userId,
+          clientMessageId,
           content,
           new Date(),
           tx,
@@ -243,37 +264,41 @@ export class ChatService {
         );
         if (!persisted)
           throw new NotFoundException('Chat message was not found');
-        return persisted;
+        notificationTicket = {
+          departmentId: ticket.departmentId,
+          submittedBy: ticket.submittedBy,
+          ticketCode: ticket.ticketCode,
+        };
+        return { message: persisted, created: true };
       });
-      const response = this.toResponse(message);
-      this.publishMessage(response, actor.userId);
-      const ticket = await this.ticketsRepository.findById(ticketId);
-      if (ticket) {
-        void this.notifications
-          .notifyChatViewers(
-            ticket.departmentId,
-            ticket.submittedBy,
-            {
-              type: 'CHAT_MESSAGE',
-              message: `New message received on ticket ${ticket.ticketCode}.`,
-              ticketId,
-              link: `/chats/${ticketId}`,
-            },
-            actor.userId,
-          )
-          .catch((error: unknown) => {
-            // Realtime notification delivery must not fail a persisted message.
-            logSystemError(this.logger, error, {
-              operation: 'chat.notify-viewers',
-              object: { type: 'ticket', id: ticketId },
-            });
-          });
-      }
-      return response;
     } catch (error) {
+      if (error instanceof ChatMessageClientIdConflictError) {
+        const existing = await this.chatRepository.findMessageByClientMessageId(
+          ticketId,
+          actor.userId,
+          clientMessageId,
+        );
+        if (existing) {
+          await this.filesService.cleanup(storedFiles);
+          return this.toResponse(existing);
+        }
+      }
       await this.filesService.cleanup(storedFiles);
       throw error;
     }
+
+    const response = this.toResponse(result.message);
+    if (!result.created) {
+      await this.filesService.cleanup(storedFiles);
+      return response;
+    }
+
+    // Broadcast the canonical message as soon as its transaction commits.
+    this.publishMessage(response, actor.userId);
+    if (notificationTicket) {
+      this.notifyChatViewers(notificationTicket, ticketId, actor.userId);
+    }
+    return response;
   }
 
   async assertCanViewChat(
@@ -334,6 +359,7 @@ export class ChatService {
   private toResponse(message: ChatMessageRecord): ChatMessageResponse {
     return {
       messageId: message.messageId,
+      clientMessageId: message.clientMessageId,
       ticketId: message.ticketId,
       content: message.content,
       createdAt: message.createdAt,
@@ -356,6 +382,7 @@ export class ChatService {
   ): ChatMessageListResponse {
     return {
       messageId: message.messageId,
+      clientMessageId: message.clientMessageId,
       ticketId: message.ticketId,
       content: message.content,
       createdAt: message.createdAt,
@@ -394,5 +421,32 @@ export class ChatService {
         (!lastReadAt || lastMessage.createdAt > lastReadAt),
       ),
     };
+  }
+
+  private notifyChatViewers(
+    ticket: { departmentId: string; submittedBy: string; ticketCode: string },
+    ticketId: string,
+    actorId: string,
+  ): void {
+    void this.notifications
+      .notifyChatViewers(
+        ticket.departmentId,
+        ticket.submittedBy,
+        {
+          type: 'CHAT_MESSAGE',
+          message: `New message received on ticket ${ticket.ticketCode}.`,
+          actorId,
+          ticketId,
+          link: `/chats/${ticketId}`,
+        },
+        actorId,
+      )
+      .catch((error: unknown) => {
+        // Notification delivery must not fail a persisted chat message.
+        logSystemError(this.logger, error, {
+          operation: 'chat.notify-viewers',
+          object: { type: 'ticket', id: ticketId },
+        });
+      });
   }
 }

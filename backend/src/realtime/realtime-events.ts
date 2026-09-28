@@ -63,6 +63,7 @@ export type TicketEventCreatedRealtimeEvent =
 
 export interface ChatMessageCreatedPayload {
   messageId: string;
+  clientMessageId: string | null;
   ticketId: string;
   content: string | null;
   createdAt: Date;
@@ -103,6 +104,7 @@ export interface AppNotificationRealtimeEvent {
   eventId: string;
   occurredAt: string;
   version: number;
+  actorId?: string;
   recipientUserIds: string[];
   payload: {
     type: AppNotificationType;

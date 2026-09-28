@@ -76,7 +76,7 @@ export function TicketDetails({
         <div className="detail-row">
           <dt>Status</dt>
           <dd>
-            <TicketStatusBadge status={ticket.status} />
+            <TicketStatusBadge status={ticket.status} active={ticket.active} />
           </dd>
         </div>
         <DetailRow

@@ -20,7 +20,7 @@ export function TicketActionControls({ ticket, editing, permissions, adminClosin
   return (
     <>
       <div className="header-actions ticket-details-header-actions">
-        <Link to={`/chats/${ticket.ticketId}`} className="btn primary ticket-open-chat">Open chat</Link>
+        {ticket.active ? <Link to={`/chats/${ticket.ticketId}`} className="btn primary ticket-open-chat">Open chat</Link> : null}
         {showActions && canEdit ? <button type="button" className="btn ghost" onClick={onEdit}>Edit</button> : null}
         {showActions && canCancel ? <button type="button" className="btn danger" onClick={() => setDialog('cancel')}>Cancel ticket</button> : null}
         {showActions && canClaim ? <button type="button" className="btn primary" onClick={() => setDialog('claim')}>Claim ticket</button> : null}

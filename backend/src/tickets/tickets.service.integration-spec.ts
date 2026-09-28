@@ -76,19 +76,20 @@ describe('TicketsService integration', () => {
     expect(updated.status).toBe(TicketStatus.OPEN);
   });
 
-  it('cancels an OPEN ticket with a soft delete', async () => {
+  it('cancels an OPEN ticket with a soft delete that remains viewable by its submitter', async () => {
     const created = await submitOpenTicket(service);
 
     const cancelled = await service.cancel(created.ticketId, requestUser());
 
     expect(cancelled.active).toBe(false);
     expect(await service.list(requestUser())).toHaveLength(0);
-    await expect(
-      service.findOne(created.ticketId, requestUser()),
-    ).rejects.toThrow(NotFoundException);
+    await expect(service.findOne(created.ticketId, requestUser())).resolves.toMatchObject({
+      ticketId: created.ticketId,
+      active: false,
+    });
   });
 
-  it('lets administrators inspect inactive ticket history without exposing it to other users', async () => {
+  it('lets the cancelling user and administrators inspect inactive ticket history without exposing it to other users', async () => {
     const created = await submitOpenTicket(service);
     await service.cancel(created.ticketId, requestUser());
 
@@ -99,9 +100,23 @@ describe('TicketsService integration', () => {
     await expect(service.findEvents(created.ticketId, adminUser())).resolves.toHaveLength(
       2,
     );
-    await expect(service.findOne(created.ticketId, requestUser())).rejects.toThrow(
-      NotFoundException,
+    await expect(service.findOne(created.ticketId, requestUser())).resolves.toMatchObject({
+      ticketId: created.ticketId,
+      active: false,
+    });
+    await expect(service.findEvents(created.ticketId, requestUser())).resolves.toHaveLength(
+      2,
     );
+    await expect(
+      service.findOne(
+        created.ticketId,
+        requestUser({
+          userId: EMPLOYEE_2_ID,
+          email: 'sam@company.com',
+          identityProviderUserId: EMPLOYEE_2_ID,
+        }),
+      ),
+    ).rejects.toThrow(NotFoundException);
     await expect(
       service.list(adminUser(), { includeInactive: true }),
     ).resolves.toHaveLength(1);

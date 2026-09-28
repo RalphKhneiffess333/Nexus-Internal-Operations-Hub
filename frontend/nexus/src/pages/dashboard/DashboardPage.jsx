@@ -513,7 +513,7 @@ function DashboardTicketCard({ ticket, priorities = [], compact = false }) {
       <div className="dashboard-ticket-content">
         <div className="dashboard-ticket-heading">
           <span className="ticket-code">{ticket.ticketCode}</span>
-          <TicketStatusBadge status={ticket.status} />
+          <TicketStatusBadge status={ticket.status} active={ticket.active} />
         </div>
         <h3>{ticket.title}</h3>
         {!compact ? (

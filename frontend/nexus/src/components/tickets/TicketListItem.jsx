@@ -20,7 +20,7 @@ export function TicketListItem({ ticket, departments = [], priorities = [] }) {
       <div className="ticket-row-content">
         <div className="ticket-row-top">
           <span className="ticket-code">{ticket.ticketCode}</span>
-          <TicketStatusBadge status={ticket.status} />
+          <TicketStatusBadge status={ticket.status} active={ticket.active} />
         </div>
         <h3 className="ticket-row-title">{ticket.title}</h3>
         <dl className="ticket-row-meta">

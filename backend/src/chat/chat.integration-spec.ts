@@ -11,6 +11,7 @@ import {
   AGENT_ID,
   EMPLOYEE_2_ID,
   IT_AGENT_2_ID,
+  adminUser,
   agentUser,
   claimTicket,
   closeTicket,
@@ -72,6 +73,42 @@ describe('Chat integration', () => {
     );
   });
 
+  it('deduplicates retried messages by client message ID', async () => {
+    const open = await submitOpenTicket(tickets);
+    await claimTicket(tickets, open.ticketId);
+    const emitted = jest.spyOn(events, 'emit');
+    const clientMessageId = 'abf6d9b0-4459-4b24-91cc-38e792b875cb';
+
+    const first = await chat.createMessage(
+      open.ticketId,
+      { content: 'Please retry this request safely.', clientMessageId },
+      requestUser(),
+    );
+    const retried = await chat.createMessage(
+      open.ticketId,
+      { content: 'Please retry this request safely.', clientMessageId },
+      requestUser(),
+    );
+
+    expect(retried.messageId).toBe(first.messageId);
+    expect(retried.clientMessageId).toBe(clientMessageId);
+    await expect(chat.listMessages(open.ticketId, requestUser())).resolves.toEqual([
+      expect.objectContaining({ clientMessageId }),
+    ]);
+    expect(
+      await prisma.chatMessage.count({ where: { ticketId: open.ticketId } }),
+    ).toBe(1);
+    const chatMessageEvents = emitted.mock.calls.filter(
+      ([event]) => event === RealtimeInternalEvent.ChatMessageCreated,
+    );
+    expect(chatMessageEvents).toHaveLength(1);
+    expect(chatMessageEvents[0][1]).toEqual(
+      expect.objectContaining({
+        payload: expect.objectContaining({ clientMessageId }),
+      }),
+    );
+  });
+
   it('lists accessible ticket conversations with a last-message preview and read state', async () => {
     const open = await submitOpenTicket(tickets);
     await claimTicket(tickets, open.ticketId);
@@ -108,6 +145,22 @@ describe('Chat integration', () => {
       identityProviderUserId: EMPLOYEE_2_ID,
     });
     expect(await chat.listConversations(unrelatedEmployee)).toEqual([]);
+  });
+
+  it('lists conversations submitted by an admin when another user owns the ticket', async () => {
+    const open = await submitOpenTicket(tickets, {}, adminUser());
+    await claimTicket(tickets, open.ticketId);
+    await chat.createMessage(
+      open.ticketId,
+      { content: 'HR has started reviewing this request.' },
+      agentUser(),
+    );
+
+    expect(
+      (await chat.listConversations(adminUser())).map(
+        (conversation) => conversation.ticketId,
+      ),
+    ).toContain(open.ticketId);
   });
 
   it('lists chats only after a message and for agents who currently or previously owned the ticket', async () => {

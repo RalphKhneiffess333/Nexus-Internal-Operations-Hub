@@ -31,9 +31,58 @@ function sortMessages(messages) {
 }
 
 function mergeMessages(current, incoming) {
-  const byId = new Map(current.map((message) => [message.messageId, message]));
-  incoming.forEach((message) => byId.set(message.messageId, message));
-  return sortMessages([...byId.values()]);
+  const byMessageKey = new Map();
+  [...current, ...incoming].forEach((message) => {
+    const key = message.clientMessageId
+      ? `client:${message.clientMessageId}`
+      : `message:${message.messageId}`;
+    byMessageKey.set(key, message);
+  });
+  return sortMessages([...byMessageKey.values()]);
+}
+
+function createClientMessageId() {
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (character) => {
+    const random = Math.floor(Math.random() * 16);
+    const value = character === "x" ? random : (random & 0x3) | 0x8;
+    return value.toString(16);
+  });
+}
+
+function createOptimisticMessage({
+  ticketId,
+  clientMessageId,
+  content,
+  files,
+  currentUser,
+}) {
+  const now = new Date().toISOString();
+  return {
+    messageId: `pending:${clientMessageId}`,
+    clientMessageId,
+    ticketId,
+    content: content || null,
+    createdAt: now,
+    updatedAt: now,
+    sender: {
+      userId: currentUser?.userId,
+      fullName: currentUser?.fullName || "You",
+      email: currentUser?.email || "",
+      role: currentUser?.role || "",
+    },
+    attachments: files.map((file, index) => ({
+      attachmentId: `pending:${clientMessageId}:${index}`,
+      originalName: file.name,
+      fileSize: file.size,
+      mimeType: file.type,
+      pending: true,
+    })),
+    pendingFiles: files,
+    deliveryStatus: "sending",
+  };
 }
 
 function isConversationVisible() {
@@ -56,11 +105,11 @@ export function TicketChatPanel({
   const [content, setContent] = useState("");
   const [files, setFiles] = useState([]);
   const [filePickerResetKey, setFilePickerResetKey] = useState(0);
-  const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState("");
   const [downloadingAttachmentId, setDownloadingAttachmentId] = useState("");
   const messageListRef = useRef(null);
   const messagePageRef = useRef(1);
+  const activeTicketIdRef = useRef(ticket?.ticketId);
   const shouldFollowLatestRef = useRef(true);
   const hasLoadedMessagesRef = useRef(false);
   const ticketId = ticket?.ticketId;
@@ -92,9 +141,7 @@ export function TicketChatPanel({
         );
         if (!request.isCurrent()) return false;
         const incoming = result?.items ?? (Array.isArray(result) ? result : []);
-        setMessages((current) =>
-          append || silent ? mergeMessages(current, incoming) : incoming,
-        );
+        setMessages((current) => mergeMessages(current, incoming));
         const highestPage = Math.max(messagePageRef.current, nextPage);
         messagePageRef.current = highestPage;
         setMessagePage(highestPage);
@@ -122,6 +169,7 @@ export function TicketChatPanel({
   );
 
   useEffect(() => {
+    activeTicketIdRef.current = ticketId;
     // Reset paginated history when the selected ticket changes.
     messagePageRef.current = 1;
     hasLoadedMessagesRef.current = false;
@@ -197,10 +245,38 @@ export function TicketChatPanel({
       scrollHeight - clientHeight - scrollTop < 40;
   }
 
-  async function handleSend(event) {
+  async function sendOptimisticMessage(message) {
+    try {
+      const created = await createChatMessage(
+        message.ticketId,
+        message.content || "",
+        message.clientMessageId,
+        message.pendingFiles || [],
+      );
+      if (activeTicketIdRef.current !== message.ticketId) return;
+      setMessages((current) => mergeMessages(current, [created]));
+    } catch (sendFailure) {
+      if (activeTicketIdRef.current !== message.ticketId) return;
+      const failureMessage = sendFailure.message || "Unable to send this message.";
+      setMessages((current) =>
+        current.map((currentMessage) =>
+          currentMessage.clientMessageId === message.clientMessageId &&
+          currentMessage.deliveryStatus === "sending"
+            ? {
+                ...currentMessage,
+                deliveryStatus: "failed",
+                deliveryError: failureMessage,
+              }
+            : currentMessage,
+        ),
+      );
+    }
+  }
+
+  function handleSend(event) {
     event.preventDefault();
     const sanitizedContent = sanitizePlainText(content);
-    if (sending || (!sanitizedContent && files.length === 0)) return;
+    if (!sanitizedContent && files.length === 0) return;
     if (sanitizedContent.length > MAX_CHAT_MESSAGE_LENGTH) {
       setSendError(
         `Message must be ${MAX_CHAT_MESSAGE_LENGTH} characters or fewer.`,
@@ -208,24 +284,41 @@ export function TicketChatPanel({
       return;
     }
 
-    setSending(true);
     setSendError("");
-    try {
-      const created = await createChatMessage(
-        ticket.ticketId,
-        sanitizedContent,
-        files,
-      );
-      shouldFollowLatestRef.current = true;
-      setMessages((current) => mergeMessages(current, [created]));
-      setContent("");
-      setFiles([]);
-      setFilePickerResetKey((value) => value + 1);
-    } catch (sendFailure) {
-      setSendError(sendFailure.message || "Unable to send this message.");
-    } finally {
-      setSending(false);
-    }
+    const message = createOptimisticMessage({
+      ticketId: ticket.ticketId,
+      clientMessageId: createClientMessageId(),
+      content: sanitizedContent,
+      files: [...files],
+      currentUser,
+    });
+    shouldFollowLatestRef.current = true;
+    setMessages((current) => mergeMessages(current, [message]));
+    setContent("");
+    setFiles([]);
+    setFilePickerResetKey((value) => value + 1);
+    void sendOptimisticMessage(message);
+  }
+
+  function handleRetry(message) {
+    if (!message.pendingFiles) return;
+    shouldFollowLatestRef.current = true;
+    setMessages((current) =>
+      current.map((currentMessage) =>
+        currentMessage.clientMessageId === message.clientMessageId
+          ? {
+              ...currentMessage,
+              deliveryStatus: "sending",
+              deliveryError: "",
+            }
+          : currentMessage,
+      ),
+    );
+    void sendOptimisticMessage({
+      ...message,
+      deliveryStatus: "sending",
+      deliveryError: "",
+    });
   }
 
   async function handleOpen(messageId, attachment) {
@@ -324,7 +417,7 @@ export function TicketChatPanel({
         />
       ) : null}
 
-      {!loading && messages.length > 0 ? (
+      {messages.length > 0 ? (
         <ol
           ref={messageListRef}
           className="ticket-chat-list"
@@ -342,41 +435,71 @@ export function TicketChatPanel({
                 </time>
               </div>
               {message.content ? <p>{message.content}</p> : null}
+              {message.deliveryStatus === "sending" ? (
+                <p className="ticket-chat-delivery-status" role="status">
+                  <span className="loading-spinner" aria-hidden="true" />
+                  Sending…
+                </p>
+              ) : null}
+              {message.deliveryStatus === "failed" ? (
+                <div className="ticket-chat-delivery-status is-failed" role="alert">
+                  <span>{message.deliveryError || "Unable to send this message."}</span>
+                  <button
+                    type="button"
+                    className="btn ghost"
+                    onClick={() => handleRetry(message)}
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : null}
               {message.attachments?.length ? (
                 <ul className="ticket-chat-attachments">
                   {message.attachments.map((attachment) => (
                     <li key={attachment.attachmentId}>
                       <div>
-                        <button
-                          type="button"
-                          className="ticket-chat-attachment-name"
-                          title={attachment.originalName}
-                          onClick={() =>
-                            void handleOpen(message.messageId, attachment)
-                          }
-                          disabled={
-                            downloadingAttachmentId === attachment.attachmentId
-                          }
-                        >
-                          📎 <span>{attachment.originalName}</span>
-                        </button>
-                        <button
-                          type="button"
-                          className="ticket-chat-attachment-download"
-                          onClick={() =>
-                            void handleDownload(
-                              message.messageId,
-                              attachment.attachmentId,
-                            )
-                          }
-                          disabled={
-                            downloadingAttachmentId === attachment.attachmentId
-                          }
-                        >
-                          {downloadingAttachmentId === attachment.attachmentId
-                            ? "Working…"
-                            : "Download"}
-                        </button>
+                        {attachment.pending ? (
+                          <span
+                            className="ticket-chat-pending-attachment"
+                            title={attachment.originalName}
+                          >
+                            📎 <span>{attachment.originalName}</span>
+                            <em>Sending…</em>
+                          </span>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              className="ticket-chat-attachment-name"
+                              title={attachment.originalName}
+                              onClick={() =>
+                                void handleOpen(message.messageId, attachment)
+                              }
+                              disabled={
+                                downloadingAttachmentId === attachment.attachmentId
+                              }
+                            >
+                              📎 <span>{attachment.originalName}</span>
+                            </button>
+                            <button
+                              type="button"
+                              className="ticket-chat-attachment-download"
+                              onClick={() =>
+                                void handleDownload(
+                                  message.messageId,
+                                  attachment.attachmentId,
+                                )
+                              }
+                              disabled={
+                                downloadingAttachmentId === attachment.attachmentId
+                              }
+                            >
+                              {downloadingAttachmentId === attachment.attachmentId
+                                ? "Working…"
+                                : "Download"}
+                            </button>
+                          </>
+                        )}
                       </div>
                     </li>
                   ))}
@@ -412,12 +535,10 @@ export function TicketChatPanel({
             maxLength={MAX_CHAT_MESSAGE_LENGTH}
             rows={3}
             placeholder="Write a message…"
-            disabled={sending}
           />
           <FilePicker
             key={filePickerResetKey}
             onChange={setFiles}
-            disabled={sending}
           />
           {sendError ? (
             <p className="ticket-chat-send-error">{sendError}</p>
@@ -429,9 +550,9 @@ export function TicketChatPanel({
             <button
               type="submit"
               className="btn primary"
-              disabled={sending || (!content.trim() && files.length === 0)}
+              disabled={!content.trim() && files.length === 0}
             >
-              {sending ? "Sending…" : "Send message"}
+              Send message
             </button>
           </div>
         </form>

@@ -341,6 +341,10 @@ export function NotificationProvider({ children }) {
     () =>
       subscribeToNotifications((event) => {
         const notification = event.payload;
+        const isOwnChatMessage =
+          notification.type === "CHAT_MESSAGE" &&
+          event.actorId === user?.userId;
+        if (isOwnChatMessage) return;
         if (notification.blocking) {
           setBlockingNotification(notification);
           playSound();
@@ -381,6 +385,7 @@ export function NotificationProvider({ children }) {
       playSound,
       scheduleNotificationCountRefresh,
       subscribeToNotifications,
+      user?.userId,
     ],
   );
 

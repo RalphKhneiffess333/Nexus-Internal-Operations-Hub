@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { HttpException, Injectable } from '@nestjs/common';
-import { Prisma, TicketStatus, UserRole } from '@prisma/client';
+import { ConflictException, HttpException, Injectable } from '@nestjs/common';
+import { Prisma, TicketStatus } from '@prisma/client';
 import { mapPrismaError } from '../../database/prisma-error';
 import { PrismaService } from '../../database/prisma.service';
 
@@ -89,6 +89,27 @@ export interface ChatInboxPage {
 
 export type ChatPersistenceClient = PrismaService | Prisma.TransactionClient;
 
+export class ChatMessageClientIdConflictError extends ConflictException {
+  constructor() {
+    super('A chat message with this client ID already exists');
+  }
+}
+
+function isClientMessageIdConflict(error: unknown): boolean {
+  if (
+    !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+    error.code !== 'P2002'
+  ) {
+    return false;
+  }
+  const target = error.meta?.target;
+  const fields = Array.isArray(target) ? target : [String(target ?? '')];
+  return fields.some(
+    (field) =>
+      field.includes('client_message_id') || field.includes('clientMessageId'),
+  );
+}
+
 @Injectable()
 export class ChatRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -133,6 +154,7 @@ export class ChatRepository {
   async create(
     ticketId: string,
     senderId: string,
+    clientMessageId: string,
     content: string | null,
     createdAt: Date,
     client: Prisma.TransactionClient,
@@ -141,12 +163,32 @@ export class ChatRepository {
       return await client.chatMessage.create({
         data: {
           messageId: randomUUID(),
+          clientMessageId,
           ticketId,
           senderId,
           content,
           createdAt,
           updatedAt: createdAt,
         },
+        include: messageInclude,
+      });
+    } catch (error) {
+      if (isClientMessageIdConflict(error)) {
+        throw new ChatMessageClientIdConflictError();
+      }
+      mapPrismaError(error);
+    }
+  }
+
+  async findMessageByClientMessageId(
+    ticketId: string,
+    senderId: string,
+    clientMessageId: string,
+    client: ChatPersistenceClient = this.prisma,
+  ): Promise<ChatMessageRecord | null> {
+    try {
+      return await client.chatMessage.findFirst({
+        where: { ticketId, senderId, clientMessageId },
         include: messageInclude,
       });
     } catch (error) {
@@ -185,7 +227,6 @@ export class ChatRepository {
 
   async findInboxTickets(
     userId: string,
-    actorRole: UserRole,
     page = 1,
     pageSize = 50,
     search?: string,
@@ -193,35 +234,33 @@ export class ChatRepository {
     const safePageSize = Math.min(Math.max(pageSize, 1), 100);
     const safePage = Math.max(page, 1);
     try {
-      const visibility =
-        actorRole === UserRole.Employee
-          ? Prisma.sql`AND t."submitted_by" = ${userId}`
-          : Prisma.sql`
+      const visibility = Prisma.sql`
+        AND (
+          t."submitted_by" = ${userId}
+          OR t."agent_id" = ${userId}
+          OR EXISTS (
+            SELECT 1
+            FROM "ticket_events" ownership_event
+            WHERE ownership_event."ticket_id" = t."ticket_id"
               AND (
-                t."agent_id" = ${userId}
-                OR EXISTS (
-                  SELECT 1
-                  FROM "ticket_events" ownership_event
-                  WHERE ownership_event."ticket_id" = t."ticket_id"
-                    AND (
-                      (
-                        ownership_event.action::text = 'CLAIM'
-                        AND ownership_event.details ->> 'agentId' = ${userId}
-                      )
-                      OR (
-                        ownership_event.action::text = 'HANDOFF'
-                        AND (
-                          ownership_event.details ->> 'requesterId' = ${userId}
-                          OR (
-                            ownership_event.details ->> 'action' = 'ACCEPTED'
-                            AND ownership_event.details ->> 'requestedAgentId' = ${userId}
-                          )
-                        )
-                      )
+                (
+                  ownership_event.action::text = 'CLAIM'
+                  AND ownership_event.details ->> 'agentId' = ${userId}
+                )
+                OR (
+                  ownership_event.action::text = 'HANDOFF'
+                  AND (
+                    ownership_event.details ->> 'requesterId' = ${userId}
+                    OR (
+                      ownership_event.details ->> 'action' = 'ACCEPTED'
+                      AND ownership_event.details ->> 'requestedAgentId' = ${userId}
                     )
+                  )
                 )
               )
-            `;
+          )
+        )
+      `;
       const trimmedSearch = search?.trim();
       const searchFilter = trimmedSearch
         ? Prisma.sql`

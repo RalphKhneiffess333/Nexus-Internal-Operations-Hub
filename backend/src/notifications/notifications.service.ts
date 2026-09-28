@@ -12,6 +12,7 @@ export interface NotificationInput {
   type: AppNotificationType;
   message: string;
   recipientUserIds: string[];
+  actorId?: string;
   ticketId?: string;
   link?: string;
   blocking?: boolean;
@@ -33,6 +34,7 @@ export class NotificationsService {
       eventId: randomUUID(),
       occurredAt: new Date().toISOString(),
       version: 1,
+      actorId: input.actorId,
       recipientUserIds,
       payload: {
         type: input.type,

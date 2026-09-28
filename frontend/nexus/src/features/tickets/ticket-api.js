@@ -55,17 +55,17 @@ export function markChatConversationRead(ticketId) {
   return apiRequest(`/chats/${ticketId}/read`, { method: 'POST', expectJson: false })
 }
 
-export function createChatMessage(ticketId, content, files = []) {
+export function createChatMessage(ticketId, content, clientMessageId, files = []) {
   if (files.length === 0) {
     return apiRequest(`/tickets/${ticketId}/chat/messages`, {
       method: 'POST',
-      body: { content },
+      body: { content, clientMessageId },
     })
   }
 
   return apiRequest(`/tickets/${ticketId}/chat/messages`, {
     method: 'POST',
-    body: multipartBody({ content }, files),
+    body: multipartBody({ content, clientMessageId }, files),
   })
 }
 
