@@ -189,18 +189,20 @@ model TicketEvent {
 }
 
 model ChatMessage {
-  messageId   String       @id @map("message_id")
-  ticketId    String       @map("ticket_id")
-  senderId    String       @map("sender_id")
-  content     String?
-  createdAt   DateTime     @default(now()) @map("created_at")
-  updatedAt   DateTime     @updatedAt @map("updated_at")
-  ticket      Ticket       @relation(fields: [ticketId], references: [ticketId], onDelete: Restrict)
-  sender      User         @relation("ChatMessageSender", fields: [senderId], references: [userId], onDelete: Restrict)
-  attachments Attachment[]
+  messageId       String       @id @map("message_id")
+  clientMessageId String?      @map("client_message_id")
+  ticketId        String       @map("ticket_id")
+  senderId        String       @map("sender_id")
+  content         String?
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  ticket          Ticket       @relation(fields: [ticketId], references: [ticketId], onDelete: Restrict)
+  sender          User         @relation("ChatMessageSender", fields: [senderId], references: [userId], onDelete: Restrict)
+  attachments     Attachment[]
 
   @@index([ticketId, createdAt])
   @@index([senderId])
+  @@unique([ticketId, senderId, clientMessageId])
   @@map("chat_messages")
 }
 
