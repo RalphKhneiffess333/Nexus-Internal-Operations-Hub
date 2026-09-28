@@ -215,7 +215,12 @@ export class ChatService {
 
     let result: { message: ChatMessageRecord; created: boolean };
     let notificationTicket:
-      | { departmentId: string; submittedBy: string; ticketCode: string }
+      | {
+          departmentId: string;
+          submittedBy: string;
+          agentId: string | null;
+          ticketCode: string;
+        }
       | undefined;
     try {
       result = await this.chatRepository.transaction(async (tx) => {
@@ -267,6 +272,7 @@ export class ChatService {
         notificationTicket = {
           departmentId: ticket.departmentId,
           submittedBy: ticket.submittedBy,
+          agentId: ticket.agentId,
           ticketCode: ticket.ticketCode,
         };
         return { message: persisted, created: true };
@@ -424,7 +430,12 @@ export class ChatService {
   }
 
   private notifyChatViewers(
-    ticket: { departmentId: string; submittedBy: string; ticketCode: string },
+    ticket: {
+      departmentId: string;
+      submittedBy: string;
+      agentId: string | null;
+      ticketCode: string;
+    },
     ticketId: string,
     actorId: string,
   ): void {
@@ -432,6 +443,7 @@ export class ChatService {
       .notifyChatViewers(
         ticket.departmentId,
         ticket.submittedBy,
+        ticket.agentId,
         {
           type: 'CHAT_MESSAGE',
           message: `New message received on ticket ${ticket.ticketCode}.`,

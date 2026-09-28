@@ -108,6 +108,7 @@ export function TicketChatPanel({
   const [sendError, setSendError] = useState("");
   const [downloadingAttachmentId, setDownloadingAttachmentId] = useState("");
   const messageListRef = useRef(null);
+  const messageInputRef = useRef(null);
   const messagePageRef = useRef(1);
   const activeTicketIdRef = useRef(ticket?.ticketId);
   const sendQueuesByTicketRef = useRef(new Map());
@@ -246,6 +247,19 @@ export function TicketChatPanel({
       scrollHeight - clientHeight - scrollTop < 40;
   }
 
+  function handleMessageInputKeyDown(event) {
+    if (
+      event.key !== "Enter" ||
+      event.shiftKey ||
+      event.nativeEvent.isComposing
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    handleSend(event);
+  }
+
   async function sendOptimisticMessage(message) {
     try {
       const created = await createChatMessage(
@@ -320,6 +334,7 @@ export function TicketChatPanel({
     setFiles([]);
     setFilePickerResetKey((value) => value + 1);
     enqueueOptimisticMessage(message);
+    window.requestAnimationFrame(() => messageInputRef.current?.focus());
   }
 
   function handleRetry(message) {
@@ -445,6 +460,25 @@ export function TicketChatPanel({
           className="ticket-chat-list"
           onScroll={handleMessageListScroll}
         >
+          {!loading && !error && hasMoreMessages ? (
+            <li className="ticket-chat-load-older">
+              <button
+                type="button"
+                className="btn ghost"
+                onClick={() =>
+                  void loadMessages({
+                    append: true,
+                    nextPage: messagePage + 1,
+                  })
+                }
+                disabled={loadingMoreMessages}
+              >
+                {loadingMoreMessages
+                  ? "Loading older messages…"
+                  : "Load older messages"}
+              </button>
+            </li>
+          ) : null}
           {messages.map((message) => (
             <li
               key={message.messageId}
@@ -532,28 +566,15 @@ export function TicketChatPanel({
         </ol>
       ) : null}
 
-      {!loading && !error && hasMoreMessages ? (
-        <button
-          type="button"
-          className="btn ghost"
-          onClick={() =>
-            void loadMessages({ append: true, nextPage: messagePage + 1 })
-          }
-          disabled={loadingMoreMessages}
-        >
-          {loadingMoreMessages
-            ? "Loading older messages…"
-            : "Load older messages"}
-        </button>
-      ) : null}
-
       {writable ? (
         <form className="ticket-chat-composer" onSubmit={handleSend}>
           <label htmlFor={`chat-message-${ticket.ticketId}`}>New message</label>
           <textarea
+            ref={messageInputRef}
             id={`chat-message-${ticket.ticketId}`}
             value={content}
             onChange={(event) => setContent(event.target.value)}
+            onKeyDown={handleMessageInputKeyDown}
             maxLength={MAX_CHAT_MESSAGE_LENGTH}
             rows={3}
             placeholder="Write a message…"
@@ -568,6 +589,9 @@ export function TicketChatPanel({
           <div className="ticket-chat-actions">
             <span>
               {content.length}/{MAX_CHAT_MESSAGE_LENGTH}
+            </span>
+            <span className="ticket-chat-enter-hint">
+              Enter to send · Shift+Enter for a new line
             </span>
             <button
               type="submit"

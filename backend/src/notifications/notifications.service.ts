@@ -66,6 +66,7 @@ export class NotificationsService {
   async notifyChatViewers(
     departmentId: string,
     submitterId: string,
+    assignedAgentId: string | null | undefined,
     input: Omit<NotificationInput, 'recipientUserIds'>,
     excludeUserId?: string,
   ): Promise<void> {
@@ -75,6 +76,7 @@ export class NotificationsService {
         await this.notificationsRepository.findActiveChatRecipientIds(
           departmentId,
           submitterId,
+          assignedAgentId,
           excludeUserId,
         ),
     });

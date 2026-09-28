@@ -1912,6 +1912,25 @@ h3 {
   overflow: auto;
   list-style: none;
 }
+.ticket-chat-load-older {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  padding: 2px 0 8px;
+  background: linear-gradient(
+    180deg,
+    rgba(249, 250, 255, 0.98) 0%,
+    rgba(249, 250, 255, 0.9) 72%,
+    rgba(249, 250, 255, 0) 100%
+  );
+}
+.ticket-chat-load-older .btn {
+  min-height: 32px;
+  padding: 6px 11px;
+  font-size: 11px;
+}
 .ticket-chat-message {
   display: grid;
   gap: 8px;
@@ -2054,6 +2073,10 @@ h3 {
   color: var(--ink-faint);
   font-size: 10px;
   font-weight: 700;
+}
+.ticket-chat-enter-hint {
+  flex: 1 1 auto;
+  text-align: center;
 }
 .ticket-chat-full {
   width: 100%;

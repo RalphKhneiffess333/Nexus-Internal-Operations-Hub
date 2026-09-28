@@ -65,6 +65,7 @@ export class NotificationsRepository {
   async findActiveChatRecipientIds(
     departmentId: string,
     submitterId: string,
+    assignedAgentId?: string | null,
     excludeUserId?: string,
   ): Promise<string[]> {
     try {
@@ -74,7 +75,7 @@ export class NotificationsRepository {
           ...(excludeUserId ? { userId: { not: excludeUserId } } : {}),
           OR: [
             { userId: submitterId },
-            { role: UserRole.Admin },
+            ...(assignedAgentId ? [{ userId: assignedAgentId }] : []),
             {
               role: UserRole.Agent,
               departmentMembers: {
