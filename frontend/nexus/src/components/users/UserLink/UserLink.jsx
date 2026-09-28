@@ -21,9 +21,13 @@ export function UserLink({ user, className = '' }) {
     setError('')
     if (!user.userId) {
       setDetails(user)
+      setLoading(false)
       return
     }
 
+    // Mount the dialog immediately with the summary we already have. The
+    // complete profile can then replace it when the request finishes.
+    setDetails(user)
     setLoading(true)
     try {
       const result = await getUser(user.userId)

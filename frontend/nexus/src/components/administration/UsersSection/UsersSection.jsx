@@ -207,6 +207,23 @@ function CreateUserForm({ actions, onDone }) {
 
 function UserDepartmentEditor({ user, departments, actions }) {
   const cannotMap = user.role === UserRole.EMPLOYEE
+  const [pendingDepartmentId, setPendingDepartmentId] = useState('')
+
+  async function toggleDepartment(department, member) {
+    if (pendingDepartmentId) return
+
+    setPendingDepartmentId(department.departmentId)
+    try {
+      await actions.updateUserDepartment(
+        user.userId,
+        department.departmentId,
+        member,
+        department.name,
+      )
+    } finally {
+      setPendingDepartmentId('')
+    }
+  }
 
   return (
     <div className="admin-detail">
@@ -214,20 +231,22 @@ function UserDepartmentEditor({ user, departments, actions }) {
         <p className="eyebrow">Department membership</p>
         {cannotMap ? <div className="mapping-notice"><strong>Department mapping unavailable</strong><p>Employees cannot be assigned to departments. Change this user to an agent or administrator first.</p></div> : <p className="muted">Select the departments this {user.role.toLowerCase()} can work in.</p>}
       </div>
+      {pendingDepartmentId ? <p className="muted membership-loading" role="status" aria-live="polite">Saving department membership…</p> : null}
       {!cannotMap && departments.length ? (
         <div className="membership-grid">
           {departments.map((department) => {
             const member = user.departments?.some((item) => item.departmentId === department.departmentId)
             const disabled = !department.active && !member
+            const updating = pendingDepartmentId === department.departmentId
             return (
-              <label key={department.departmentId} className={`membership-option ${member ? 'is-member' : ''} ${disabled ? 'is-disabled' : ''}`}>
+              <label key={department.departmentId} className={`membership-option ${member ? 'is-member' : ''} ${disabled ? 'is-disabled' : ''} ${updating ? 'is-loading' : ''}`}>
                 <input
                   type="checkbox"
                   checked={member}
-                  disabled={disabled}
-                  onChange={() => actions.updateUserDepartment(user.userId, department.departmentId, member, department.name)}
+                  disabled={disabled || Boolean(pendingDepartmentId)}
+                  onChange={() => void toggleDepartment(department, member)}
                 />
-                <span>{department.name}<small>{department.active ? department.code : member ? 'Inactive · assigned' : 'Inactive · unavailable'}</small></span>
+                <span>{department.name}<small>{updating ? 'Saving…' : department.active ? department.code : member ? 'Inactive · assigned' : 'Inactive · unavailable'}</small></span>
               </label>
             )
           })}

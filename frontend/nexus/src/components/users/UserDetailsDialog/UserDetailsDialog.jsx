@@ -25,7 +25,7 @@ export function UserDetailsDialog({ user, error = '', loading = false, onClose }
             ×
           </button>
         </div>
-        {loading ? <p className="muted">Loading full profile…</p> : null}
+        {loading ? <p className="muted" role="status" aria-live="polite">Loading full profile…</p> : null}
         {error ? (
           <p className="mapping-notice">
             {error} Showing the information available here.
