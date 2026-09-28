@@ -184,6 +184,7 @@ export function Sidebar({ open, onNavigate }) {
       {logoutDialogOpen ? (
         <Dialog
           role="alertdialog"
+          className="logout-dialog"
           ariaLabelledBy="logout-dialog-title"
           ariaDescribedBy="logout-dialog-description"
           onClose={() => {
