@@ -37,7 +37,7 @@ export class TicketAccessService {
     actor: AuthenticatedRequestUser,
   ): Promise<TicketRecord> {
     const ticket = await this.ticketsRepository.findById(ticketId);
-    if (!ticket || (!ticket.active && actor.role !== UserRole.Admin)) {
+    if (!ticket || (!ticket.active && !this.canViewCancelledTicket(ticket, actor))) {
       throw new NotFoundException(`Ticket ${ticketId} was not found`);
     }
     return ticket;
@@ -48,7 +48,7 @@ export class TicketAccessService {
     actor: AuthenticatedRequestUser,
   ): Promise<TicketRecord> {
     const ticket = await this.ticketsRepository.findByCode(ticketCode);
-    if (!ticket || (!ticket.active && actor.role !== UserRole.Admin)) {
+    if (!ticket || (!ticket.active && !this.canViewCancelledTicket(ticket, actor))) {
       throw new NotFoundException(`Ticket ${ticketCode} was not found`);
     }
     return ticket;
@@ -85,5 +85,15 @@ export class TicketAccessService {
     const actorDepartmentIds = await this.getActorDepartmentIds(actor);
     this.viewTicketPolicy.assert(actor, ticket, actorDepartmentIds);
     return ticket;
+  }
+
+  private canViewCancelledTicket(
+    ticket: TicketRecord,
+    actor: AuthenticatedRequestUser,
+  ): boolean {
+    return (
+      actor.role === UserRole.Admin ||
+      ticket.submittedBy === actor.userId
+    );
   }
 }

@@ -1671,6 +1671,11 @@ h3 {
   color: #996020;
   background: var(--peach);
 }
+.status-cancelled {
+  border-color: #d8dee9;
+  color: #5f6b82;
+  background: #eef1f6;
+}
 
 .soft-rule {
   height: 1px;

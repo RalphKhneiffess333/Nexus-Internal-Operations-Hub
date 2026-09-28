@@ -77,7 +77,7 @@ export function TicketDetailsWorkspace({
           />
         )}
 
-        {canWork ? <HandoffPanel ticket={ticket} onTicketChanged={onTicketChanged} /> : null}
+        {canWork && ticket.active ? <HandoffPanel ticket={ticket} onTicketChanged={onTicketChanged} /> : null}
         {ticket.active === false ? <p className="muted ticket-inactive-note">This ticket can no longer be edited or cancelled.</p> : null}
       </div>
 

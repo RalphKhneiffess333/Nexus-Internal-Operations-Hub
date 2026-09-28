@@ -7,10 +7,12 @@ const LABELS = {
   [TicketStatus.REOPENED]: 'Reopened',
 }
 
-export function TicketStatusBadge({ status }) {
+export function TicketStatusBadge({ status, active = true }) {
+  const displayStatus = active === false ? 'CANCELLED' : status
+
   return (
-    <span className={`status-badge status-${status?.toLowerCase()}`}>
-      {LABELS[status] ?? status}
+    <span className={`status-badge status-${displayStatus?.toLowerCase()}`}>
+      {displayStatus === 'CANCELLED' ? 'Cancelled' : LABELS[status] ?? status}
     </span>
   )
 }
