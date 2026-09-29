@@ -24,6 +24,15 @@ export class HealthController {
     @Headers('authorization') authorization: string | undefined,
     @Res({ passthrough: true }) response: Response,
   ) {
+    if (!this.healthService.isConfigured()) {
+      response.status(503);
+      return {
+        statusCode: 503,
+        message:
+          'Health check endpoint is disabled because HEALTH_CHECK_SECRET is not configured',
+      };
+    }
+
     if (!this.healthService.isAuthorized(authorization)) {
       throw new UnauthorizedException('Invalid health check credentials');
     }

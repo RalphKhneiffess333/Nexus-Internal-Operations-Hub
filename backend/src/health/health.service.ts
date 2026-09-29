@@ -26,6 +26,12 @@ export class HealthService {
     private readonly emailProvider: NodemailerEmailProvider,
   ) {}
 
+  isConfigured(): boolean {
+    return Boolean(
+      this.config.get<string>('HEALTH_CHECK_SECRET')?.trim(),
+    );
+  }
+
   isAuthorized(authorization: string | undefined): boolean {
     const expectedSecret = this.config
       .get<string>('HEALTH_CHECK_SECRET')
