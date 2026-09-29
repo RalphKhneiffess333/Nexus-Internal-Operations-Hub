@@ -25,7 +25,6 @@ export const auditActions = [
   'PRIORITY_MODIFICATION',
   'PRIORITY_DELETION',
   'PRIORITY_REACTIVATION',
-  'SYSTEM_VARIABLE_MODIFICATION',
 ] as const;
 
 export class AuditQueryDto {

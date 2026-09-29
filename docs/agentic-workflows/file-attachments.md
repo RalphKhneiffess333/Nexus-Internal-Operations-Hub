@@ -593,7 +593,7 @@ If the repository or documentation already defines exact limits or allowed types
 
 If no exact numeric size limit or exhaustive MIME allowlist is defined in the authoritative documentation, do NOT pretend one was specified.
 
-Choose a conservative implementation default only where technically necessary, centralize/configure it, and clearly report that default in the final implementation report so it can later become system configuration.
+Choose a conservative implementation default only where technically necessary, centralize/configure it, and clearly report that default in the final implementation report so it can later be reviewed as an application setting.
 
 Do not introduce heavyweight antivirus infrastructure because that is outside this task.
 

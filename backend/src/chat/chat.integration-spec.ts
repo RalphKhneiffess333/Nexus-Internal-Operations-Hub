@@ -1,9 +1,11 @@
 import { ForbiddenException, BadRequestException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { ConfigModule } from '@nestjs/config';
 import { EventEmitter2, EventEmitterModule } from '@nestjs/event-emitter';
 import { TicketStatus } from '@prisma/client';
 import { ChatModule } from './chat.module';
 import { ChatService } from './chat.service';
+import { validateEnvironment } from '../config/environment.validation';
 import { DatabaseModule } from '../database/database.module';
 import { PrismaService } from '../database/prisma.service';
 import { TicketsModule } from '../tickets/tickets.module';
@@ -351,7 +353,13 @@ describe('Chat integration', () => {
 
   async function createModule() {
     const result = await Test.createTestingModule({
-      imports: [EventEmitterModule.forRoot(), DatabaseModule, TicketsModule, ChatModule],
+      imports: [
+        ConfigModule.forRoot({ isGlobal: true, validate: validateEnvironment }),
+        EventEmitterModule.forRoot(),
+        DatabaseModule,
+        TicketsModule,
+        ChatModule,
+      ],
     }).compile();
     const database = result.get(PrismaService);
     await database.$connect();

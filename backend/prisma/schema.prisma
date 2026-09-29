@@ -51,7 +51,6 @@ enum AuditAction {
   PRIORITY_MODIFICATION
   PRIORITY_DELETION
   PRIORITY_REACTIVATION
-  SYSTEM_VARIABLE_MODIFICATION
 }
 
 model IdentityProvider {
@@ -270,17 +269,6 @@ model Attachment {
   @@index([eventId])
   @@index([messageId])
   @@map("attachments")
-}
-
-model SystemConfiguration {
-  configurationId String   @id @map("configuration_id")
-  key             String   @unique
-  value           String
-  description     String
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
-
-  @@map("system_configurations")
 }
 
 model AuditLog {

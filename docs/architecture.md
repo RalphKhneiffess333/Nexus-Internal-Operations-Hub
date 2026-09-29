@@ -41,7 +41,7 @@ While designing Nexus's system, 3 main types of architectures were considered:
 Since Nexus is intended for mid sized companies, it doesn't require the complexity of a microservices architecture for out current requirements, therefore, a monolith architecture is more suited here. Since the app is divided into multiple functions (Users, tickets, Chat, etc...), a modular monolith architecture is the chosen architecture.
 
 ### Backend Architecture
-Nexus backend is divided into multiple modules, each module having its own functionality and boundaries to cover the requirements of the application.
+Nexus backend is divided into multiple modules, each module having its own functionality and boundaries to cover the requirements of the application. The modules listed below are the core domain modules; supporting modules such as dashboard, filters, health, priorities, realtime, and background workers are also included where they serve those domains.
 
 ![Module Architecture](assets/Module%20Architecture.png)
 
@@ -55,22 +55,24 @@ Nexus backend is divided into multiple modules, each module having its own funct
 Authorization is handled by: Role + Department + Resource Ownership + Resource State
 Example: An IT (Department) agent (Role) can close a ticket if he claimed it (Resource Ownership) and if the ticket has a "Claimed" status (Resource State).
 
-- Administration Module: Manages departments, configurable priorities and their reminder periods, and account linking to roles.
+- Administration Module: Manages departments, priorities and their reminder periods, account linking to roles, and the system reserved `Administration` department. Removing a user's department access reconciles affected tickets and pending handoffs transactionally.
 
 - Ticket Management Module: Core module responsible for request submission, automatic routing to department ticket pool, ticket claiming, status tracking (open, claimed, closed, reopened), modifications, deletions, closings with completion notes, reopenings, and ticket handoffs. This module enforces lifecycle validation rules for tickets, modifications and deletions for tickets are rejected if the ticket is anything other "Open".
 The authorization module provides the check for roles but not resources as resources are specific to their specialized modules.
 
 - Chat Module: Main module for ticket-specific chats between employees and agents, including managing file and message chats and locking on ticket closure. Chat viewing is authorized for the ticket submitter, all agents belonging to the ticket's department, and administrators; sending is limited to the ticket submitter and current assigned agent.
 
-- Notification Module: Responsible for sending email notifications on ticket submissions, status updates, and reminder alerts for tickets unclaimed for durations past their configured time. 
+- Notification Module: Delivers in app/realtime notifications and email notifications for ticket lifecycle, handoff, and reminder events.
 
-- Audit Module: Responsible for logging of all system actions. Audit logs must be stored for a minimum of two years. Immutability is enforced at the database level by prohibiting UPDATE and DELETE operations on the audit log table, additionally, a background worker periodically checks and deletes logs that have exceeded their 2 year timeline.
+- Audit Module: Responsible for logging system actions. Audit logs must be stored for a minimum of two years. Audit logs are immutable at the database level, the controlled audit retention worker periodically deletes only logs older than two years.
 
 - Email Provider Adapter: Provides a simple API for interacting with Email providers regardless of the specific email provider used
 
 - FileStorage Adapter: Provides a simple interface for file storing functions and file attachment handling.
 
-- AI Module: Responsible for orchestrating communication with the AI Provider and exposing tools for the AI to call. For example, the module exposes a getTicket tool that the AI can call with the specific ticket number to get info about it. Currently, the AI is limited to finding tickets by their number as advanced semantic database searches require RAG implementations which are outside the scope of Nexus.
+- AI Module: Orchestrates communication with the AI provider and exposes authorization aware tools for current submission options and one exact ticket number. It does not support ticket lists, semantic search, batch inspection, RAG, or autonomous ticket submission.
+
+- Supporting Modules: Dashboard supplies role-aware summaries; Filters supplies role-aware department, priority, participant, and status options; Health exposes liveness and protected dependency readiness; Priorities owns administrator-managed priority settings; Realtime publishes authorized Socket.IO events; Background Workers run scheduled maintenance.
 
 ![Module Connections](assets/Module%20Connections.png)
 
@@ -123,11 +125,9 @@ Nexus should properly handle Microsoft Entra ID errors:
 - Users who authenticate successfully but don't have permission to access the app should be restricted access, notified and shown a message
 
 #### Email Provider
-While deciding how emails will be sent from the Nexus backend, two options were considered:
-- Run our own mail server on our backend, this introduces almost zero costs outside of operational resources, but this introduces significant operational complexity specifically in email configurations (SMTP, TLS, etc...)
-- Use a third party email provider using an API (Sendgrid, Amazon SES, etc...), Nexus isn't expected to send more than 1000 emails/month which makes costs negligible, making this the better choice.
+Nexus uses the Nodemailer adapter with SMTP configuration. The adapter is enabled only when its SMTP settings are supplied; its provider boundary keeps ticket and handoff modules independent of transport details.
 
-Nexus should correctly handle errors related to the Email Provider API:
+Nexus handles email-provider failures as follows:
 - Network timeout or connection reset: Nexus should retry the request up to 3 times. If all attempts fail, the failure should be logged and the email should be dropped.
 - Email provider unavailable: Nexus will temporarily be unable to send email notifications. The failure should not affect the main server functions (Ticket management, chats, etc...). Failed notifications are dropped and are not persisted or resent.
 - Email rejected by provider: The provider may reject an email because of an invalid recipient address, invalid request, exceeded limits, or other ... Nexus should record the failure and should not retry requests that are known to be invalid.
@@ -186,7 +186,7 @@ When dealing with WebSockets, Nexus should:
 Email notifications should be sent asynchronously as they don't represent a major system function worth making client requests wait for.
 Enterprise grade message queues (Kafka, RabbitMQ) are not required for this company scale, these will add significant complexity and are not suited for this type of application.
 
-This is a target architecture, not current behavior. The current application has no SendGrid delivery worker or email HTTP endpoint.
+The current implementation sends email asynchronously after successful ticket and handoff operations.
 
 #### Background Processes
 Some reliability practices require background processes for managing:
@@ -194,7 +194,7 @@ Some reliability practices require background processes for managing:
 - Reminder notifications for tickets that have been unclaimed for period
 - Orphaned file cleanups
 
-The two-year audit purge, priority reminder worker, email delivery worker, and orphaned-file cleanup worker are not currently exposed as application APIs or confirmed running processes.
+Nexus starts the audit log cleanup, unclaimed-ticket reminder, and orphaned-file cleanup workers at module initialization, runs each once immediately, and then schedules it. The default intervals are 24 hours, 5 minutes, and 1 hour respectively.
 
 ### Data Flows
 #### Authentication Flow

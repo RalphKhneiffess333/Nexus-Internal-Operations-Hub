@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { AuthenticationModule } from './authentication/authentication.module';
 import { AuthorizationModule } from './authorization/authorization.module';
+import { validateEnvironment } from './config/environment.validation';
 import { DatabaseModule } from './database/database.module';
 import { DepartmentsModule } from './departments/departments.module';
 import { TicketsModule } from './tickets/tickets.module';
@@ -19,6 +21,7 @@ import { HealthModule } from './health/health.module';
 @Module({
   imports: [
     EventEmitterModule.forRoot(),
+    ConfigModule.forRoot({ isGlobal: true, validate: validateEnvironment }),
     DatabaseModule,
     UsersModule,
     AuthenticationModule,

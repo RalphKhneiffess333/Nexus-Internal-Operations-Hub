@@ -34,7 +34,6 @@ const ACTIVITY_LABELS = {
   DEPARTMENT_DELETION: "Department deactivated",
   DEPARTMENT_REACTIVATION: "Department reactivated",
   DEPARTMENT_MAPPING: "Department membership changed",
-  SYSTEM_VARIABLE_MODIFICATION: "Configuration updated",
 };
 
 function firstName(fullName) {

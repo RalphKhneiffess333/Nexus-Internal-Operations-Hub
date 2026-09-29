@@ -136,6 +136,26 @@ describe('Ticket events integration', () => {
     expect(events.every((event) => Boolean(event.ticketEventId))).toBe(true);
   });
 
+  it('rejects ticket-event updates and deletes at the database level', async () => {
+    const submitted = await submitOpenTicket(service);
+    const event = await prisma.ticketEvent.findFirstOrThrow({
+      where: { ticketId: submitted.ticketId },
+    });
+
+    await expect(
+      prisma.ticketEvent.update({
+        where: { ticketEventId: event.ticketEventId },
+        data: { action: TicketEventAction.CLAIM },
+      }),
+    ).rejects.toThrow('ticket events are immutable');
+
+    await expect(
+      prisma.ticketEvent.delete({
+        where: { ticketEventId: event.ticketEventId },
+      }),
+    ).rejects.toThrow('ticket events are immutable');
+  });
+
   it('stores submission, close, and reopen attachments on their events', async () => {
     const upload = (name: string, contents: string): UploadedFileInput => ({
       originalname: name,

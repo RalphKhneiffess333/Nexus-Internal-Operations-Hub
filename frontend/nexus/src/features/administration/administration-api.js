@@ -67,17 +67,6 @@ export function reactivateAdminDepartment(departmentId) {
   })
 }
 
-export function getAdminConfigurations() {
-  return apiRequest('/admin/configurations')
-}
-
-export function updateAdminConfiguration(key, value) {
-  return apiRequest(`/admin/configurations/${key}`, {
-    method: 'PATCH',
-    body: { value },
-  })
-}
-
 export function getAdminActivity(params = {}, requestOptions = {}) {
   const query = new URLSearchParams()
   Object.entries(params).forEach(([key, value]) => {

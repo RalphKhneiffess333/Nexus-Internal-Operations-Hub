@@ -153,7 +153,7 @@ Example:
 The assistant should:
 
 1. Understand the user's problem.
-2. Retrieve current Nexus configuration when necessary.
+2. Retrieve current departments and priorities when necessary.
 3. Determine the most appropriate available department.
 4. Determine an appropriate available priority.
 5. Give the user useful preliminary guidance when appropriate.
@@ -165,7 +165,7 @@ The assistant should:
 
 The assistant must provide useful guidance before offering a form. It must ask for confirmation before returning a `PREFILL_TICKET` action; an issue description or a request for help is not permission to prefill the form.
 
-Departments and priorities are dynamic Nexus configuration.
+Departments and priorities are dynamic Nexus records.
 
 DO NOT hardcode values such as:
 

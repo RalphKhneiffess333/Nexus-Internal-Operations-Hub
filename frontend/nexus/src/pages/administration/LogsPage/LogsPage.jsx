@@ -28,7 +28,6 @@ const auditActions = [
   ['DEPARTMENT_MODIFICATION', 'Department modification'],
   ['DEPARTMENT_DELETION', 'Department deletion'],
   ['DEPARTMENT_MAPPING', 'Department mapping'],
-  ['SYSTEM_VARIABLE_MODIFICATION', 'Configuration modification'],
 ]
 
 const ticketActions = [

@@ -16,15 +16,12 @@ import {
 import {
   CreateDepartmentDto,
   PageQueryDto,
-  UpdateConfigurationDto,
   UpdateDepartmentDto,
 } from './dto/admin.dto';
 import { CreatePriorityDto, UpdatePriorityDto } from './dto/priority.dto';
 import { PrioritiesRepository } from '../priorities/priorities.repository';
 import { filterOptionsChangedEvent } from '../filters/filter-options-events';
 import { RealtimeInternalEvent } from '../realtime/realtime-events';
-
-const supportedConfiguration = new Map<string, string>();
 
 @Injectable()
 export class AdministrationService {
@@ -197,20 +194,6 @@ export class AdministrationService {
     };
   }
 
-  async listConfigurations() {
-    const configurations = await this.administrationRepository.listConfigurations(
-      [...supportedConfiguration.keys()],
-    );
-    return configurations.map((configuration) => ({
-      configurationId: configuration.configurationId,
-      key: configuration.key,
-      value: configuration.value,
-      description: configuration.description,
-      createdAt: configuration.createdAt,
-      updatedAt: configuration.updatedAt,
-    }));
-  }
-
   listPriorities() {
     return this.prioritiesRepository.list(false);
   }
@@ -316,46 +299,6 @@ export class AdministrationService {
     });
     this.publishFilterOptionsChanged(actor.userId);
     return result;
-  }
-
-  async updateConfiguration(
-    key: string,
-    dto: UpdateConfigurationDto,
-    actor: AuthenticatedRequestUser,
-  ) {
-    if (!supportedConfiguration.has(key))
-      throw new NotFoundException('Configuration key was not found');
-    if (!/^\d+$/.test(dto.value) || Number(dto.value) < 0)
-      throw new BadRequestException(
-        'Configuration value must be a non-negative integer',
-      );
-    return this.administrationRepository.transaction(async (tx) => {
-      const current = await this.administrationRepository.findConfiguration(
-        key,
-        tx,
-      );
-      if (!current)
-        throw new NotFoundException('Configuration key was not found');
-      const updated = await this.administrationRepository.updateConfiguration(
-        key,
-        dto.value,
-        tx,
-      );
-      await this.auditService.append(
-        tx,
-        actor.userId,
-        AuditAction.SYSTEM_VARIABLE_MODIFICATION,
-        { key, oldValue: current.value, newValue: updated.value },
-      );
-      return {
-        configurationId: updated.configurationId,
-        key: updated.key,
-        value: updated.value,
-        description: updated.description,
-        createdAt: updated.createdAt,
-        updatedAt: updated.updatedAt,
-      };
-    });
   }
 
   private toMemberResponse(user: {

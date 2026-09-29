@@ -10,7 +10,6 @@ import {
   IsString,
   Length,
   Max,
-  Matches,
   MaxLength,
   Min,
 } from 'class-validator';
@@ -139,15 +138,6 @@ export class UpdateDepartmentDto {
   description?: string;
 }
 
-export class UpdateConfigurationDto {
-  @IsString()
-  @Transform(trimString)
-  @IsNotEmpty()
-  @Length(1, 100)
-  @Matches(/^\d+$/)
-  value!: string;
-}
-
 export class AuditQueryDto extends PageQueryDto {
   @IsOptional()
   @IsEnum([
@@ -164,7 +154,6 @@ export class AuditQueryDto extends PageQueryDto {
     'PRIORITY_MODIFICATION',
     'PRIORITY_DELETION',
     'PRIORITY_REACTIVATION',
-    'SYSTEM_VARIABLE_MODIFICATION',
   ] as const)
   action?: string;
 

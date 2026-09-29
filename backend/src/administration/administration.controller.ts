@@ -17,7 +17,6 @@ import { AdministrationService } from './administration.service';
 import {
   CreateDepartmentDto,
   PageQueryDto,
-  UpdateConfigurationDto,
   UpdateDepartmentDto,
 } from './dto/admin.dto';
 import { CreatePriorityDto, UpdatePriorityDto } from './dto/priority.dto';
@@ -95,14 +94,4 @@ export class AdministrationController {
     return this.administrationService.listMembersPage(id, query);
   }
 
-  @Get('configurations') listConfigurations() {
-    return this.administrationService.listConfigurations();
-  }
-  @Patch('configurations/:key') updateConfiguration(
-    @Param('key', IdentifierValidationPipe) key: string,
-    @Body() dto: UpdateConfigurationDto,
-    @Req() req: AuthenticatedRequest,
-  ) {
-    return this.administrationService.updateConfiguration(key, dto, req.user!);
-  }
 }

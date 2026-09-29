@@ -45,6 +45,10 @@ test('signing out clears the protected URL before another user signs in', async 
   await page.goto('/tickets/user-one-ticket');
 
   await page.getByRole('button', { name: 'Sign out' }).click();
+  await page
+    .getByRole('alertdialog')
+    .getByRole('button', { name: 'This device' })
+    .click();
 
   await expect(page).toHaveURL('/');
   await expect(

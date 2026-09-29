@@ -114,7 +114,7 @@ Handoff list responses use reduced requester/requested-agent references. Mutatio
 | GET | `/chats?search=&page=&pageSize=` | Employee, Agent, Admin | Paginated conversation inbox |
 | POST | `/chats/:ticketId/read` | Employee, Agent, Admin | Marks the conversation read; empty success response |
 | GET | `/tickets/:ticketId/chat/messages?page=&pageSize=` | Employee, Agent, Admin | Paginated chronological message history |
-| POST | `/tickets/:ticketId/chat/messages` | Employee, Agent, Admin | JSON or multipart `content` plus optional `files`; sender is derived from the session |
+| POST | `/tickets/:ticketId/chat/messages` | Employee, Agent, Admin | JSON or multipart `content`, optional `files`, and optional `clientMessageId`; sender is derived from the session. Reusing a client message ID for the same ticket and sender is idempotent. |
 | GET | `/tickets/:ticketId/chat/messages/:messageId/attachments/:attachmentId` | Employee, Agent, Admin | Authorized streamed file download |
 
 Inbox search matches ticket code, ticket title, latest message content, and latest message sender name. A message must contain text or at least one attachment.
@@ -142,8 +142,6 @@ All routes below require the `Admin` role.
 | PATCH | `/admin/priorities/:priorityId` | Optional `name`, `reminderIntervalMinutes` |
 | DELETE | `/admin/priorities/:priorityId` | Deactivates the priority |
 | POST | `/admin/priorities/:priorityId/reactivate` | Reactivates the priority |
-| GET | `/admin/configurations` | Supported configuration entries |
-| PATCH | `/admin/configurations/:key` | `{ value }` |
 | GET | `/admin/audit-logs/activity?page=&pageSize=&source=&auditAction=&ticketAction=` | Paginated combined activity feed |
 | GET | `/admin/audit-logs/:auditLogId` | One audit log with details |
 
@@ -155,6 +153,9 @@ There are intentionally no admin audit-log update or delete routes. There are al
 |---|---|---|---|
 | GET | `/users/:userId` | Employee, Agent, Admin | Safe user profile response |
 | GET | `/dashboard/summary` | Employee, Agent, Admin | Dashboard summary for the authenticated user |
+| GET | `/filters` | Employee, Agent, Admin | Role-aware departments, the actor's departments, priorities, ticket and handoff statuses, and participants for filtering forms |
+| GET | `/health/ping` | Public | Liveness response: `{ status: "ok" }` |
+| GET | `/health` | Bearer `HEALTH_CHECK_SECRET` | Dependency readiness report; returns `503` when unhealthy |
 
 ## AI assistant
 
@@ -162,7 +163,7 @@ There are intentionally no admin audit-log update or delete routes. There are al
 |---|---|---|---|
 | POST | `/ai/messages` | Employee, Agent, Admin | `{ message, conversationId? }`; returns an assistant message, optional `PREFILL_TICKET` action, and a server-issued `conversationId` |
 
-The current AI scope is general request assistance. It provides guidance first and asks for confirmation before optionally prefilling the submission form with current department and priority configuration. It does not inspect or search tickets and never submits a ticket automatically.
+The AI provides general request assistance, current submission options, optional submission-form prefilling, and authorization-aware lookup of one exact ticket number. It does not list, search, semantically retrieve, or batch-inspect tickets, and it never submits a ticket automatically.
 
 ## Socket.io API
 
@@ -175,7 +176,7 @@ Client events:
 
 Room acknowledgements are `{ ok: true }` or `{ ok: false, code }`, where the error codes include `UNAUTHORIZED`, `INVALID_TICKET`, and `TICKET_UNAVAILABLE`.
 
-Server events include `operations.connected`, `operations.error`, `ticket.updated`, `ticket.event.created`, `chat.message.created`, and `app.notification`.
+Server events include `operations.connected`, `operations.error`, `ticket.updated`, `ticket.event.created`, `chat.message.created`, `filters.options.updated`, and `app.notification`.
 
 Ticket and chat events use an envelope containing `eventId`, `occurredAt`, `version`, `ticketId`, `actorId`, and `payload`. Application notifications use a separate envelope with recipient user IDs and notification payload data.
 
@@ -189,4 +190,4 @@ The following documented or conceptual interfaces are not implemented as standal
 - `GET /files/:fileId` and `GET /attachments/:attachmentId/file`; downloads are resource-scoped nested routes.
 - A generic admin audit-log collection endpoint at `/admin/audit-logs`.
 - Date-range or actor filters on the combined administration activity endpoint.
-- An email-provider HTTP API or reminder-worker endpoint.
+- An email-provider HTTP API or endpoint for manually controlling internal scheduled workers.

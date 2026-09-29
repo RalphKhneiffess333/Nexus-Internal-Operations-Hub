@@ -20,10 +20,7 @@ Regarding Nexus operations, some major data objects were involved:
 
 ## Detailed Database Tables
 This section discusses the detailed attributes and required tables for each entity.
-Each table requires a unique ID and timestamp tracking (`created_at` and
-`updated_at`) attributes. `updated_at` is automatically refreshed whenever a
-record changes; append-only audit records still carry the field for consistent
-table shape, although normal updates are prohibited.
+
 ### User Related Tables
 #### Users Table
 The main user entity table our app will use to manage users and permissions, every user has:
@@ -45,10 +42,14 @@ Stores all info related to individual departments, every department has:
 - A code, a name and a description
 - A signal that indicates if a department is active or not
 
+`Administration` is a system department. It cannot be renamed, deactivated, or managed as an ordinary department, and it provides the target department for requests directed to administrators. Only administrators may belong to it, and administrators must retain that membership.
+
 #### Department Members Table
 Maps user accounts to departments, every mapping has:
 - A user account
 - A department
+
+Removing an agent's department membership is transactional: pending handoffs in that department are cancelled and each active ticket claimed by that agent in that department is closed, unassigned, and given the documented removal completion note and ticket event.
 
 ### Priority Related Tables
 #### Priorities Table
@@ -95,11 +96,20 @@ Every event has:
 - An action type (opened, closed, reopened, claimed, ...)
 - Event details (Specific field structure to each action type)
 
+Ticket events are append only. A database trigger rejects `UPDATE` and `DELETE` operations.
+
 ### Chat Table
 This table stores the exchanged chat messages between employees and agents, every chat message has:
 - The ticket its thread belongs in
 - A sender
-- The chat message content, stored as plain text after HTML/content sanitization
+- Optional chat message content, stored as plain text. Content may be empty only when the message has attachments.
+- An optional client message ID. The `(ticket_id, sender_id, client_message_id)` unique key makes retries from the same client idempotent.
+
+#### Chat Read Receipts Table
+Stores the current read position for one user in one ticket chat. Each receipt
+uses the composite primary key `(ticket_id, user_id)` and contains `last_read_at`
+and `updated_at`. `POST /chats/:ticketId/read` upserts this state; it is not a
+history of every individual read event.
 
 ### File Attachments Related Tables
 #### Files table
@@ -126,13 +136,6 @@ every log has:
 
 The audit retention worker is the only supported deletion path. Database enforcement rejects updates and rejects deletes unless the record is older than two years and the controlled cleanup transaction has enabled the retention-cleanup database setting.
 
-#### System Configurations
-Stores other key-value pairs used by system operations. Priority names and
-reminder intervals are stored in the Priorities table rather than as system
-configuration keys. Every pair has:
-- A key
-- A value
-- A description
 ## Relationships & Cardinalities
 | Relationship | Cardinality | Description |
 | -------- | :--------: | :--------: |
@@ -147,20 +150,20 @@ configuration keys. Every pair has:
 | Ticket - Ticket Event | 1 : N | A ticket can have many events in its history but each ticket event belongs to one ticket|
 | Ticket - Chat Message | 1 : N | A ticket can have many chat messages but each chat message belongs to only one ticket|
 | User - Chat Message | 1 : N | One user can send many chat messages but each chat message belongs to only one user|
-| File - Attachment | 1 : 1 | A file can be attached to one attachment and an attachment references only one file|
+| Ticket - Chat Read Receipt | 1 : N | A ticket can have one current read receipt per participating user|
+| User - Chat Read Receipt | 1 : N | A user can have one current read receipt per ticket|
+| File - Attachment | 1 : 0..1 | An attachment references exactly one file; a file can temporarily have no attachment while upload compensation or orphan cleanup is in progress|
 | Chat Message - Attachment | 1 : N | A chat message can have multiple attachments but each attachment belongs to only one chat message|
 | Ticket Event - Attachment | 1 : N | A ticket event can have multiple attachments but an attachment belongs to only one ticket event|
 
 ## Database Schema
 ![Database Schema Diagram](./assets/Database%20Schema.png)
 
-NOTE: Every table additionally has:
-`created_at`: NOT NULL, DEFAULT CURRENT_TIMESTAMP
-`updated_at`: NOT NULL, DEFAULT CURRENT_TIMESTAMP, refreshed on update by the
-application/ORM timestamp rule. This includes Identity Providers, Users,
-Departments, Department Members, Priorities, Tickets, Ticket Events, Chat
-Messages, Chat Read Receipts, Handoff Requests, Files, Attachments, System
-Configurations, and Audit Logs.
+NOTE: Identity Providers, Users, Departments, Department Members, Priorities,
+Tickets, Ticket Events, Chat Messages, Handoff Requests, Files, Attachments,
+and Audit Logs have `created_at` and ORM-managed `updated_at`. Chat Read
+Receipts use their composite key plus `last_read_at` and `updated_at`, with no
+`created_at` column.
 
 ## Log Details
 This section focuses on the different log events for both Audit Log and Ticket Events table along with their corresponding detail JSON structure.
@@ -228,6 +231,10 @@ The following are system and user log types stored in the "actions" attribute of
 - System admin (linked to users Table)
 - Department (linked to Departments Table)
 
+#### DEPARTMENT_REACTIVATION
+- System admin (linked to Users table)
+- Department and its active state transition
+
 #### DEPARTMENT_MAPPING
 - System admin (linked to Users Table)
 - Employee (linked to Users Table)
@@ -239,18 +246,14 @@ The following are system and user log types stored in the "actions" attribute of
 - Employee (linked to Users Table)
 - New role (Employee, Agent, Admin)
 
-#### SYSTEM_VARIABLE_MODIFICATION
-- Key
-- Old Value
-- New Value
+#### USER_PREPROVISIONING / USER_ACTIVATION / USER_DEACTIVATION
+- System admin (linked to Users table)
+- Affected user and the relevant account state transition
 
 #### PRIORITY_ADDITION / PRIORITY_MODIFICATION / PRIORITY_DELETION / PRIORITY_REACTIVATION
 - Priority ID and code
 - Priority name and reminder interval when applicable
 - Previous and resulting active state when applicable
-
-#### SYSTEM_LOG
-- Message
 
 ## Invariants
 ### Ticket Invariants
@@ -288,7 +291,6 @@ The following are system and user log types stored in the "actions" attribute of
 ### System Invariants
 - Audit logs and Ticket Event logs cannot be modified or deleted
 - Audit logs must remain available for two years
-- System configuration variables cannot have two duplicate keys
 - Priority codes cannot be duplicated
 - Priority reminder intervals must not be negative
 - A ticket in OPEN or REOPENED status without an agent has an `unclaimed_since` timestamp. It has no unclaimed timestamp while CLAIMED, CLOSED, or inactive.
@@ -329,18 +331,27 @@ Outside of primary keys which are automatically indexed, we have several other i
 | Tickets   | submitter_id  |  Used for optimizing ticket search queries to get all tickets owned by a user  |
 | Tickets   | department_id  |  Used for optimizing department specific ticket search queries  |
 | Tickets   | agent_id  |  Used for optimizing ticket search queries to get all tickets claimed by an agent  |
-| Priorities | active |  Optimizes loading selectable active priorities and reminder configuration |
+| Department_Members | department_id | Optimizes member and department-access queries |
+| Priorities | active | Optimizes loading selectable active priorities and reminder settings |
+| Tickets | status | Optimizes status-based ticket filtering |
 | Tickets   | (department_id, status, created_at)  |  Used for optimizing ticket pool search queries for specific departments in order |
+| Tickets | (status, agent_id, unclaimed_since) | Optimizes unclaimed-ticket reminder candidate lookup |
 | Ticket_Events   | (ticket_id, created_at)  |  Optimizes ticket history timeline queries |
 | Ticket_Events   | (created_at)  |  Optimizes queries to find all ticket events in chronological order |
 | Chat_Messages   | (ticket_id, created_at)  |  Optimizes chat history queries so that they are sorted by timestamp |
+| Chat_Messages | sender_id | Optimizes sender-specific message access |
+| Chat_Messages | UNIQUE (ticket_id, sender_id, client_message_id) | Makes client message retries idempotent per sender and ticket |
+| Chat_Read_Receipts | PRIMARY KEY (ticket_id, user_id) | Stores one current read position per user and ticket |
+| Chat_Read_Receipts | (user_id, last_read_at) | Optimizes inbox/read-state lookup |
 | Handoff_Requests   | (ticket_id, status)  |  Optimizes handoff requests state lookup queries|
 | Handoff_Requests   | (requested_id, status)  |  Optimizes handoff requests queries to get all pending requests of a requested agent|
 | Handoff_Requests   | (requester_id, status)  |  Optimizes handoff requests queries to get all pending requests of a requester agent|
 | Files   | uploaded_by  |  Optimizes authorization queries to find all uploaded files by a user |
 | Attachments   | message_id  |  Optimizes queries to get files attached to a message|
 | Attachments   | event_id  |  Optimizes queries to get files attached to a ticket submission or closing event|
-| Audit_logs   | created_at  |  Optimizes queries to get all audit logs in chronological order|
+| Audit_logs | created_at | Optimizes chronological audit queries |
+| Audit_logs | (action, created_at) | Optimizes audit-action filtering |
+| Audit_logs | (actor_id, created_at) | Optimizes actor-specific audit filtering |
 
 ### Transactions
 

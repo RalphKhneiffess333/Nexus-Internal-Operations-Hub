@@ -1,7 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigModule } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { UserRole } from '@prisma/client';
 import type { AuthenticatedRequestUser } from '../authentication/request-user';
+import { validateEnvironment } from '../config/environment.validation';
 import { DatabaseModule } from '../database/database.module';
 import { PrismaService } from '../database/prisma.service';
 import {
@@ -36,7 +38,12 @@ export {
 
 export async function createTicketsTestingModule(): Promise<TestingModule> {
   const moduleRef = await Test.createTestingModule({
-    imports: [EventEmitterModule.forRoot(), DatabaseModule, TicketsModule],
+    imports: [
+      ConfigModule.forRoot({ isGlobal: true, validate: validateEnvironment }),
+      EventEmitterModule.forRoot(),
+      DatabaseModule,
+      TicketsModule,
+    ],
   }).compile();
 
   const prisma = moduleRef.get(PrismaService);
