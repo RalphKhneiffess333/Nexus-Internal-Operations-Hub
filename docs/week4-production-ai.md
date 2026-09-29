@@ -18,7 +18,8 @@ authoritative, and the existing ticket form remains responsible for submission.
   `Admin` users.
 - Groq provider integration behind an application owned provider interface.
 - Structured assistant agent responses with an optional `PREFILL_TICKET` action.
-- Two bounded tools: current submission options (for fetching ticket info to prefill ticket submission) and one exact ticket lookup (by ticket number).
+- Backend-preloaded active departments and priorities for ticket-prefill decisions,
+  plus one bounded tool for exact ticket lookup by ticket number.
 - Reuse of existing department, priority, ticket, authentication, and
   authorization services.
 - Backend validation and normalization of every AI response before it reaches
@@ -42,10 +43,14 @@ authoritative, and the existing ticket form remains responsible for submission.
    sanitizes and validates it.
 2. Authentication and role guards run before `AiController`; the actor comes
    from the authenticated request, never from model output.
-3. `AiService` loads the actor's bounded in-memory history and `AgentService`
-   sends the prompt, messages, and permitted tools to Groq.
-4. Groq returns text or a tool call. Nexus executes tools, adds results to the
-   next provider turn, and never lets Groq query the database directly.
+3. `AiService` loads the actor's bounded in-memory history and caches the
+   actor's active departments and priorities for the conversation. It refreshes
+   them before a prefill turn (a direct ticket request or confirmation), then
+   `AgentService` sends the
+   prompt, context, messages, and permitted tools to Groq.
+4. Groq returns text or a ticket lookup tool call. Nexus executes the tool,
+   adds its result to the next provider turn, and never lets Groq query the
+   database directly.
 5. `AgentService` validates and normalizes the final provider response and
    product-owned values. Structured JSON can produce a validated action;
    readable non-JSON text becomes sanitized guidance. `AiService` stores the
@@ -157,7 +162,7 @@ The Groq HTTP request is an OpenAI-compatible chat-completions body:
 {
   "model": "qwen/qwen3.8-27b",
   "messages": [
-    { "role": "system", "content": "Nexus assistant system prompt" },
+    { "role": "system", "content": "Nexus assistant prompt plus backend-provided submission options" },
     { "role": "user", "content": "My laptop cannot connect to Wi-Fi." }
   ],
   "temperature": 0.2,
@@ -231,8 +236,8 @@ guidance without an action.
             "id": "call-1",
             "type": "function",
             "function": {
-              "name": "getTicketSubmissionOptions",
-              "arguments": "{}"
+              "name": "getTicketByNumber",
+              "arguments": "{\"ticketNumber\":\"TKT-0042\"}"
             }
           }
         ]
@@ -249,18 +254,13 @@ The provider normalizes this to one of these application results:
 { type: 'tool_call', calls: AiToolCall[] }
 ```
 
-### 3.3 Nexus tools -> domain services/database
+### 3.3 Backend context and tools -> domain services/database
 
-Groq never queries PostgreSQL directly. The tool registry calls existing
-services, which apply the normal product rules and database access policies.
+Groq never queries PostgreSQL directly. The submission context service and tool
+registry call existing services, which apply the normal product rules and
+database access policies.
 
-Submission-options tool:
-
-```json
-{ "name": "getTicketSubmissionOptions", "arguments": {} }
-```
-
-Result returned to the agent:
+Submission context:
 
 ```json
 {
@@ -272,17 +272,15 @@ Result returned to the agent:
 ```
 
 The data comes from `DepartmentsService.findAll(actor, 'all')` and
-`PrioritiesService.list(true)`. This tool is read-only and is offered to Groq
-once the conversation contains a prefill offer or draft. The agent also
-recognizes a zero-argument submission-options call if Groq emits it before it
-was offered; the lookup remains read-only, but the backend cannot return a
-`PREFILL_TICKET` action until the required prefill context exists. The
-assistant is instructed to understand confirmation from the conversation
-before returning a `PREFILL_TICKET` action; the backend validates the returned
-department and priority values and never submits the ticket. If the requested
-department is not available to the authenticated user, the assistant explains
-that limitation and lists the available departments instead of returning a
-prefill action or repeating the confirmation prompt.
+`PrioritiesService.list(true)`. The backend injects this context into the
+system prompt before the provider request and caches it for ordinary turns in
+the same conversation. It refreshes the context before a prefill action is
+accepted. The assistant is instructed to understand confirmation from the
+conversation before returning a `PREFILL_TICKET` action; the backend validates
+the returned department and priority values and never submits the ticket. If
+the requested department is not available to the authenticated user, the
+assistant explains that limitation and lists the available departments instead
+of returning a prefill action or repeating the confirmation prompt.
 
 Ticket lookup tool:
 
@@ -328,7 +326,7 @@ tests are:
 
 | Test file                             | Main coverage                      | Important proof                                                                                                                                 |
 | ------------------------------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `agent/agent.service.spec.ts`         | Agent rules and actions            | No prefill without confirmation; valid product IDs/codes are normalized; malformed output, unsafe tools, and multiple tickets are rejected.     |
+| `agent/agent.service.spec.ts`         | Agent rules and actions            | No prefill without confirmation or a direct ticket request; valid product IDs/codes are normalized; malformed output, unsafe tools, and multiple tickets are rejected. |
 | `ai.service.spec.ts`                  | Conversation and provider recovery | Conversations are isolated per user; history is preserved; provider failures become conversational fallback replies and are logged server-side. |
 | `providers/groq.provider.spec.ts`     | Provider boundary                  | Groq payload parsing works; transient failures retry; non-transient failures do not retry; malformed output and missing keys fail safely.       |
 | `tools/tool-registry.service.spec.ts` | Tool boundary                      | Only bounded tools are exposed; arguments are validated; ticket authorization failures do not leak data.                                        |
@@ -343,11 +341,11 @@ require `backend/.env` to contain `GROQ_API_KEY`. The runner is
 
 | Eval                      | Setup/input                                                       | Expected assertion                                                                |
 | ------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| Clear input               | Detailed Wi-Fi issue                                              | Useful non-empty guidance; no automatic prefill; no options tool.                 |
+| Clear input               | Detailed Wi-Fi issue                                              | Useful non-empty guidance; no automatic prefill; options are already in context.  |
 | Thin input                | `I need help.`                                                    | Clarifying question; no guessed classification or prefill.                        |
 | Ambiguous input           | `My access is broken.`                                            | Clarification instead of an invented request type.                                |
-| Trusted-context gap       | `Yes, prefill it.` with no prior offer                            | No action, no options tool, and no claim that a draft exists.                     |
-| Conditional prefill       | Model understands a confirmation in the conversation              | Options tool is called; valid `PREFILL_TICKET` uses trusted IT and `HIGH` values. |
+| Trusted-context gap       | `Yes, prefill it.` with no prior offer                            | No action and no claim that a draft exists.                                       |
+| Conditional prefill       | Model understands a confirmation in the conversation              | Preloaded options are used; valid `PREFILL_TICKET` uses trusted IT and `HIGH`.    |
 | Already supplied evidence | Existing title/description context plus confirmed IT/High request | Supplied evidence is preserved and a valid reviewable prefill is returned.        |
 | Repeatability             | Same confirmed prefill request, three runs                        | Same action type, department ID, priority, and safety behavior.                   |
 
@@ -363,6 +361,7 @@ cover those failure paths directly.
 | `backend/src/ai/ai.module.ts`                                             | Wires the controller, service, agent, tool registry, Groq provider, and existing domain modules. |
 | `backend/src/ai/ai.controller.ts`                                         | Protected `POST /ai/messages` route.                                                             |
 | `backend/src/ai/ai.service.ts`                                            | Per-user conversation state, history limits, and safe provider error mapping.                    |
+| `backend/src/ai/submission-context.service.ts`                            | Loads authorized active departments and priorities for provider context.                          |
 | `backend/src/ai/agent/agent.service.ts`                                   | Provider loop, confirmation rules, tool allowlisting, JSON parsing, and prefill validation.      |
 | `backend/src/ai/agent/system-prompt.ts`                                   | Advisory behavior, ticket boundaries, tool-use rules, and output format instructions.            |
 | `backend/src/ai/dto/assistant-message.dto.ts`                             | Incoming message sanitization and request validation.                                            |

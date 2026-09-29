@@ -9,11 +9,10 @@ import {
   type AssistantTurn,
 } from './agent/agent.service';
 import {
-  GET_TICKET_SUBMISSION_OPTIONS,
-  type TicketSubmissionOptions,
   type ToolDefinitionOptions,
   ToolRegistryService,
 } from './tools/tool-registry.service';
+import type { TicketSubmissionOptions } from './submission-context.service';
 import { GroqProvider } from './providers/groq.provider';
 import {
   type AiToolDefinition,
@@ -63,50 +62,20 @@ type EvalCase = {
 
 type EvalRun = {
   response: AssistantResponse;
-  tools: EvalToolRegistry;
 };
 
 class EvalToolRegistry {
   readonly definitionCalls: ToolDefinitionOptions[] = [];
-  readonly executionCalls: Array<{
-    name: string;
-    args: Record<string, unknown>;
-  }> = [];
 
   definitions(options: ToolDefinitionOptions = {}): AiToolDefinition[] {
     this.definitionCalls.push({ ...options });
-    const definitions: AiToolDefinition[] = [];
-
-    if (options.includeSubmissionOptions) {
-      definitions.push({
-        name: GET_TICKET_SUBMISSION_OPTIONS,
-        description:
-          'Return the active departments and priorities available for ticket submission.',
-        parameters: {
-          type: 'object',
-          properties: {},
-          additionalProperties: false,
-        },
-      });
-    }
-
-    return definitions;
+    return [];
   }
 
-  execute(
-    name: string,
-    args: Record<string, unknown>,
-  ): Promise<TicketSubmissionOptions> {
-    this.executionCalls.push({ name, args: { ...args } });
-
-    if (name === GET_TICKET_SUBMISSION_OPTIONS) {
-      if (Object.keys(args).length > 0) {
-        throw new Error('Evaluation options tool received arguments');
-      }
-      return Promise.resolve(submissionOptions);
-    }
-
-    throw new Error(`Evaluation received unsupported tool: ${name}`);
+  execute(name: string, args: Record<string, unknown>): Promise<never> {
+    throw new Error(
+      `Evaluation received unsupported tool: ${name} ${JSON.stringify(args)}`,
+    );
   }
 }
 
@@ -131,8 +100,13 @@ async function runAgent(
     provider,
     tools as unknown as ToolRegistryService,
   );
-  const response = await agent.respond(message, actor, previousTurns);
-  return { response, tools };
+  const response = await agent.respond(
+    message,
+    actor,
+    previousTurns,
+    submissionOptions,
+  );
+  return { response };
 }
 
 function readNonNegativeInteger(
@@ -178,16 +152,6 @@ function requireClarification(response: AssistantResponse, name: string): void {
   }
 }
 
-function requireNoSubmissionTool(tools: EvalToolRegistry, name: string): void {
-  if (
-    tools.executionCalls.some(
-      (call) => call.name === GET_TICKET_SUBMISSION_OPTIONS,
-    )
-  ) {
-    throw new Error(`${name} called the submission-options tool unexpectedly`);
-  }
-}
-
 function requireValidPrefill(
   run: EvalRun,
   name: string,
@@ -213,15 +177,6 @@ function requireValidPrefill(
       `${name} selected priority ${priority} instead of ${expectedPriority}`,
     );
   }
-  if (
-    !run.tools.executionCalls.some(
-      (call) => call.name === GET_TICKET_SUBMISSION_OPTIONS,
-    )
-  ) {
-    throw new Error(
-      `${name} did not retrieve authoritative submission options`,
-    );
-  }
 }
 
 const clearInput: EvalCase = {
@@ -233,7 +188,6 @@ const clearInput: EvalCase = {
     );
     requireNoAction(run.response, name);
     requireNonEmptyMessage(run.response, name);
-    requireNoSubmissionTool(run.tools, name);
   },
 };
 
@@ -243,7 +197,6 @@ const thinInput: EvalCase = {
     const name = 'thin input';
     const run = await runAgent('I need help.');
     requireClarification(run.response, name);
-    requireNoSubmissionTool(run.tools, name);
   },
 };
 
@@ -253,7 +206,6 @@ const ambiguousInput: EvalCase = {
     const name = 'ambiguous input';
     const run = await runAgent('My access is broken.');
     requireClarification(run.response, name);
-    requireNoSubmissionTool(run.tools, name);
   },
 };
 
@@ -264,7 +216,6 @@ const trustedContextGap: EvalCase = {
     const run = await runAgent('Yes, prefill it.');
     requireNoAction(run.response, name);
     requireNonEmptyMessage(run.response, name);
-    requireNoSubmissionTool(run.tools, name);
     if (/\b(?:prepared|prefilled|submitted)\b/i.test(run.response.message)) {
       throw new Error(`${name} claimed a draft existed without context`);
     }

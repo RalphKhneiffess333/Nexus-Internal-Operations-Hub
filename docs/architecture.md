@@ -70,7 +70,7 @@ The authorization module provides the check for roles but not resources as resou
 
 - FileStorage Adapter: Provides a simple interface for file storing functions and file attachment handling.
 
-- AI Module: Orchestrates communication with the AI provider and exposes authorization aware tools for current submission options and one exact ticket number. It does not support ticket lists, semantic search, batch inspection, RAG, or autonomous ticket submission.
+- AI Module: Orchestrates communication with the AI provider, preloads authorized submission options, and exposes one authorization-aware tool for one exact ticket number. It does not support ticket lists, semantic search, batch inspection, RAG, or autonomous ticket submission.
 
 - Supporting Modules: Dashboard supplies role-aware summaries; Filters supplies role-aware department, priority, participant, and status options; Health exposes liveness and protected dependency readiness; Priorities owns administrator-managed priority settings; Realtime publishes authorized Socket.IO events; Background Workers run scheduled maintenance.
 
@@ -136,7 +136,7 @@ Nexus handles email-provider failures as follows:
 Nexus uses a third party AI provider to power its AI assistant. The backend communicates with the AI provider through its API, sending user messages and the necessary context and receiving generated responses or requests to use available Nexus tools.
 
 Groq-hosted model is used as the AI model for the initial implementation.
-The AI provider does not have direct access to the Nexus database. When the AI requires system information, such as ticket details, departments or ticket history, it requests the appropriate tool from the Nexus backend. The backend is responsible for executing the operation while applying the same authentication, authorization and business rules as any other request
+The AI provider does not have direct access to the Nexus database. The backend supplies the authenticated user's active departments and priorities as request context; when the AI requires ticket details or ticket history, it requests the appropriate tool from the Nexus backend. The backend is responsible for executing the operation while applying the same authentication, authorization and business rules as any other request.
 
 Nexus should correctly handle errors related to the AI Provider:
 

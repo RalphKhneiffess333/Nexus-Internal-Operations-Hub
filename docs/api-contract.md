@@ -163,7 +163,7 @@ There are intentionally no admin audit-log update or delete routes. There are al
 |---|---|---|---|
 | POST | `/ai/messages` | Employee, Agent, Admin | `{ message, conversationId? }`; returns an assistant message, optional `PREFILL_TICKET` action, and a server-issued `conversationId` |
 
-The AI provides general request assistance, current submission options, optional submission-form prefilling, and authorization-aware lookup of one exact ticket number. It does not list, search, semantically retrieve, or batch-inspect tickets, and it never submits a ticket automatically.
+The backend preloads the authenticated user's active departments and priorities into the AI context for general request assistance and optional submission-form prefilling. The AI has one authorization-aware lookup tool for an exact ticket number. It does not list, search, semantically retrieve, or batch-inspect tickets, and it never submits a ticket automatically.
 
 ## Socket.io API
 

@@ -9,12 +9,11 @@ import {
 } from '../providers/ai-provider.interface';
 import {
   GET_TICKET_BY_NUMBER,
-  GET_TICKET_SUBMISSION_OPTIONS,
   type TicketInformationResult,
-  type TicketSubmissionOptions,
   ToolRegistryService,
 } from '../tools/tool-registry.service';
-import { NEXUS_GENERAL_ASSISTANT_SYSTEM_PROMPT } from './system-prompt';
+import type { TicketSubmissionOptions } from '../submission-context.service';
+import { buildNexusAssistantSystemPrompt } from './system-prompt';
 
 const MAX_TOOL_CALLS = 5;
 const MAX_ASSISTANT_MESSAGE_LENGTH = 6000;
@@ -71,12 +70,51 @@ function removeReasoningMarkup(content: string): string {
   return content.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
 }
 
-function hasPrefillContext(turns: AssistantTurn[]): boolean {
-  return turns.some(
-    (turn) =>
-      turn.role === 'assistant' &&
-      (isPrefillOffer(turn.content) || parseJsonObject(turn.content)?.action),
+export function hasExplicitPrefillRequest(content: string): boolean {
+  if (
+    /\b(?:don't|dont|do not|no longer)\b[\s\S]{0,60}\b(?:ticket|request|submission|prefill)\b/i.test(
+      content,
+    )
+  ) {
+    return false;
+  }
+
+  const requestVerb =
+    /\b(?:create|make|open|file|submit|raise|log|report|prepare|prefill|draft|fill(?:\s+(?:in|out))?)\b/i;
+  const requestTarget =
+    /\b(?:ticket|request|submission(?:\s+form)?|issue|problem)\b/i;
+  const needOrWantTicket =
+    /\b(?:need|want)\s+(?:a|an|the)?\s*(?:new\s+)?(?:ticket|request|submission)\b/i;
+
+  return (
+    needOrWantTicket.test(content) ||
+    (requestVerb.test(content) && requestTarget.test(content))
   );
+}
+
+export function hasPrefillContext(
+  turns: AssistantTurn[],
+  currentMessage = '',
+): boolean {
+  return (
+    turns.some(
+      (turn) =>
+        turn.role === 'assistant' &&
+        (isPrefillOffer(turn.content) || parseJsonObject(turn.content)?.action),
+    ) ||
+    [...turns, { role: 'user' as const, content: currentMessage }].some(
+      (turn) => turn.role === 'user' && hasExplicitPrefillRequest(turn.content),
+    )
+  );
+}
+
+export function hasPendingPrefillOffer(turns: AssistantTurn[]): boolean {
+  const latestAssistantTurn = [...turns]
+    .reverse()
+    .find((turn) => turn.role === 'assistant');
+  return latestAssistantTurn
+    ? isPrefillOffer(latestAssistantTurn.content)
+    : false;
 }
 
 function assistantMessageText(content: string): string {
@@ -129,20 +167,11 @@ function hasTicketLookupContext(
 }
 
 function readTicketNumberArgument(args: Record<string, unknown>): string {
-  if (
-    Object.keys(args).length !== 1 ||
-    typeof args.ticketNumber !== 'string'
-  ) {
+  if (Object.keys(args).length !== 1 || typeof args.ticketNumber !== 'string') {
     return '';
   }
   const ticketNumber = args.ticketNumber.trim().toUpperCase();
   return /^TKT-\d{4,}$/.test(ticketNumber) ? ticketNumber : '';
-}
-
-function isTicketSubmissionOptions(
-  value: TicketSubmissionOptions | TicketInformationResult,
-): value is TicketSubmissionOptions {
-  return 'departments' in value && 'priorities' in value;
 }
 
 @Injectable()
@@ -156,6 +185,7 @@ export class AgentService {
     message: string,
     actor: AuthenticatedRequestUser,
     previousTurns: AssistantTurn[],
+    submissionOptions: TicketSubmissionOptions | null = null,
   ): Promise<AssistantResponse> {
     const requestedTicketNumbers = extractTicketNumbers(message);
     if (requestedTicketNumbers.length > 1) {
@@ -165,7 +195,7 @@ export class AgentService {
       };
     }
 
-    const prefillContextAvailable = hasPrefillContext(previousTurns);
+    const prefillContextAvailable = hasPrefillContext(previousTurns, message);
     const ticketLookupRequested = hasTicketLookupContext(
       previousTurns,
       message,
@@ -183,15 +213,14 @@ export class AgentService {
 
     let toolCallCount = 0;
     let ticketLookupCount = 0;
-    let options: TicketSubmissionOptions | null = null;
     const toolDefinitions = this.tools.definitions({
-      includeSubmissionOptions: prefillContextAvailable,
       includeTicketByNumber: ticketLookupRequested,
     });
+    const systemPrompt = buildNexusAssistantSystemPrompt(submissionOptions);
 
     for (;;) {
       const result = await this.provider.generate({
-        systemPrompt: NEXUS_GENERAL_ASSISTANT_SYSTEM_PROMPT,
+        systemPrompt,
         messages,
         tools: toolCallCount === 0 ? toolDefinitions : [],
       });
@@ -199,7 +228,7 @@ export class AgentService {
       if (result.type === 'text') {
         return this.normalizeResponse(
           result.text,
-          options,
+          submissionOptions,
           prefillContextAvailable,
         );
       }
@@ -214,28 +243,6 @@ export class AgentService {
 
       messages.push({ role: 'assistant', toolCalls: result.calls });
       for (const call of result.calls) {
-        if (call.name === GET_TICKET_SUBMISSION_OPTIONS) {
-          if (Object.keys(call.arguments).length > 0) {
-            throw new AiResponseError('AI tool request was rejected');
-          }
-          const toolResult = await this.tools.execute(
-            call.name,
-            call.arguments,
-            actor,
-          );
-          if (!isTicketSubmissionOptions(toolResult)) {
-            throw new AiResponseError('AI returned an invalid tool result');
-          }
-          options = toolResult;
-          messages.push({
-            role: 'tool',
-            name: call.name,
-            response: toolResult,
-            toolCallId: call.id,
-          });
-          continue;
-        }
-
         if (call.name === GET_TICKET_BY_NUMBER) {
           if (!ticketLookupRequested) {
             throw new AiResponseError('AI tool request was rejected');
@@ -267,9 +274,6 @@ export class AgentService {
               { ticketNumber: requestedTicketNumber },
               actor,
             );
-            if (isTicketSubmissionOptions(result)) {
-              throw new AiResponseError('AI returned an invalid tool result');
-            }
             toolResult = result;
           }
 
@@ -318,6 +322,12 @@ export class AgentService {
     if (!this.isPrefillAction(action)) {
       return response;
     }
+    if (!options && prefillContextAvailable) {
+      return {
+        message:
+          'I cannot prepare a ticket until the current departments and priorities are available. Please try again shortly.',
+      };
+    }
     if (!options || !prefillContextAvailable) {
       return {
         message:
@@ -340,10 +350,18 @@ export class AgentService {
       options,
     );
 
+    const requestedDepartment = readString(data.departmentId);
+    if (!requestedDepartment) {
+      return {
+        message:
+          'I can prepare the ticket, but I still need a department from the available options.',
+      };
+    }
+
     if (!departmentId) {
       return {
         message: this.unavailableDepartmentMessage(
-          readString(data.departmentId),
+          requestedDepartment,
           options,
         ),
       };
@@ -351,8 +369,11 @@ export class AgentService {
 
     if (!title || !description || !priority) {
       return {
-        message:
-          'I can prepare that request for your review. Would you like me to prefill a submission form with these details?',
+        message: this.missingPrefillDetailsMessage({
+          title,
+          description,
+          priority,
+        }),
       };
     }
 
@@ -420,5 +441,19 @@ export class AgentService {
     }
 
     return `I can’t prepare this for ${requested} because that department is not available for your account. Available departments are ${available.join(', ')}. Would you like me to prepare it for one of those instead?`;
+  }
+
+  private missingPrefillDetailsMessage(values: {
+    title: string;
+    description: string;
+    priority: string;
+  }): string {
+    const missing = [
+      !values.title ? 'a short title' : '',
+      !values.description ? 'a description of the issue' : '',
+      !values.priority ? 'a priority' : '',
+    ].filter(Boolean);
+
+    return `I can prepare the ticket, but I still need ${missing.join(', ')}.`;
   }
 }

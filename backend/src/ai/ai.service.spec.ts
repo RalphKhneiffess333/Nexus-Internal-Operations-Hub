@@ -4,9 +4,14 @@ import type { AuthenticatedRequestUser } from '../authentication/request-user';
 import { AiService } from './ai.service';
 import { AiProviderError } from './providers/ai-provider.interface';
 import { AgentService, type AssistantResponse } from './agent/agent.service';
+import {
+  SubmissionContextService,
+  type TicketSubmissionOptions,
+} from './submission-context.service';
 
 describe('AiService', () => {
   let agent: jest.Mocked<Pick<AgentService, 'respond'>>;
+  let submissionContext: jest.Mocked<Pick<SubmissionContextService, 'load'>>;
   let service: AiService;
 
   const actor: AuthenticatedRequestUser = {
@@ -25,7 +30,19 @@ describe('AiService', () => {
     agent = {
       respond: jest.fn<AgentService['respond']>(),
     };
-    service = new AiService(agent as unknown as AgentService);
+    submissionContext = {
+      load: jest.fn<SubmissionContextService['load']>(),
+    };
+    submissionContext.load.mockResolvedValue({
+      departments: [
+        { id: 'department-it', code: 'IT', name: 'Information Technology' },
+      ],
+      priorities: [{ id: 'priority-high', code: 'HIGH', name: 'High' }],
+    });
+    service = new AiService(
+      agent as unknown as AgentService,
+      submissionContext as unknown as SubmissionContextService,
+    );
   });
 
   it('creates and preserves conversation context for the same user', async () => {
@@ -56,6 +73,133 @@ describe('AiService', () => {
         },
       ],
     ]);
+    expect(submissionContext.load).toHaveBeenCalledTimes(1);
+    expect(agent.respond).toHaveBeenNthCalledWith(
+      1,
+      'First question.',
+      actor,
+      expect.any(Array),
+      expect.objectContaining({
+        departments: expect.any(Array),
+        priorities: expect.any(Array),
+      }),
+    );
+  });
+
+  it('refreshes submission options before a prefill turn', async () => {
+    const firstOptions: TicketSubmissionOptions = {
+      departments: [
+        { id: 'department-it', code: 'IT', name: 'Information Technology' },
+      ],
+      priorities: [{ id: 'priority-low', code: 'LOW', name: 'Low' }],
+    };
+    const refreshedOptions: TicketSubmissionOptions = {
+      departments: [
+        { id: 'department-hr', code: 'HR', name: 'Human Resources' },
+      ],
+      priorities: [{ id: 'priority-high', code: 'HIGH', name: 'High' }],
+    };
+    submissionContext.load
+      .mockResolvedValueOnce(firstOptions)
+      .mockResolvedValueOnce(refreshedOptions);
+    agent.respond
+      .mockResolvedValueOnce({
+        message:
+          'Would you like me to prefill a submission form with these details?',
+      })
+      .mockResolvedValueOnce({ message: 'I prepared a draft.' });
+
+    const first = await service.respond({ message: 'I need help.' }, actor);
+    await service.respond(
+      { message: 'Yes, please.', conversationId: first.conversationId },
+      actor,
+    );
+
+    expect(submissionContext.load).toHaveBeenCalledTimes(2);
+    expect(agent.respond).toHaveBeenNthCalledWith(
+      2,
+      'Yes, please.',
+      actor,
+      expect.any(Array),
+      refreshedOptions,
+    );
+  });
+
+  it('refreshes submission options before a direct ticket request', async () => {
+    const firstOptions: TicketSubmissionOptions = {
+      departments: [
+        { id: 'department-it', code: 'IT', name: 'Information Technology' },
+      ],
+      priorities: [{ id: 'priority-low', code: 'LOW', name: 'Low' }],
+    };
+    const refreshedOptions: TicketSubmissionOptions = {
+      departments: [
+        { id: 'department-hr', code: 'HR', name: 'Human Resources' },
+      ],
+      priorities: [{ id: 'priority-high', code: 'HIGH', name: 'High' }],
+    };
+    submissionContext.load
+      .mockResolvedValueOnce(firstOptions)
+      .mockResolvedValueOnce(refreshedOptions);
+    agent.respond
+      .mockResolvedValueOnce({ message: 'I can help with that issue.' })
+      .mockResolvedValueOnce({ message: 'I prepared a draft.' });
+
+    const first = await service.respond(
+      { message: 'My laptop has a network problem.' },
+      actor,
+    );
+    await service.respond(
+      {
+        message: 'Please prepare a ticket for this issue.',
+        conversationId: first.conversationId,
+      },
+      actor,
+    );
+
+    expect(submissionContext.load).toHaveBeenCalledTimes(2);
+    expect(agent.respond).toHaveBeenNthCalledWith(
+      2,
+      'Please prepare a ticket for this issue.',
+      actor,
+      expect.any(Array),
+      refreshedOptions,
+    );
+  });
+
+  it('continues without options when loading fails and retries on a later turn', async () => {
+    const options: TicketSubmissionOptions = {
+      departments: [
+        { id: 'department-it', code: 'IT', name: 'Information Technology' },
+      ],
+      priorities: [{ id: 'priority-high', code: 'HIGH', name: 'High' }],
+    };
+    submissionContext.load
+      .mockRejectedValueOnce(new Error('database unavailable'))
+      .mockResolvedValueOnce(options);
+    agent.respond.mockResolvedValue({ message: 'General guidance.' });
+
+    const first = await service.respond({ message: 'Hello.' }, actor);
+    await service.respond(
+      { message: 'Can you help?', conversationId: first.conversationId },
+      actor,
+    );
+
+    expect(agent.respond).toHaveBeenNthCalledWith(
+      1,
+      'Hello.',
+      actor,
+      expect.any(Array),
+      null,
+    );
+    expect(agent.respond).toHaveBeenNthCalledWith(
+      2,
+      'Can you help?',
+      actor,
+      expect.any(Array),
+      options,
+    );
+    expect(submissionContext.load).toHaveBeenCalledTimes(2);
   });
 
   it('does not share a conversation id between users', async () => {
