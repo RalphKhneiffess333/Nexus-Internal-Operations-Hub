@@ -4,6 +4,7 @@ import { HandoffFilters } from '../../components/tickets/HandoffFilters'
 import { HandoffRequestCard } from '../../components/tickets/HandoffRequestCard'
 import { LoadingState } from '../../components/ui/LoadingState'
 import { IllustratedEmptyState } from '../../components/ui/IllustratedEmptyState'
+import { Pagination } from '../../components/ui/Pagination'
 import noHandoffImage from '../../assets/NoHandoff.png'
 import { useAuthentication } from '../../features/authentication/use-authentication'
 import { useDepartments } from '../../features/departments/use-departments'
@@ -205,7 +206,7 @@ export function HandoffsPage() {
         </div>
       ) : null}
       {!loading && !error && pendingCount > 0 ? <p className="handoff-footnote">Pending matching filters: {pendingCount}</p> : null}
-      {!loading && !error && (page > 1 || hasMore) ? <div className="admin-pagination" aria-label="Handoff pages"><button type="button" className="btn ghost" disabled={page === 1} onClick={() => updatePage(page - 1)}>Previous</button><span>Page {page}</span><button type="button" className="btn ghost" disabled={!hasMore} onClick={() => updatePage(page + 1)}>Next</button></div> : null}
+      <Pagination page={page} hasMore={hasMore} onPageChange={updatePage} ariaLabel="Handoff pages" />
     </section>
   )
 }

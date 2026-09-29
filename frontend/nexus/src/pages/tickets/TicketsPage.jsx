@@ -4,6 +4,7 @@ import { TicketList } from '../../components/tickets/TicketList'
 import { TicketFilters } from '../../components/tickets/TicketFilters'
 import { LoadingState } from '../../components/ui/LoadingState'
 import { IllustratedEmptyState } from '../../components/ui/IllustratedEmptyState'
+import { Pagination } from '../../components/ui/Pagination'
 import noTicketImage from '../../assets/NoTicket.png'
 import { useAuthentication } from '../../features/authentication/use-authentication'
 import { useDepartments } from '../../features/departments/use-departments'
@@ -107,7 +108,7 @@ export function TicketsPage({ view = 'submitted' }) {
   const isAgentDepartmentView =
     view === 'pool' &&
     (poolMode === 'all' || poolMode === 'unclaimed') &&
-    (user?.role === UserRole.AGENT || user?.role === UserRole.ADMIN)
+    canWorkTickets(user)
   const requestedMyTicketMode = searchParams.get('view')
   const myTicketMode =
     canWorkTickets(user) &&
@@ -321,7 +322,7 @@ export function TicketsPage({ view = 'submitted' }) {
       {!isLoading && !error && tickets.length > 0 ? (
           <TicketList tickets={tickets} departments={departments} priorities={priorities} />
       ) : null}
-      {!isLoading && !error && (page > 1 || hasMore) ? <div className="admin-pagination" aria-label="Ticket pages"><button type="button" className="btn ghost" disabled={page === 1} onClick={() => updatePage(page - 1)}>Previous</button><span>Page {page}</span><button type="button" className="btn ghost" disabled={!hasMore} onClick={() => updatePage(page + 1)}>Next</button></div> : null}
+      <Pagination page={page} hasMore={hasMore} onPageChange={updatePage} ariaLabel="Ticket pages" />
     </section>
   )
 }

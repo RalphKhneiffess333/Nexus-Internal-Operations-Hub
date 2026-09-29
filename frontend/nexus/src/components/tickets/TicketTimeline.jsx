@@ -3,6 +3,7 @@ import {
   formatDateTime,
   TicketEventAction,
 } from '../../features/tickets/ticket-types'
+import { AttachmentList } from './AttachmentList'
 import { UserLink } from '../users/UserLink'
 
 const EVENT_PRESENTATION = {
@@ -193,52 +194,6 @@ function TimelineSkeleton() {
   )
 }
 
-function AttachmentList({
-  attachments = [],
-  downloadingAttachmentId,
-  onOpen,
-  onDownload,
-  heading = 'Attachments',
-}) {
-  if (attachments.length === 0) {
-    return null
-  }
-
-  return (
-    <div className="timeline-attachments">
-      <p className="timeline-attachments-heading">{heading}</p>
-      <ul>
-        {attachments.map((attachment) => (
-          <li key={attachment.attachmentId}>
-            <div className="timeline-attachment-actions">
-              <button
-                type="button"
-                className="timeline-attachment"
-                title={attachment.originalName}
-                onClick={() => onOpen(attachment)}
-                disabled={downloadingAttachmentId === attachment.attachmentId}
-              >
-                <span aria-hidden="true">📎</span>
-                <span>{attachment.originalName}</span>
-              </button>
-              <button
-                type="button"
-                className="timeline-attachment-download"
-                onClick={() => onDownload(attachment)}
-                disabled={downloadingAttachmentId === attachment.attachmentId}
-              >
-                {downloadingAttachmentId === attachment.attachmentId
-                  ? 'Working…'
-                  : 'Download'}
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}
-
 export function TicketTimeline({
   events,
   loading,
@@ -352,6 +307,13 @@ export function TicketTimeline({
                             <AttachmentList
                               attachments={selectedEvent.attachments}
                               downloadingAttachmentId={downloadingAttachmentId}
+                              classNames={{
+                                container: 'timeline-attachments',
+                                heading: 'timeline-attachments-heading',
+                                actions: 'timeline-attachment-actions',
+                                attachment: 'timeline-attachment',
+                                download: 'timeline-attachment-download',
+                              }}
                               heading={
                                 selectedEvent.action === TicketEventAction.CLOSE
                                   ? 'Files attached to completion notes'

@@ -9,7 +9,7 @@ import {
   getIncomingPendingHandoffCount,
   getTicketPoolCount,
 } from "../tickets/ticket-api";
-import { UserRole } from "../tickets/ticket-types";
+import { canWorkTickets } from "../tickets/ticket-types";
 import { useLatestRequest } from "../../lib/api/use-latest-request";
 import { Dialog } from "../../components/ui/Dialog";
 import { NotificationsContext } from "./notifications-context";
@@ -56,8 +56,7 @@ export function NotificationProvider({ children }) {
   const { beginRequest: beginCountRequest, cancelRequest: cancelCountRequest } =
     useLatestRequest();
   const unreadChats = unreadChatIds.size;
-  const canViewTicketPool =
-    user?.role === UserRole.AGENT || user?.role === UserRole.ADMIN;
+  const canViewTicketPool = canWorkTickets(user);
   const resourceTitle =
     resourceTitleState?.pathname === location.pathname
       ? resourceTitleState.title

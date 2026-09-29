@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { DebouncedSearchInput } from '../ui/DebouncedSearchInput'
 import { AdminConfirmDialog, AdminDialog } from './AdminDialog'
+import { Pagination } from '../ui/Pagination'
 
 export function DepartmentsSection({ model, actions, loading }) {
   const [departmentDialog, setDepartmentDialog] = useState(null)
@@ -23,13 +24,7 @@ export function DepartmentsSection({ model, actions, loading }) {
       </div>
       <div className="admin-card-grid">{model.items.map((department) => <DepartmentCard key={department.departmentId} department={department} onEdit={() => setDepartmentDialog({ department })} onDeactivate={() => setDeactivation(department)} onStatusChange={actions.updateDepartmentStatus} />)}</div>
       {!loading && model.items.length === 0 ? <div className="empty-state"><h2>No departments found</h2><p>Try a different search or add a department.</p></div> : null}
-      {!loading && model.total > 25 ? (
-        <div className="admin-pagination" aria-label="Department pages">
-          <button type="button" className="btn ghost" disabled={model.page === 1} onClick={() => actions.updateDepartmentPage(model.page - 1)}>Previous</button>
-          <span>Page {model.page} of {Math.ceil(model.total / 25)}</span>
-          <button type="button" className="btn ghost" disabled={model.page >= Math.ceil(model.total / 25)} onClick={() => actions.updateDepartmentPage(model.page + 1)}>Next</button>
-        </div>
-      ) : null}
+      {!loading ? <Pagination page={model.page} total={model.total} pageSize={25} onPageChange={actions.updateDepartmentPage} ariaLabel="Department pages" /> : null}
       {departmentDialog ? <AdminDialog title={departmentDialog.department ? 'Edit department' : 'Add department'} description={departmentDialog.department ? 'Update the department details used throughout Nexus.' : 'Create a department for routing and ticket ownership.'} wide onClose={() => setDepartmentDialog(null)}><DepartmentForm department={departmentDialog.department} actions={actions} onDone={() => setDepartmentDialog(null)} /></AdminDialog> : null}
       {deactivation ? <AdminConfirmDialog title="Deactivate department?" description={`${deactivation.name} will remain visible for historical records but will no longer accept new assignments.`} confirmLabel="Deactivate department" danger onConfirm={deactivate} onClose={() => setDeactivation(null)} /> : null}
     </div>

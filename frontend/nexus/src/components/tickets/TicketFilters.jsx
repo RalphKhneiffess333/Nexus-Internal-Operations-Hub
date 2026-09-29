@@ -1,13 +1,6 @@
-import { TicketStatus } from '../../features/tickets/ticket-types'
+import { TICKET_STATUS_LABELS } from '../../features/tickets/ticket-types'
 import { AppSelect } from '../ui/AppSelect'
 import { DebouncedSearchInput } from '../ui/DebouncedSearchInput'
-
-const statusLabels = {
-  [TicketStatus.OPEN]: 'Open',
-  [TicketStatus.CLAIMED]: 'Claimed',
-  [TicketStatus.CLOSED]: 'Closed',
-  [TicketStatus.REOPENED]: 'Reopened',
-}
 
 export function TicketFilters({ departments, priorities = [], statuses = [], filters, onChange, showStatus = true }) {
   return (
@@ -29,9 +22,9 @@ export function TicketFilters({ departments, priorities = [], statuses = [], fil
             onChange={(value) => onChange('status', value)}
             options={[
               { value: '', label: 'All statuses' },
-              ...(statuses.length ? statuses : Object.keys(statusLabels)).map((status) => ({
+              ...(statuses.length ? statuses : Object.keys(TICKET_STATUS_LABELS)).map((status) => ({
                 value: status,
-                label: statusLabels[status] ?? status,
+                label: TICKET_STATUS_LABELS[status] ?? status,
               })),
             ]}
           />

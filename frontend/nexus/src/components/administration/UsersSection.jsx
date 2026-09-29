@@ -4,6 +4,7 @@ import { AppSelect } from '../ui/AppSelect'
 import { UserLink } from '../users/UserLink'
 import { UserRole } from '../../features/tickets/ticket-types'
 import { AdminConfirmDialog, AdminDialog } from './AdminDialog'
+import { Pagination } from '../ui/Pagination'
 
 export function UsersSection({ model, actions, loading }) {
   const [pendingAction, setPendingAction] = useState(null)
@@ -107,13 +108,7 @@ export function UsersSection({ model, actions, loading }) {
         </table>
         {!loading && model.items.length === 0 ? <div className="empty-state"><h2>No users found</h2><p>Try a different search or pre-provision a user.</p></div> : null}
       </div>
-      {model.total > 25 ? (
-        <div className="admin-pagination" aria-label="User pages">
-          <button type="button" className="btn ghost" disabled={model.page === 1} onClick={() => actions.updateUserPage(model.page - 1)}>Previous</button>
-          <span>Page {model.page} of {Math.ceil(model.total / 25)}</span>
-          <button type="button" className="btn ghost" disabled={model.page >= Math.ceil(model.total / 25)} onClick={() => actions.updateUserPage(model.page + 1)}>Next</button>
-        </div>
-      ) : null}
+      <Pagination page={model.page} total={model.total} pageSize={25} onPageChange={actions.updateUserPage} ariaLabel="User pages" />
 
       {departmentUser ? (
         <AdminDialog title="Department mapping" description={`${departmentUser.fullName} · ${departmentUser.role}`} wide onClose={() => setDepartmentUserId('')}>
