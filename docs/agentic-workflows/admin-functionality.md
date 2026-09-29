@@ -65,8 +65,7 @@ Inspect at minimum:
 - Tickets controller/service/repository and list/detail query authorization
 - claim, close, reopen, handoff, and department-removal behavior
 - Ticket Events and Audit Logs; keep these concepts separate
-- system configuration and reminder logic, if any
-- configuration/environment handling
+- environment handling
 - exception mapping, validation pipe, pagination/filter/sort conventions
 - existing ID generation, timestamps, soft deletion, indexes, and uniqueness conventions
 - unit, integration, API E2E, concurrency, and test-data utilities
@@ -88,7 +87,7 @@ Inspect at minimum:
 
 Determine and document:
 
-1. The actual Prisma models for User, IdentityProvider, Department, DepartmentMember, Ticket, TicketEvent, AuditLog, and SystemConfiguration.
+1. The actual Prisma models for User, IdentityProvider, Department, DepartmentMember, Ticket, TicketEvent, AuditLog, and Priority.
 2. Which of those models do not yet exist.
 3. Whether roles are a single enum field or a many-to-many permission model. The authoritative Nexus design expects exactly one application role per user: `EMPLOYEE`, `AGENT`, or `ADMIN`.
 4. How users are automatically created or linked on first Microsoft Entra login.
@@ -98,8 +97,8 @@ Determine and document:
 8. How tickets are authorized and queried for ADMIN today.
 9. Whether admin is explicitly declared on agent routes or incorrectly inferred through a hierarchy.
 10. Whether audit persistence exists and whether the database enforces immutability.
-11. Whether configuration values are currently hardcoded.
-12. Any existing notification/reminder implementation that consumes configuration.
+11. Whether runtime operational values are currently hardcoded.
+12. Any existing notification/reminder implementation that consumes runtime operational values.
 13. Any existing claimed tickets or pending handoffs affected by membership removal or account deactivation.
 
 Do not begin implementation until these flows are understood.
@@ -116,7 +115,7 @@ Implement these administration capabilities:
 4. User activation/deactivation.
 5. Department creation, editing, and soft deletion/reactivation where compatible.
 6. Department membership management, including multi-department agents.
-7. System configuration management for configuration keys actually required by the documented/current system.
+7. Priority management, including reminder intervals consumed by the scheduled reminder worker.
 8. System-wide ticket visibility for admins.
 9. Read-only administration history combining administrative Audit Logs with ticket-domain history in a clear interface.
 10. Audit logging of every administration mutation.
@@ -284,28 +283,18 @@ If the documentation and implemented status model do not provide a truthful auto
 
 ---
 
-## 8. System configuration
+## 8. Priority management and scheduled reminders
 
-Implement admin management for configuration data that is genuinely part of the current Nexus system.
+Priority records are the supported administrator-managed operational settings.
+Administrators can create, edit, deactivate, and reactivate priorities,
+including a non-negative `reminderIntervalMinutes` value. The seeded `LOW`,
+`MODERATE`, and `HIGH` priorities are defaults rather than a closed enum.
 
-The documented model is a key/value/description store with unique keys. Examples include reminder intervals per priority and other non-secret operational values.
-
-Requirements:
-
-- list configuration entries
-- view key, value, description, and safe metadata
-- update allowed configuration values
-- validate values by semantic type, not merely as arbitrary strings
-- reject negative reminder intervals
-- maintain unique keys
-- audit old and new values
-- ensure existing consumers read configuration dynamically from the database rather than duplicating magic constants
-
-Do not expose secrets or make environment secrets editable through this feature. Do not create unrestricted arbitrary keys from the UI unless the current architecture explicitly requires it. Prefer a registry/allowlist of supported configuration keys with centralized parsers and validators.
-
-If notification/reminder processing is not implemented, persist and expose only configuration keys that the authoritative documentation clearly requires, and explicitly report that no nonexistent reminder worker was added.
-
-Priority values `LOW`, `MODERATE`, and `HIGH` are documented enums. Do not convert them into freely editable values unless the current schema and authoritative docs explicitly support doing so.
+The unclaimed-ticket reminder worker reads active priority intervals from the
+database. It is an internal scheduled process, not an HTTP endpoint. SMTP,
+identity-provider, worker enablement,
+and interval scheduling settings remain backend environment configuration and
+must not be exposed through administration APIs.
 
 ---
 
@@ -342,9 +331,8 @@ At minimum record successful mutations for:
 - department modification
 - department soft deletion/reactivation
 - department membership addition/removal
-- system configuration modification
 
-Use the documented action names where they already exist, such as `DEPARTMENT_ADDITION`, `DEPARTMENT_MODIFICATION`, `DEPARTMENT_DELETION`, `DEPARTMENT_MAPPING`, `ROLE_MAPPING`, and `SYSTEM_VARIABLE_MODIFICATION`. Add narrowly named actions for uncovered required operations only if needed and consistent with repository enums.
+Use the documented action names where they already exist, such as `USER_PREPROVISIONING`, `USER_ACTIVATION`, `USER_DEACTIVATION`, `DEPARTMENT_ADDITION`, `DEPARTMENT_MODIFICATION`, `DEPARTMENT_DELETION`, `DEPARTMENT_REACTIVATION`, `DEPARTMENT_MAPPING`, and `ROLE_MAPPING`. Add narrowly named actions for uncovered required operations only if needed and consistent with repository enums.
 
 Each audit entry contains:
 
@@ -405,9 +393,6 @@ PATCH  /admin/priorities/:priorityId
 DELETE /admin/priorities/:priorityId
 POST   /admin/priorities/:priorityId/reactivate
 
-GET    /admin/configurations
-PATCH  /admin/configurations/:key
-
 GET    /admin/audit-logs/activity
 GET    /admin/audit-logs/:auditLogId
 ```
@@ -445,7 +430,6 @@ Admin HTTP controller
 Administration application service
         ├── Users service/repository
         ├── Departments service/repository
-        ├── System configuration repository
         ├── Ticket lifecycle/repository (only for required reconciliation)
         └── Audit repository
                 ↓
@@ -475,7 +459,6 @@ After inspection, add only missing structures. Expected concepts include:
 - User with one Role, `active`, `hasLogged`, and identity-provider linkage
 - Department with code/name/description/active
 - DepartmentMember with composite unique/primary key
-- SystemConfiguration with unique key, value, description, and timestamps where conventions require
 - AuditLog with action, nullable actor, JSONB details, and created timestamp
 
 Create new Prisma migrations. Never edit an already-applied historical migration.
@@ -488,7 +471,6 @@ Add only meaningful constraints and indexes based on actual queries, likely incl
 - Department active/list query support if justified
 - unique `(userId, departmentId)` membership
 - indexes on DepartmentMember `userId` and `departmentId` according to PostgreSQL query needs
-- unique SystemConfiguration key
 - AuditLog `createdAt`, `action`, `actorId`, and useful composite indexes based on filters
 
 Use database constraints for invariants PostgreSQL can enforce. Run Prisma validation and client generation. Ensure the entire migration chain works on a fresh database.
@@ -529,13 +511,6 @@ This tab is independant in the navigation bar, it has 4 sections:
 - member list and add/remove controls
 - inactive departments visually distinguished
 
-### Configuration screen
-
-- list supported non-secret configuration items
-- typed controls and units (for example minutes/hours) matching backend semantics
-- inline/help descriptions
-- validation and save feedback
-
 ### Tickets
 
 - Admin can browse all tickets through the existing ticket interface with system-wide filters.
@@ -556,7 +531,7 @@ This tab is independant in the navigation bar, it has 3 sections: All system eve
 - refresh/invalidate cached data after mutations using current state-management conventions
 - preserve cookie credentials; do not manually manage auth secrets
 - accessible labels, keyboard-safe controls, confirmation for destructive/privilege-changing operations
-- no raw JSON editor for audit details or system configuration
+- no raw JSON editor for audit details
 
 ---
 
@@ -633,15 +608,6 @@ Follow current testing patterns and use real Prisma/PostgreSQL integration where
 - simulated failure rolls back membership, ticket changes, events, and audit entry
 - concurrent removal and claim cannot violate ownership invariants
 
-### Configuration tests
-
-- list/update supported configuration
-- duplicate/unknown key rejected as designed
-- invalid type/negative reminder rejected
-- old/new values audited
-- secrets cannot be accessed/changed
-- existing consumers observe new value without source-code constants
-
 ### Ticket/admin visibility tests
 
 - admin views tickets across departments and submitters
@@ -704,9 +670,8 @@ claim
 assignedAgent
 AuditLog
 TicketEvent
-SystemConfiguration
+Priority
 reminder
-config
 session
 logout
 ```
@@ -728,7 +693,7 @@ After repository inspection and before edits, output a concise plan that include
 5. Current department/membership implementation.
 6. Current ticket impact of membership removal/deactivation.
 7. Current admin ticket visibility.
-8. Current AuditLog and SystemConfiguration implementation.
+8. Current AuditLog and Priority implementation.
 9. Current frontend admin/navigation state.
 10. Proposed modules/services/repositories/controllers.
 11. Proposed schema/migration/constraint/index changes.
@@ -793,7 +758,7 @@ List each file.
 
 - user/role/status management
 - department/membership management
-- system configuration
+- priority/reminder management
 - admin ticket visibility
 - audit/history APIs
 - transaction boundaries
@@ -825,7 +790,7 @@ List tests added/updated and every command run with pass/fail status.
 
 ### Defaults and decisions
 
-Clearly identify implementation choices not explicitly fixed by authoritative docs, such as pagination limits, allowed editable configuration keys, self-demotion policy, inactive-department handling, and claimed-ticket reconciliation. Do not present them as documented product requirements.
+Clearly identify implementation choices not explicitly fixed by authoritative docs, such as pagination limits, self-demotion policy, inactive-department handling, and claimed-ticket reconciliation. Do not present them as documented product requirements.
 
 ### Deferred functionality
 
@@ -851,7 +816,7 @@ The task is complete only when:
 - users can have multiple department memberships without duplicates
 - membership removal safely reconciles claimed tickets and existing handoffs
 - all related writes are transactional and concurrency-safe
-- admins can manage supported non-secret system configuration with typed validation
+- admins can manage priorities and their reminder intervals
 - admins can view all tickets without weakening ticket mutation policies
 - every successful admin mutation creates an immutable Audit Log atomically
 - failed admin mutations do not create success logs or partial state

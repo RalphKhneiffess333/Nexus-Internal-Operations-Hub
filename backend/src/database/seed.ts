@@ -228,13 +228,18 @@ async function seedTestDepartmentMembers(
 }
 
 export async function resetTicketData(prisma: PrismaClient): Promise<void> {
-  await prisma.handoffRequest.deleteMany();
-  await prisma.attachment.deleteMany();
-  await prisma.file.deleteMany();
-  await prisma.chatReadReceipt.deleteMany();
-  await prisma.chatMessage.deleteMany();
-  await prisma.ticketEvent.deleteMany();
-  await prisma.ticket.deleteMany();
+  // Test-only fixture reset. TRUNCATE does not run the row-level trigger that
+  // enforces ticket-event immutability for normal application DML.
+  await prisma.$executeRaw`
+    TRUNCATE TABLE
+      "handoff_requests",
+      "attachments",
+      "files",
+      "chat_read_receipts",
+      "chat_messages",
+      "ticket_events",
+      "tickets"
+  `;
   await prisma.$executeRawUnsafe(
     `ALTER SEQUENCE ticket_code_seq RESTART WITH 1`,
   );

@@ -8,7 +8,7 @@ import { useNotifications } from "../../features/notifications/use-notifications
 import styles from "./AssistantPage.module.css";
 
 const NETWORK_FALLBACK_MESSAGE =
-  "I’m here to help. Tell me what feels most urgent, and we can work through it one small step at a time.";
+  "I’m having trouble processing this request right now. Please try again in a moment.";
 
 function isSafeMarkdownUrl(url) {
   if (!url) return false;
@@ -60,7 +60,7 @@ export function AssistantPage() {
         {
           id: String(Date.now()) + "-assistant",
           role: "assistant",
-          content: response?.message || "I could not prepare a response.",
+          content: response?.message || NETWORK_FALLBACK_MESSAGE,
           action: response?.action,
         },
       ]);

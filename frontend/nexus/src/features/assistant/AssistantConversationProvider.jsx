@@ -5,7 +5,7 @@ const WELCOME_MESSAGE = {
   id: 'welcome',
   role: 'assistant',
   content:
-    'Tell me what happened and I’ll help you work through it. If a submission is still needed, I’ll ask before prefilling the form.',
+    'Hey, I’m the Nexus Assistant. I can help you prefill new requests or look up a ticket by its number. What can I help you with?',
 }
 
 export function AssistantConversationProvider({ children }) {

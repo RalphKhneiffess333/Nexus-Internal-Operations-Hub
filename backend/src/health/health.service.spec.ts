@@ -5,6 +5,14 @@ import { NodemailerEmailProvider } from '../notifications/nodemailer-email.provi
 import { HealthService } from './health.service';
 
 describe('HealthService', () => {
+  it('reports whether the detailed health endpoint is configured', () => {
+    const configured = createService().service;
+    const disabled = createService({ HEALTH_CHECK_SECRET: '' }).service;
+
+    expect(configured.isConfigured()).toBe(true);
+    expect(disabled.isConfigured()).toBe(false);
+  });
+
   it('accepts only the configured bearer secret', () => {
     const { service } = createService();
 

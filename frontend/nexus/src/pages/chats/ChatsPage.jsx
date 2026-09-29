@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { LoadingState } from '../../components/ui/LoadingState'
 import { IllustratedEmptyState } from '../../components/ui/IllustratedEmptyState'
+import { Pagination } from '../../components/ui/Pagination'
 import noChatsImage from '../../assets/NoChats.png'
 import { DebouncedSearchInput } from '../../components/ui/DebouncedSearchInput'
 import { TicketStatusBadge } from '../../components/tickets/TicketStatusBadge'
@@ -146,7 +147,7 @@ export function ChatsPage() {
           ))}
         </ol>
       ) : null}
-      {!loading && !error && (page > 1 || hasMore) ? <div className="admin-pagination" aria-label="Chat pages"><button type="button" className="btn ghost" disabled={page === 1} onClick={() => updatePage(page - 1)}>Previous</button><span>Page {page}</span><button type="button" className="btn ghost" disabled={!hasMore} onClick={() => updatePage(page + 1)}>Next</button></div> : null}
+      <Pagination page={page} hasMore={hasMore} onPageChange={updatePage} ariaLabel="Chat pages" />
     </section>
   )
 }

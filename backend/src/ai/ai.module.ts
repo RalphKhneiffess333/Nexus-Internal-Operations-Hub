@@ -8,6 +8,7 @@ import { AgentService } from './agent/agent.service';
 import { ToolRegistryService } from './tools/tool-registry.service';
 import { AiController } from './ai.controller';
 import { AiService } from './ai.service';
+import { SubmissionContextService } from './submission-context.service';
 
 @Module({
   imports: [DepartmentsModule, PrioritiesModule, TicketsModule],
@@ -15,6 +16,7 @@ import { AiService } from './ai.service';
   providers: [
     AiService,
     AgentService,
+    SubmissionContextService,
     ToolRegistryService,
     GroqProvider,
     { provide: AI_PROVIDER, useExisting: GroqProvider },

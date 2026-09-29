@@ -524,7 +524,7 @@ Inspect whether Nexus already has an email, in-app, event bus, or notification m
 - Do not send notifications to unrelated users.
 - Do not leak ticket details beyond the recipient's ticket permissions.
 - Ensure notification dispatch is idempotent or tied to the committed domain event so retries cannot duplicate user-visible messages.
-- The current repository has in-app/realtime notification integration for handoffs. External email delivery is not implemented; do not describe it as complete or add it as an undocumented handoff API.
+- The current repository has in-app/realtime and SMTP email notification integration for handoff requests, acceptance, and rejection. Email remains an internal asynchronous side effect, not a handoff HTTP API.
 
 ---
 
@@ -1017,7 +1017,7 @@ Do not present these choices as documented product requirements.
 
 ### Deferred functionality
 
-Explicitly list handoff-adjacent functionality not implemented in the current architecture. External email delivery remains deferred; real-time WebSocket updates are implemented through the Operations gateway and must not be listed as missing.
+Explicitly list handoff-adjacent functionality not implemented in the current architecture. Automatic handoff cancellation intentionally has no email notification; real-time WebSocket updates and SMTP email notifications for request, acceptance, and rejection are implemented through the Operations gateway and notification services.
 
 ---
 

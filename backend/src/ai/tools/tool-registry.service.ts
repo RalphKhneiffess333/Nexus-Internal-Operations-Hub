@@ -5,19 +5,12 @@ import {
 } from '@nestjs/common';
 import type { AuthenticatedRequestUser } from '../../authentication/request-user';
 import { sanitizePlainText } from '../../common/sanitization/content-sanitizer';
-import { DepartmentsService } from '../../departments/departments.service';
 import { PrioritiesService } from '../../priorities/priorities.service';
 import type { TicketEventRecord } from '../../tickets/events/ticket-event.types';
 import { TicketsService } from '../../tickets/tickets.service';
 import type { AiToolDefinition } from '../providers/ai-provider.interface';
 
-export const GET_TICKET_SUBMISSION_OPTIONS = 'getTicketSubmissionOptions';
 export const GET_TICKET_BY_NUMBER = 'getTicketByNumber';
-
-export interface TicketSubmissionOptions {
-  departments: Array<{ id: string; code: string; name: string }>;
-  priorities: Array<{ id: string; code: string; name: string }>;
-}
 
 export interface TicketInformationResult {
   accessible: boolean;
@@ -46,7 +39,6 @@ export interface TicketInformationResult {
 }
 
 export interface ToolDefinitionOptions {
-  includeSubmissionOptions?: boolean;
   includeTicketByNumber?: boolean;
 }
 
@@ -91,26 +83,12 @@ function mapEvent(event: TicketEventRecord) {
 @Injectable()
 export class ToolRegistryService {
   constructor(
-    private readonly departmentsService: DepartmentsService,
     private readonly prioritiesService: PrioritiesService,
     private readonly ticketsService: TicketsService,
   ) {}
 
   definitions(options: ToolDefinitionOptions = {}): AiToolDefinition[] {
     const definitions: AiToolDefinition[] = [];
-
-    if (options.includeSubmissionOptions) {
-      definitions.push({
-        name: GET_TICKET_SUBMISSION_OPTIONS,
-        description:
-          'Return the active departments and priorities that this authenticated user can use to submit a ticket.',
-        parameters: {
-          type: 'object',
-          properties: {},
-          additionalProperties: false,
-        },
-      });
-    }
 
     if (options.includeTicketByNumber) {
       definitions.push({
@@ -138,31 +116,7 @@ export class ToolRegistryService {
     name: string,
     args: Record<string, unknown>,
     actor: AuthenticatedRequestUser,
-  ): Promise<TicketSubmissionOptions | TicketInformationResult> {
-    if (name === GET_TICKET_SUBMISSION_OPTIONS) {
-      if (Object.keys(args).length > 0) {
-        throw new Error('getTicketSubmissionOptions does not accept arguments');
-      }
-
-      const [departments, priorities] = await Promise.all([
-        this.departmentsService.findAll(actor, 'all'),
-        this.prioritiesService.list(true),
-      ]);
-
-      return {
-        departments: departments.map(({ departmentId, code, name: label }) => ({
-          id: departmentId,
-          code,
-          name: label,
-        })),
-        priorities: priorities.map(({ priorityId, code, name: label }) => ({
-          id: priorityId,
-          code,
-          name: label,
-        })),
-      };
-    }
-
+  ): Promise<TicketInformationResult> {
     if (name === GET_TICKET_BY_NUMBER) {
       return this.getTicketByNumber(args, actor);
     }
@@ -235,7 +189,10 @@ export class ToolRegistryService {
         },
       };
     } catch (error) {
-      if (error instanceof ForbiddenException || error instanceof NotFoundException) {
+      if (
+        error instanceof ForbiddenException ||
+        error instanceof NotFoundException
+      ) {
         return {
           accessible: false,
           message:

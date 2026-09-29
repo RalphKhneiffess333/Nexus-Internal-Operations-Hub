@@ -6,15 +6,24 @@ import {
   AgentService,
   type AssistantResponse,
   type AssistantTurn,
+  hasExplicitPrefillRequest,
+  hasPendingPrefillOffer,
 } from './agent/agent.service';
 import { AiProviderError } from './providers/ai-provider.interface';
 import { logSystemError } from '../common/logging/system-error.logger';
+import {
+  SubmissionContextService,
+  type TicketSubmissionOptions,
+} from './submission-context.service';
 
 const MAX_TURNS = 8;
 const MAX_CONVERSATIONS_PER_USER = 20;
+const DEFAULT_FALLBACK_MESSAGE =
+  'I’m having trouble processing this request right now. Please try again in a moment.';
 
 interface ConversationState {
   turns: AssistantTurn[];
+  submissionOptions?: TicketSubmissionOptions;
   lastUsedAt: number;
 }
 
@@ -24,10 +33,10 @@ function fallbackAssistantMessage(message: string): string {
       message,
     )
   ) {
-    return 'That sounds like a lot to carry at once—conflict with a coworker and the pain of a recent divorce. We can take this one step at a time. Would you like help drafting an honest message to your coworker, or would you rather talk about how you are feeling first?';
+    return 'I’m having trouble processing this request right now. That sounds like a lot to carry at once—conflict with a coworker and the pain of a recent divorce. Please try again in a moment.';
   }
 
-  return 'I’m here to help. Tell me what feels most urgent, and we can work through it one small step at a time.';
+  return DEFAULT_FALLBACK_MESSAGE;
 }
 
 @Injectable()
@@ -38,7 +47,10 @@ export class AiService {
     Map<string, ConversationState>
   >();
 
-  constructor(private readonly agent: AgentService) {}
+  constructor(
+    private readonly agent: AgentService,
+    private readonly submissionContext: SubmissionContextService,
+  ) {}
 
   async respond(
     dto: AssistantMessageDto,
@@ -55,12 +67,34 @@ export class AiService {
       lastUsedAt: Date.now(),
     };
 
+    const prefillTurn =
+      hasPendingPrefillOffer(conversation.turns) ||
+      hasExplicitPrefillRequest(dto.message);
+    let submissionOptions = conversation.submissionOptions ?? null;
+    const shouldLoadOptions = !conversation.submissionOptions || prefillTurn;
+
+    if (shouldLoadOptions) {
+      try {
+        submissionOptions = await this.submissionContext.load(actor);
+        conversation.submissionOptions = submissionOptions;
+      } catch (error) {
+        logSystemError(this.logger, error, {
+          operation: 'ai.submission-options.load',
+          object: { type: 'assistant-conversation', id: conversationId },
+          context: { userId: actor.userId, prefillTurn },
+        });
+        delete conversation.submissionOptions;
+        submissionOptions = null;
+      }
+    }
+
     let response: AssistantResponse;
     try {
       response = await this.agent.respond(
         dto.message,
         actor,
         conversation.turns,
+        submissionOptions,
       );
     } catch (error) {
       logSystemError(this.logger, error, {

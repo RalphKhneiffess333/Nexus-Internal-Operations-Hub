@@ -43,7 +43,6 @@ the authentication and smoke requests. You may need to set:
 | --- | --- | --- |
 | `healthSecret` | When calling `GET /api/health` | The value of `HEALTH_CHECK_SECRET` from `backend/.env.integration` |
 | `runAi` | When you want to execute the AI smoke request | Set to `true`; leave as `false` to skip it |
-| `configurationKey` | Before sending the admin configuration update request | A valid key returned by `GET /api/admin/configurations` |
 | `fileFixture` | Only if Postman cannot resolve the upload path | Select `postman/fixtures/smoke.txt` in the multipart `files` field |
 
 Do not manually fill these session variables during the normal local test

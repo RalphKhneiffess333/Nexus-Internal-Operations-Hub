@@ -1707,21 +1707,36 @@ h3 {
   padding-top: 10px;
   border-top: 1px dashed #dde3ed;
 }
-.ticket-attachments-heading {
-  margin: 0 0 3px !important;
+.ticket-attachments-heading,
+.timeline-attachments-heading {
   color: var(--ink-faint) !important;
-  font-size: 9px !important;
   font-weight: 800 !important;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
-.ticket-attachments ul {
+.ticket-attachments-heading {
+  margin: 0 0 3px !important;
+  font-size: 9px !important;
+}
+.timeline-attachments-heading {
+  margin: 0 0 8px;
+  font-size: 10px;
+}
+.ticket-attachments ul,
+.timeline-attachments ul {
   display: grid;
   gap: 6px;
   margin: 0;
+  list-style: none;
+}
+.ticket-attachments ul {
   margin-bottom: 20px;
   padding: 2px 0 1px;
-  list-style: none;
+}
+.timeline-attachments ul {
+  padding: 0;
+  min-width: 0;
+  max-width: 100%;
 }
 .ticket-attachment-actions,
 .timeline-attachment-actions {
@@ -1732,37 +1747,56 @@ h3 {
   min-width: 0;
   max-width: 100%;
 }
-.ticket-attachment {
+.ticket-attachment,
+.timeline-attachment {
   min-width: 0;
-  flex: 1 1 auto;
   display: flex;
   align-items: center;
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.ticket-attachment {
+  flex: 1 1 auto;
   gap: 8px;
   min-height: 30px;
   padding: 6px 9px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  color: var(--primary);
   background: #f8faff;
-  font-size: 11px;
-  font-weight: 700;
   line-height: 1.35;
-  text-align: left;
-  cursor: pointer;
+}
+.timeline-attachment {
+  width: 100%;
+  gap: 7px;
+  overflow: hidden;
+  padding: 7px 0;
+  border: 0;
+  background: transparent;
 }
 .ticket-attachment:hover:not(:disabled) {
   border-color: #bdc9df;
   background: #fff;
 }
-.ticket-attachment:disabled {
+.timeline-attachment:hover:not(:disabled) {
+  color: var(--primary-dark);
+}
+.ticket-attachment:disabled,
+.timeline-attachment:disabled {
   cursor: wait;
   opacity: 0.65;
 }
-.ticket-attachment > span:nth-child(2) {
+.ticket-attachment > span:nth-child(2),
+.timeline-attachment > span:nth-child(2) {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.timeline-attachment > span:nth-child(2) {
+  flex: 1 1 auto;
 }
 .ticket-attachment-download,
 .timeline-attachment-download {
@@ -1781,11 +1815,6 @@ h3 {
 .timeline-attachment-download:disabled {
   cursor: wait;
   opacity: 0.65;
-}
-.ticket-attachment-action {
-  flex: 0 0 auto;
-  color: var(--ink-faint);
-  font-size: 9px;
 }
 .ticket-details {
   padding: 30px;
@@ -2774,62 +2803,9 @@ h3 {
   min-width: 0;
   max-width: 100%;
 }
-.timeline-attachments-heading {
-  margin: 0 0 8px;
-  color: var(--ink-faint);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.timeline-attachments ul {
-  display: grid;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  min-width: 0;
-  max-width: 100%;
-}
 .timeline-attachments li {
   min-width: 0;
   max-width: 100%;
-}
-.timeline-attachment {
-  min-width: 0;
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  overflow: hidden;
-  padding: 7px 0;
-  border: 0;
-  color: var(--primary);
-  background: transparent;
-  font-size: 11px;
-  font-weight: 700;
-  text-align: left;
-  cursor: pointer;
-}
-.timeline-attachment:hover:not(:disabled) {
-  color: var(--primary-dark);
-}
-.timeline-attachment:disabled {
-  cursor: wait;
-  opacity: 0.65;
-}
-.timeline-attachment > span:nth-child(2) {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.timeline-attachment-action {
-  margin-left: auto;
-  flex: 0 0 auto;
-  color: var(--ink-faint);
-  font-size: 10px;
 }
 .timeline-detail-status,
 .timeline-detail-empty {

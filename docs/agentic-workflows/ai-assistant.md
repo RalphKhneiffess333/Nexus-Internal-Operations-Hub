@@ -61,9 +61,9 @@ User
 Nexus Frontend
   ↓
 Nexus Backend
-  ↕
+  ↓ preloaded context
 AI Provider
-  ↓ tool request
+  ↓ optional ticket tool request
 Nexus Backend
   ↓
 Existing Nexus Services / Policies
@@ -77,7 +77,8 @@ The AI provider must NEVER receive database credentials.
 
 The AI provider must NEVER execute arbitrary SQL.
 
-All access to Nexus information must happen through predefined backend tools.
+The AI receives non-sensitive submission context from the backend and accesses
+other Nexus information only through predefined backend tools.
 
 ---
 
@@ -153,7 +154,7 @@ Example:
 The assistant should:
 
 1. Understand the user's problem.
-2. Retrieve current Nexus configuration when necessary.
+2. Use the departments and priorities supplied by the backend for this conversation.
 3. Determine the most appropriate available department.
 4. Determine an appropriate available priority.
 5. Give the user useful preliminary guidance when appropriate.
@@ -163,9 +164,9 @@ The assistant should:
 9. Suggest the priority.
 10. Offer to prepare/prefill the ticket submission form.
 
-The assistant must provide useful guidance before offering a form. It must ask for confirmation before returning a `PREFILL_TICKET` action; an issue description or a request for help is not permission to prefill the form.
+The assistant must provide useful guidance before offering a form. An issue description or a request for help is not permission to prefill the form. However, a direct request to create, prepare, report, or prefill a new ticket already counts as confirmation; the assistant should not ask the generic confirmation question again.
 
-Departments and priorities are dynamic Nexus configuration.
+Departments and priorities are dynamic Nexus records.
 
 DO NOT hardcode values such as:
 
@@ -181,7 +182,10 @@ HIGH
 
 into the AI workflow if the current system provides these values dynamically.
 
-The agent should use backend tools to retrieve the currently configured values.
+The backend must supply the currently active values before the provider request.
+The values are cached for ordinary turns in one conversation and refreshed before
+the backend accepts a prefill action. If the values are unavailable, the agent
+must not invent departments or priorities and must not return a prefill action.
 
 ---
 
@@ -325,53 +329,13 @@ Never invent missing events, dates, actors, reasons, completion notes, or state 
 
 Implement a controlled tool interface between the AI and Nexus.
 
-The minimum tools required are conceptually:
+The only current AI tool is:
 
 ```text
-getTicketSubmissionOptions()
 getTicketByNumber
 ```
 
 Use names consistent with the repository conventions.
-
-## getTicketSubmissionOptions()
-
-Purpose:
-
-Return departments and priorities currently available for ticket submission.
-
-Example conceptual result:
-
-```json
-{
-  "departments": [
-    {
-      "id": "dep_1",
-      "name": "IT"
-    },
-    {
-      "id": "dep_2",
-      "name": "Human Resources"
-    }
-  ],
-  "priorities": [
-    {
-      "id": "pri_1",
-      "name": "Low"
-    },
-    {
-      "id": "pri_2",
-      "name": "Moderate"
-    },
-    {
-      "id": "pri_3",
-      "name": "High"
-    }
-  ]
-}
-```
-
-Return only fields necessary for the AI's decision.
 
 ---
 
@@ -552,6 +516,11 @@ Available priorities
 Relevant conversation context
 ```
 
+Departments and priorities are loaded by the backend through the authenticated
+user's existing services. The context contains only each active record's `id`,
+`code`, and `name`; it is cached for ordinary turns in a conversation and
+refreshed before a prefill action is accepted.
+
 For ticket questions, send only the authorized ticket information necessary to answer the question.
 
 Do NOT automatically send:
@@ -614,7 +583,7 @@ It should establish that the assistant:
 * may recommend available departments and priorities;
 * may provide reasonable preliminary guidance;
 * may inspect exactly one explicitly identified ticket when requested;
-* must use Nexus tools for authoritative system information;
+* must use preloaded submission context for departments and priorities, and Nexus tools for authoritative ticket information;
 * must not invent ticket information;
 * must not claim a ticket exists unless Nexus returned it;
 * must not claim a user has permission merely because they asked;
@@ -796,16 +765,12 @@ src/
 │   │
 │   ├── agent/
 │   │   ├── agent.service.ts
-│   │   ├── agent-context.ts
 │   │   └── system-prompt.ts
+│   │
+│   ├── submission-context.service.ts
 │   │
 │   ├── tools/
 │   │   ├── tool-registry.service.ts
-│   │   ├── get-departments.tool.ts
-│   │   ├── get-my-tickets.tool.ts
-│   │   ├── get-ticket.tool.ts
-│   │   ├── get-ticket-history.tool.ts
-│   │   └── search-tickets.tool.ts
 │   │
 │   └── dto/
 │       ├── assistant-message.dto.ts

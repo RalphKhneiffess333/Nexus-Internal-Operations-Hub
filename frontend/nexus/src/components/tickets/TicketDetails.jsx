@@ -2,7 +2,7 @@ import { departmentLabel } from "../../features/departments/use-departments";
 import { formatDate } from "../../features/tickets/ticket-types";
 import { priorityLabel } from "../../features/priorities/use-priorities";
 import { TicketStatusBadge } from "./TicketStatusBadge";
-import { TicketAttachments } from "./TicketAttachments";
+import { AttachmentList } from "./AttachmentList";
 import { UserLink } from "../users/UserLink";
 
 /**
@@ -101,7 +101,7 @@ export function TicketDetails({
       <section className="detail-block">
         <h2>Description</h2>
         <p>{ticket.description}</p>
-        <TicketAttachments
+        <AttachmentList
           attachments={attachments}
           heading={attachmentHeading}
           downloadingAttachmentId={downloadingAttachmentId}

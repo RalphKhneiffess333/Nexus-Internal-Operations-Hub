@@ -7,8 +7,6 @@ author: "Ralph Khneiffess"
 
 The current implemented API surface and the features intentionally not exposed as standalone endpoints are recorded in [api-contract.md](api-contract.md). This document defines product behavior and acceptance criteria; it does not define exact route names or JSON envelopes.
 
-Current implementation notes: ticket, Chat, handoff, administration, file attachment, authentication, authorization, and realtime APIs are implemented. SendGrid email delivery, reminder processing, audit-log purge processing, and other background workers described as future behavior are not currently included.
-
 ## Overview
 ### Context 
 Organizations require internal communications between their multiple departments. Although a company itself may be well established, its employees regularly need assistance from different internal departments. These requests vary from technical problems, such as laptop issues, to access and administrative requests and more.
@@ -59,7 +57,7 @@ The following assumptions are made for Nexus:
 
 ### Actors
 #### System Administrator
-The system administrator is responsible for handling Nexus's configurations, users and permissions. In short, the system administrator grants users certain permissions depending on their roles (Employee, Agent, Admin), configures departments, priorities and their reminder intervals, role mappings, user to department mappings, and has access to the system's history logs.
+The system administrator is responsible for handling Nexus's users and permissions. In short, the system administrator grants users certain permissions depending on their roles (Employee, Agent, Admin), manages departments, priorities and their reminder intervals, role mappings, user to department mappings, and has access to the system's history logs.
 Example 1: Upon first configuring Nexus, the administrator needs to map the user roles to their accounts.
 Example 2: A new Finance department has opened, the system administrator needs to add the "Finance" department option for the request target department.
 
@@ -96,6 +94,7 @@ Nexus must restrict access to functionality and request information based on the
 
 #### Department Management
 Nexus must allow the administrator to add and manage departments and link user accounts to departments.
+Nexus maintains a system `Administration` department for requests sent to administrators. It cannot be renamed or deactivated, only administrators may belong to it and administrators retain that membership.
 
 #### Request Submission
 Nexus must allow company employees (normal employees, agents and admins) to submit requests, requests sent are registered under their name and account information. Additionally, each request can be categorized by an administrator-managed priority (with Low, Moderate, and High as the seeded defaults) and department (HR, IT, etc...).
@@ -161,11 +160,12 @@ Nexus must maintain an accurate log of every ticket and system action recorded (
 Nexus must allow employees who have a claimed ticket to chat with their agent through independent chats for each ticket. The ticket submitter, all agents belonging to the ticket's department, and administrators may view the chat. Only the ticket submitter and the currently assigned agent may send messages.
 
 #### Event Notification
-Nexus must send notifications to the concerned party for every meaningful event. Nexus sends notifications as emails. Example: 
-- All department agents should receive a notification whenever a new ticket is opened
-- Employee should receive a notification whenever one of their ticket's status changes (Claimed or Closed).
-- Reminder notifications should be sent to department agents when an unclaimed ticket passes the reminder interval configured for its priority
-- Ticket events and new chat messages should be reflected to users in real-time
+Nexus sends in app notifications and realtime events to the concerned users for ticket, handoff, chat, and filter-option changes. It also sends email notifications for ticket submission, claim, close, reopen, unclaimed-ticket reminders, and handoff request, acceptance, and rejection.
+
+- Department agents receive in app and email notification when a new ticket enters their department pool.
+- The submitter receives in app and email notification when their ticket is claimed, closed, or reopened.
+- Department agents receive in app and email reminder notification when an unclaimed ticket reaches its priority's reminder interval.
+- Ticket events and new chat messages are reflected to authorized users in realtime. Each chat participant has an in-app read receipt; chat submission accepts a client message identifier so retries are idempotent.
 
 #### Ticket Handoff
 Nexus must allow an agent to attempt delegation of a claimed ticket to another agent within the same department, the receiving agent is required to accept this proposal to successfully handoff the ticket.
@@ -176,8 +176,11 @@ A handoff request can have multiple states:
 - Cancelled: The requester agent has cancelled the handoff request
 
 #### AI Assistance
-Nexus should provide users a useful AI agent that can help them with most tasks like asking about a specific ticket info, submission advice and request formulation.
-AI capabilities should differ depending on the user's role, so the AI should not be able to access resources the user cannot access.
+Nexus provides an AI assistant for request formulation, submission advice, current department/priority options, and details for one exact ticket number. Ticket lookup applies the same authorization rules as normal tickets, the assistant cannot list, search, or inspect multiple tickets and never submits a ticket automatically.
+AI capabilities differ depending on the user's role, so the AI cannot access resources the user cannot access.
+
+#### Scheduled Maintenance
+When background workers are enabled, Nexus runs audit-log retention cleanup, unclaimed-ticket reminders, and orphaned-file cleanup immediately on startup and at configurable intervals. The audit worker is the controlled path that deletes audit logs older than two years.
 
 ### Non-Functional Requirements
 #### Security
@@ -199,7 +202,7 @@ Nexus must be able to hold around 50 concurrent users without page loading or sp
 Nexus should have an intuitive interface and be easy to use for non technical users especially employees, with a responsive web interface for desktop and mobile devices.
 
 #### Maintainability
-Configuration data like the available departments, request priorities and other, should be dynamically managed using a database and not hardcoded into the system source code, this allows administrators to eaaily alter such values without the need for developer intervention.
+Available departments and request priorities should be managed as database records rather than hardcoded into the system source code, allowing administrators to alter these values without developer intervention.
 
 #### Integrity
 Nexus must handle concurrent actions (Two agents claiming the same ticket at the same time although rare) safely and atomically to prevent racing conditions and data corruption.
@@ -351,7 +354,7 @@ Unwanted Behavior Scenarios:
 #### Event Notification
 - Nexus notifies the department agents when an employee submits a ticket to their department
 - Nexus notifies the employee when the status of one of their tickets changes
-- Nexus sends reminder notifications to agents when a request remains opened and unclaimed for a specific duration according to each ticket priority configured duration by admin.
+- Nexus sends reminder notifications to agents when a request remains opened and unclaimed for the duration defined for its ticket priority by an admin.
 
 Unwanted Behavior Scenarios:
 - Nexus sends notifications to users who are not concerned with the corresponding events.

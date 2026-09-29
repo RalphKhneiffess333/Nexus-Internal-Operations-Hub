@@ -666,7 +666,7 @@ List tests and commands run. Distinguish passing, failing, skipped, and blocked 
 
 ### Defaults/deferred work
 
-Document defaults not defined by the authoritative docs, such as message length, pagination, attachment limits, or empty-message handling. In the current implementation, distributed presence, Redis fan-out, and typing indicators remain deferred; read receipts are implemented through `POST /chats/:ticketId/read`. External email delivery and unrelated notification work remain deferred.
+Document defaults not defined by the authoritative docs, such as message length, pagination, attachment limits, or empty-message handling. In the current implementation, distributed presence, Redis fan-out, and typing indicators remain deferred; read receipts are implemented through `POST /chats/:ticketId/read`. SMTP email and in-app notifications are implemented for ticket, handoff, and reminder events; chat messages are delivered through the authorized realtime chat flow rather than email.
 
 ---
 

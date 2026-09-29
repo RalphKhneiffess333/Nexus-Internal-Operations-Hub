@@ -32,17 +32,6 @@ export type DepartmentMemberListRecord = Prisma.DepartmentMemberGetPayload<{
   select: typeof departmentMemberListSelect;
 }>;
 
-export type ConfigurationRecord = Prisma.SystemConfigurationGetPayload<{
-  select: {
-    configurationId: true;
-    key: true;
-    value: true;
-    description: true;
-    createdAt: true;
-    updatedAt: true;
-  };
-}>;
-
 @Injectable()
 export class AdministrationRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -215,37 +204,4 @@ export class AdministrationRepository {
     }
   }
 
-  async listConfigurations(keys: string[]): Promise<ConfigurationRecord[]> {
-    try {
-      return await this.prisma.systemConfiguration.findMany({
-        where: { key: { in: keys } },
-        orderBy: { key: 'asc' },
-      });
-    } catch (error) {
-      mapPrismaError(error);
-    }
-  }
-
-  async findConfiguration(key: string, client: Prisma.TransactionClient) {
-    try {
-      return await client.systemConfiguration.findUnique({ where: { key } });
-    } catch (error) {
-      mapPrismaError(error);
-    }
-  }
-
-  async updateConfiguration(
-    key: string,
-    value: string,
-    client: Prisma.TransactionClient,
-  ) {
-    try {
-      return await client.systemConfiguration.update({
-        where: { key },
-        data: { value },
-      });
-    } catch (error) {
-      mapPrismaError(error);
-    }
-  }
 }

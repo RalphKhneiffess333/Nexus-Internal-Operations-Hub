@@ -5,6 +5,13 @@ export const TicketStatus = {
   REOPENED: 'REOPENED',
 }
 
+export const TICKET_STATUS_LABELS = {
+  [TicketStatus.OPEN]: 'Open',
+  [TicketStatus.CLAIMED]: 'Claimed',
+  [TicketStatus.CLOSED]: 'Closed',
+  [TicketStatus.REOPENED]: 'Reopened',
+}
+
 export const TicketEventAction = {
   SUBMISSION: 'SUBMISSION',
   CLAIM: 'CLAIM',

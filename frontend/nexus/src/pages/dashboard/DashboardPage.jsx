@@ -5,6 +5,7 @@ import { LoadingState } from "../../components/ui/LoadingState";
 import { getDashboardSummary } from "../../features/dashboard/dashboard-api";
 import {
   formatDateTime,
+  canWorkTickets as canWorkTicketsForUser,
   TicketStatus,
   UserRole,
 } from "../../features/tickets/ticket-types";
@@ -33,7 +34,6 @@ const ACTIVITY_LABELS = {
   DEPARTMENT_DELETION: "Department deactivated",
   DEPARTMENT_REACTIVATION: "Department reactivated",
   DEPARTMENT_MAPPING: "Department membership changed",
-  SYSTEM_VARIABLE_MODIFICATION: "Configuration updated",
 };
 
 function firstName(fullName) {
@@ -85,7 +85,7 @@ export function DashboardPage() {
 
   const role = summary?.role ?? user?.role;
   const isAdmin = role === UserRole.ADMIN;
-  const canWorkTickets = role === UserRole.AGENT || isAdmin;
+  const canWorkTickets = canWorkTicketsForUser({ role });
   const myTicketCounts = summary?.myTickets?.counts ?? {};
   const assignedCounts = summary?.work?.assigned?.counts ?? {};
   const poolCounts = summary?.work?.pool?.counts ?? {};

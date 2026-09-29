@@ -10,6 +10,26 @@ Sections 2 to 12 cover app setup while sections 13 to 16 cover app behavior and 
 
 The current HTTP and Socket.io routes, query parameters, request bodies, response envelopes, and intentionally unexposed routes are documented in [docs/api-contract.md](docs/api-contract.md). The longer workflow documents in `docs/agentic-workflows/` contain historical implementation guidance where explicitly noted.
 
+### Evidence Map
+
+Use this map to move from the product intent to the implementation and release
+proof without searching the repository manually.
+
+| Evidence stage | Direct documentation | What it proves | Direct proof |
+| --- | --- | --- | --- |
+| Week 1 — product foundation | [Product specs](docs/product-specs.md), [Architecture](docs/architecture.md), [Data model](docs/data-model.md) | Product scope, system boundaries, module responsibilities, persistence model, and core invariants | [API contract](docs/api-contract.md) |
+| Week 2 — agentic workflow | [Week 2 agentic workflow](docs/week2-agentic-workflow.md) | The intended end-to-end workflow and module handoffs | [Agentic workflow documents](docs/agentic-workflows/) |
+| Week 3 — full-stack delivery | [Week 3 full-stack delivery](docs/week3-full-stack-delivery.md) | Connected frontend, backend, authentication, authorization, PostgreSQL persistence, and ticket lifecycle | [Golden-path browser test](backend/test/browser/golden-path.browser.e2e-spec.ts), [restart persistence test](backend/test/api/tickets.api.e2e-spec.ts) |
+| Week 4 — production AI | [Week 4 production AI](docs/week4-production-ai.md) | Bounded Groq integration, validated assistant responses, ticket-prefill safety, fallbacks, and AI evaluation | [AI service tests](backend/src/ai/ai.service.spec.ts), [AI model evaluation](backend/src/ai/ai-model.eval.ts) |
+| Week 5 — release operations | [Week 5 release operations](docs/week5-release-operations.md) | Health/readiness, monitoring signals, controlled failure recovery, release decisions, and recovery verification | [Health tests](backend/src/health/health.service.spec.ts), [API smoke suite](backend/test/smoke/api/core.smoke.e2e-spec.ts), [browser smoke suite](backend/test/smoke/browser/golden-path.smoke.e2e-spec.ts) |
+
+### Live App
+
+- **Live URL:** `<LIVE_APP_URL>` — replace this placeholder with the deployed application URL.
+- **Demo access:** Demo access details and role credentials are sent to Eurisko Academy instructors in their Week 5 email. Do not commit demo credentials to this repository.
+- **Roles:** The main application roles are `Employee`, `Agent`, and `Admin`. Local test-mode users for each role are documented in [Start in local test-authentication mode](#start-in-local-test-authentication-mode).
+- **Critical journey:** An employee submits a ticket, a department agent retrieves and claims it, the agent closes it with completion notes, and the employee verifies the persisted closure. The manual version is documented in [Manual production browser testing flow](#16-manual-production-browser-testing-flow).
+
 ## 2. Setup CLI
 
 It is recommended to run the setup CLI to help you with installation then skip to section 13.
@@ -192,6 +212,67 @@ and the status of PostgreSQL, Microsoft Entra OpenID discovery, SMTP, and Groq.
 It does not send an email or generate an AI response. Disabled optional email or
 Groq integrations are reported as `disabled`; a required or configured service
 that cannot be reached produces an `unhealthy` report with HTTP status `503`.
+If `HEALTH_CHECK_SECRET` is missing in the running environment, the detailed
+health endpoint is disabled and returns HTTP `503` with an explicit configuration
+message. A configured endpoint with a missing or incorrect bearer token returns
+HTTP `401` instead.
+
+### Logs, signals, and monitoring
+
+The backend writes system-error logs with an operation, affected object, and
+safe diagnostic context. Sensitive values such as session cookies, Microsoft
+tokens, Groq keys, database credentials, and passwords are redacted. Important
+signals include:
+
+- `GET /api/health/ping` returning `200`, proving that the backend process is responding.
+- Authorized `GET /api/health` returning `200` with `status: "healthy"`, or `503` with `status: "unhealthy"`.
+- Repeated log entries for `health.check`, `application.bootstrap`, `process.uncaught-exception`, `process.unhandled-rejection`, database failures, or external-provider failures.
+- Frontend realtime state changing to `reconnecting` or `error`.
+
+The current repository does not include a dedicated production monitoring
+platform. A monitor should poll `/api/health`, inspect both the HTTP status and
+the JSON body, and alert after consecutive unhealthy checks rather than on one
+transient failure. For the deployed application, use the hosting provider's
+runtime logs together with the application logs. The full operational context
+is in [Week 5 release operations](docs/week5-release-operations.md#6-failure-signals-and-monitoring).
+
+### Controlled failure and recovery
+
+Nexus isolates optional dependency failures from the core ticket workflow where
+possible:
+
+- **Backend/runtime:** restart or redeploy the service, inspect startup logs and environment variables, and roll back to the last known-good release if the deployment caused the failure.
+- **PostgreSQL:** restore database availability, connection limits, credentials, or `DATABASE_URL`; then restart the backend if needed. Do not reset or reseed production data. Transactional lifecycle operations protect against partial writes.
+- **Microsoft Entra ID:** transient authentication requests retry up to three times. Restore provider availability or OAuth configuration and ask new users to retry login; valid existing sessions may continue until expiry.
+- **Groq:** transient requests retry and then return an assistant fallback. Restore the key, quota, model, or network, or leave AI disabled while normal ticket operations continue.
+- **SMTP:** notification sends retry transient failures and then log and drop the message. Core ticket and handoff operations are not failed by email delivery; dropped messages are not automatically resent because there is no outbox.
+- **Files:** failed multipart uploads clean up files already written in that batch. Repair storage capacity or permissions and retry; restore missing local files from external backups if necessary.
+- **Realtime:** the browser reconnects and rejoins ticket/chat rooms. If an event was missed, refresh the page and use the persisted HTTP state as the source of truth.
+
+The controlled recovery sequence is: **HOLD**, identify the failed
+dependency from health and logs, restore or restart only the affected service,
+then run post-recovery verification. See the complete failure matrix in
+[Week 5 release operations](docs/week5-release-operations.md#7-failure-recovery).
+
+### Post-recovery verification
+
+Recovery is not complete merely because the process starts again. After a
+significant failure or restart:
+
+1. Confirm `GET /api/health/ping` responds successfully.
+2. Call authorized `GET /api/health` and verify the expected dependency states; check the response body, not only the HTTP code.
+3. Review startup and runtime logs for recurring errors.
+4. Re-authenticate users if the backend restarted, because production sessions are held in memory.
+5. Run the critical employee-to-agent-to-employee ticket journey and confirm the ticket remains persisted and the employee sees the final closure.
+6. For a release-related incident, verify or redeploy the last known-good candidate before declaring the system ready.
+
+For the isolated automated release smoke suite, run:
+
+```bash
+npm run test:smoke --workspace=backend
+```
+
+The full verification checklist is in [Week 5 recovery verification](docs/week5-release-operations.md#recovery-verification).
 
 ## 9. Frontend Optional Configuration
 
@@ -339,7 +420,7 @@ Run the representative AI evaluations from the repository root:
 npm run eval
 ```
 
-This command runs only the model-backed AI eval runner. It uses the existing Groq provider, so `backend/.env` must contain `GROQ_API_KEY`; `GROQ_MODEL` is optional. The runner uses fixed in-memory departments and priorities, so it does not require PostgreSQL or a running Nexus server. It makes real Groq requests and reports the clear, thin, ambiguous, trusted-context, conditional-prefill, supplied-evidence, and repeatability cases separately.
+This command runs only the model-backed AI eval runner. It uses the existing Groq provider, so `backend/.env` must contain `GROQ_API_KEY`; `GROQ_MODEL` is optional. The runner supplies fixed in-memory departments and priorities as assistant context, so it does not require PostgreSQL or a running Nexus server. It makes real Groq requests and reports the clear, thin, ambiguous, trusted-context, conditional-prefill, supplied-evidence, and repeatability cases separately.
 
 If Groq responds with `429`, the runner respects its `Retry-After` value and retries that model request up to three times. `AI_EVAL_MAX_RATE_LIMIT_RETRIES` and `AI_EVAL_MAX_RATE_LIMIT_WAIT_MS` can change those defaults. The runner stops instead of waiting longer than the configured maximum, which avoids hanging when a daily quota is exhausted.
 
