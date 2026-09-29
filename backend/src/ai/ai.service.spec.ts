@@ -239,7 +239,7 @@ describe('AiService', () => {
       service.respond({ message: 'Hello.' }, actor),
     ).resolves.toMatchObject({
       message:
-        'I’m here to help. Tell me what feels most urgent, and we can work through it one small step at a time.',
+        'I’m having trouble processing this request right now. Please try again in a moment.',
     });
   });
 
@@ -270,7 +270,7 @@ describe('AiService', () => {
       service.respond({ message: 'Hello.' }, actor),
     ).resolves.toMatchObject({
       message:
-        'I’m here to help. Tell me what feels most urgent, and we can work through it one small step at a time.',
+        'I’m having trouble processing this request right now. Please try again in a moment.',
     });
   });
 

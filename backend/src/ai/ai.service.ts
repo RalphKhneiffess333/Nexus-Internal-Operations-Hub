@@ -18,6 +18,8 @@ import {
 
 const MAX_TURNS = 8;
 const MAX_CONVERSATIONS_PER_USER = 20;
+const DEFAULT_FALLBACK_MESSAGE =
+  'I’m having trouble processing this request right now. Please try again in a moment.';
 
 interface ConversationState {
   turns: AssistantTurn[];
@@ -31,10 +33,10 @@ function fallbackAssistantMessage(message: string): string {
       message,
     )
   ) {
-    return 'That sounds like a lot to carry at once—conflict with a coworker and the pain of a recent divorce. We can take this one step at a time. Would you like help drafting an honest message to your coworker, or would you rather talk about how you are feeling first?';
+    return 'I’m having trouble processing this request right now. That sounds like a lot to carry at once—conflict with a coworker and the pain of a recent divorce. Please try again in a moment.';
   }
 
-  return 'I’m here to help. Tell me what feels most urgent, and we can work through it one small step at a time.';
+  return DEFAULT_FALLBACK_MESSAGE;
 }
 
 @Injectable()
