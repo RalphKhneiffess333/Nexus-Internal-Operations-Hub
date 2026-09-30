@@ -41,6 +41,7 @@ export class HealthService {
 
     const expected = Buffer.from(expectedSecret);
     const supplied = Buffer.from(suppliedSecret);
+
     return (
       expected.length === supplied.length && timingSafeEqual(expected, supplied)
     );

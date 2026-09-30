@@ -1,10 +1,4 @@
-import {
-  Controller,
-  Get,
-  Headers,
-  Res,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Controller, Get, Headers, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { Public } from '../authorization/decorators/public.decorator';
 import { HealthService } from './health.service';
@@ -34,7 +28,11 @@ export class HealthController {
     }
 
     if (!this.healthService.isAuthorized(authorization)) {
-      throw new UnauthorizedException('Invalid health check credentials');
+      response.status(401);
+      return {
+        statusCode: 401,
+        message: 'Invalid health check credentials',
+      };
     }
 
     const report = await this.healthService.getReport();
