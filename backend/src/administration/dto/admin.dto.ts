@@ -23,6 +23,12 @@ const trimString = ({ value }: { value: unknown }): unknown =>
 const sanitize = ({ value }: { value: unknown }): unknown =>
   typeof value === 'string' ? sanitizePlainText(value) : value;
 
+const sanitizeOptional = ({ value }: { value: unknown }): unknown => {
+  if (typeof value !== 'string') return value;
+  const sanitized = sanitizePlainText(value);
+  return sanitized || undefined;
+};
+
 export class PageQueryDto {
   @IsOptional()
   @Type(() => Number)
@@ -76,7 +82,7 @@ export class CreateAdminUserDto {
 
   @IsOptional()
   @IsString()
-  @Transform(sanitize)
+  @Transform(sanitizeOptional)
   @IsNotEmpty()
   @Length(1, 50)
   phoneNumber?: string;

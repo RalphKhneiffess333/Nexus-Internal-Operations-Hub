@@ -192,7 +192,7 @@ function CreateUserForm({ actions, onDone }) {
       <div className="admin-form-grid">
         <label className="field"><span>Full name</span><input name="fullName" required value={form.fullName} onChange={update} /></label>
         <label className="field"><span>Email</span><input name="email" type="email" required value={form.email} onChange={update} /></label>
-        <label className="field"><span>Phone</span><input name="phoneNumber" value={form.phoneNumber} onChange={update} /></label>
+        <label className="field"><span>Phone (optional)</span><input name="phoneNumber" value={form.phoneNumber} onChange={update} /></label>
         <label className="field"><span>Initial role</span><AppSelect name="role" value={form.role} onChange={(value) => setForm((current) => ({ ...current, role: value }))} options={[{ value: UserRole.EMPLOYEE, label: 'Employee' }, { value: UserRole.AGENT, label: 'Agent' }, { value: UserRole.ADMIN, label: 'Admin' }]} /></label>
       </div>
       <div className="form-actions"><button type="submit" className="btn primary">Create account</button><button type="button" className="btn ghost" onClick={onDone}>Cancel</button></div>

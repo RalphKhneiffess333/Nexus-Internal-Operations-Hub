@@ -39,6 +39,19 @@ describe('DTO validation', () => {
     expect(errors.map((error) => error.property)).toContain('fullName');
   });
 
+  it('accepts a pre-provisioned account without a phone number', async () => {
+    const dto = plainToInstance(CreateAdminUserDto, {
+      email: 'user@example.com',
+      fullName: 'User Example',
+      phoneNumber: '',
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors).toHaveLength(0);
+    expect(dto.phoneNumber).toBeUndefined();
+  });
+
   it('accepts seeded non-UUID actor identifiers', async () => {
     const dto = plainToInstance(AuditQueryDto, { actorId: 'user-admin-1' });
 

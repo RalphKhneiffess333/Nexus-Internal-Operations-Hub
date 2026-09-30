@@ -32,7 +32,8 @@ The application was migrated from the previous in-memory ticket persistence impl
 - [schema.prisma](<../backend/prisma/schema.prisma>) defines the PostgreSQL datasource, domain models, relationships, constraints, enums, and indexes.
 - [migrations/](<../backend/prisma/migrations/>) contains the reproducible database migrations for tickets, users, departments, identity providers, department memberships, and identity linking.
 - [prisma.service.ts](<../backend/src/database/prisma.service.ts>) owns the Prisma client connection lifecycle.
-- [tickets.repository.ts](<../backend/src/tickets/repositories/tickets.repository.ts>) replaces in-memory persistence with Prisma-backed ticket storage, including soft deletion, ticket code generation, and concurrency-safe claiming.
+- [tickets.repository.ts](<../backend/src/tickets/repositories/tickets.repository.ts>) replaces in-memory persistence with Prisma-backed ticket storage, including soft deletion and ticket code generation.
+- [ticket-lifecycle.repository.ts](<../backend/src/tickets/repositories/ticket-lifecycle.repository.ts>) coordinates lifecycle writes in transactions, including concurrency-safe claiming and server-generated ticket events.
 - [users.repository.ts](<../backend/src/users/repositories/users.repository.ts>) and [departments.repository.ts](<../backend/src/departments/repositories/departments.repository.ts>) provide the database-backed user, identity-provider, department, and membership queries used by the rest of the system.
 
 The database remains an infrastructure concern owned by the repository layer rather than being exposed to controllers or business policies.
@@ -146,13 +147,15 @@ This keeps authentication, authorization, and business rules independently testa
 
 ### 5. Automated Testing
 
-All tests can be run from the repository root with:
+The main unit, integration, API E2E, and browser E2E suites can be run from the repository root with:
 
 ```bash
 npm run test
 ```
 
 Week 3 added coverage across unit, integration, API E2E, and browser E2E levels.
+The smoke suites and AI evaluation are separate release-gate checks run by
+`npm run verify:release`.
 
 - **Unit tests** for isolated business logic and policies.
 - **Integration tests** for interactions between application components and persistence.
@@ -167,7 +170,7 @@ The authorization test coverage includes authentication requirements, role restr
 - [authentication.guard.spec.ts](<../backend/src/authentication/guards/authentication.guard.spec.ts>) tests session-cookie handling, expired/missing sessions, user attachment, and session refresh.
 - [session.service.spec.ts](<../backend/src/authentication/sessions/session.service.spec.ts>) tests opaque session creation, sliding expiration, expired-session cleanup, and logout-all-devices.
 - [authorization.guard.spec.ts](<../backend/src/authorization/guards/authorization.guard.spec.ts>) tests public endpoints, protected endpoint `401` behavior, allowed roles, and disallowed role `403` behavior.
-- [tickets.service.spec.ts](<../backend/src/tickets/tickets.service.spec.ts>) tests invalid ticket transitions and permission failures without writing to the repository.
+- [ticket-lifecycle.service.spec.ts](<../backend/src/tickets/ticket-lifecycle.service.spec.ts>) tests invalid ticket transitions and permission failures without writing to the repository.
 
 #### Integration tests
 
@@ -194,7 +197,7 @@ Regression protection was established to ensure that ongoing code changes, datab
 
 The implementation includes:
 
-Automated execution of the entire test suite (unit, integration, API E2E, and browser E2E) on every code change to catch regressions early.
+Repository scripts provide repeatable execution of the unit, integration, API E2E, browser E2E, smoke, and AI evaluation suites. The complete release gate is defined by `npm run verify:release`.
 
 Isolated test database setups ensuring migration safety, constraint enforcement, and data integrity across updates.
 
@@ -234,17 +237,21 @@ The user enters a title, description, priority, and department. The page validat
 POST /tickets
 ```
 
-The request is JSON and includes the session cookie through [client.js](<../frontend/nexus/src/lib/api/client.js>). NestJS authenticates the cookie, validates the body, checks the department, and calls [tickets.service.ts](<../backend/src/tickets/tickets.service.ts>).
+The frontend sends the request as multipart `FormData` through [ticket-api.js](<../frontend/nexus/src/features/tickets/ticket-api.js>), even when no files are attached, and includes the session cookie through [client.js](<../frontend/nexus/src/lib/api/client.js>). NestJS authenticates the cookie, validates the fields, checks the department, and calls [tickets.service.ts](<../backend/src/tickets/tickets.service.ts>).
 
 The service creates an `OPEN` ticket for the authenticated user, with no assigned agent. [tickets.repository.ts](<../backend/src/tickets/repositories/tickets.repository.ts>) persists it in PostgreSQL through Prisma and generates a ticket code such as `TKT-0001`. The API returns the created ticket. The page then navigates to `/tickets/:ticketId`; [TicketDetailsPage.jsx](<../frontend/nexus/src/pages/tickets/TicketDetailsPage.jsx>) fetches it and [TicketDetails.jsx](<../frontend/nexus/src/components/tickets/TicketDetails.jsx>) displays the ticket details and `Open` status.
 
-Departments are loaded before submission with `GET /departments` from [department-api.js](<../frontend/nexus/src/features/departments/department-api.js>).
+Departments and priorities are loaded before submission through [use-departments.js](<../frontend/nexus/src/features/departments/use-departments.js>) and the shared [filter-api.js](<../frontend/nexus/src/features/filters/filter-api.js>), which requests `/filters`.
 
 ### 2. API Contract
 
 The endpoint is implemented by [tickets.controller.ts](<../backend/src/tickets/tickets.controller.ts>).
 
 **Request:** `POST /tickets`
+
+The backend accepts JSON for text-only requests and multipart form data when
+files are attached. The current frontend uses multipart form data for ticket
+creation so the same path supports optional attachments.
 
 ```json
 {
@@ -255,7 +262,7 @@ The endpoint is implemented by [tickets.controller.ts](<../backend/src/tickets/t
 }
 ```
 
-Validation in [submit-ticket.dto.ts](<../backend/src/tickets/dto/submit-ticket.dto.ts>) requires non-empty strings for `title`, `description`, and `departmentId`, and requires `priority` to be a sanitized non-empty priority code. The lifecycle service resolves that code against the active priorities managed by administrators. The global pipe in [main.ts](<../backend/src/main.ts>) rejects unknown fields.
+Validation in [submit-ticket.dto.ts](<../backend/src/tickets/dto/submit-ticket.dto.ts>) requires non-empty strings for `title`, `description`, and `departmentId`, and requires `priority` to be a sanitized non-empty priority code. The lifecycle service resolves that code against the active priorities managed by administrators. The global pipe configured in [app-configuration.ts](<../backend/src/app-configuration.ts>) rejects unknown fields.
 
 **Success:** `201 Created`. The body is the mapped ticket response, including `ticketId`, `ticketCode`, input values, `status: "OPEN"`, a nested `department`, nested submitter/agent profiles, timestamps, and a `permissions` object. The server derives the submitter from the authenticated session and does not return a client-controlled `submittedBy` string or top-level `agentId`.
 
@@ -299,7 +306,7 @@ Example response for an employee submitting a ticket:
 
 **Errors:**
 
-- `400 Bad Request`: invalid fields or unknown fields, handled by [main.ts](<../backend/src/main.ts>).
+- `400 Bad Request`: invalid fields or unknown fields, handled by the global validation configuration in [app-configuration.ts](<../backend/src/app-configuration.ts>).
 - `401 Unauthorized`: no authenticated session, handled by [authorization.guard.ts](<../backend/src/authorization/guards/authorization.guard.ts>).
 - `404 Not Found`: the department does not exist or is inactive, handled by [submit-ticket.policy.ts](<../backend/src/tickets/policies/submit-ticket.policy.ts>).
 - `503 Service Unavailable`: database availability failure, mapped in [prisma-error.ts](<../backend/src/database/prisma-error.ts>).
@@ -332,7 +339,7 @@ The validation pipe rejects the unknown `submittedBy` property with `400 Bad Req
 
 If the submitted `departmentId` does not exist, [tickets.service.ts](<../backend/src/tickets/tickets.service.ts>) cannot find it. [submit-ticket.policy.ts](<../backend/src/tickets/policies/submit-ticket.policy.ts>) returns `404 Not Found` with `Department was not found`, and no ticket is created. This is tested in [tickets.service.integration-spec.ts](<../backend/src/tickets/tickets.service.integration-spec.ts>).
 
-On the frontend, [NewTicketPage.jsx](<../frontend/nexus/src/pages/tickets/NewTicketPage.jsx>) catches the API error and shows it in the form error banner. A browser E2E test specifically submitting a nonexistent department was **Not found in the current implementation**.
+On the frontend, [NewTicketPage.jsx](<../frontend/nexus/src/pages/tickets/NewTicketPage.jsx>) catches the API error and shows it in the form error banner. There is no browser E2E test specifically for a nonexistent department; the failure is covered by the integration test above.
 
 ### 6. Business-Rule Test
 

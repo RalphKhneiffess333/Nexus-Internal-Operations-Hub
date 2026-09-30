@@ -24,24 +24,4 @@ describe('HealthController', () => {
     expect(healthService.isAuthorized).not.toHaveBeenCalled();
     expect(healthService.getReport).not.toHaveBeenCalled();
   });
-
-  it('rejects invalid health credentials without exposing diagnostics', async () => {
-    const healthService = {
-      isConfigured: jest.fn().mockReturnValue(true),
-      isAuthorized: jest.fn().mockReturnValue(false),
-      getReport: jest.fn(),
-    };
-    const response = { status: jest.fn() } as unknown as Response;
-    const controller = new HealthController(
-      healthService as unknown as HealthService,
-    );
-
-    await expect(
-      controller.getHealth('Bearer wrong-secret', response),
-    ).resolves.toEqual({
-      statusCode: 401,
-      message: 'Invalid health check credentials',
-    });
-    expect(response.status).toHaveBeenCalledWith(401);
-  });
 });

@@ -27,7 +27,9 @@ export class HealthService {
   ) {}
 
   isConfigured(): boolean {
-    return Boolean(this.config.get<string>('HEALTH_CHECK_SECRET')?.trim());
+    return Boolean(
+      this.config.get<string>('HEALTH_CHECK_SECRET')?.trim(),
+    );
   }
 
   isAuthorized(authorization: string | undefined): boolean {

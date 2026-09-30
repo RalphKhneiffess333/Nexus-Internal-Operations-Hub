@@ -548,6 +548,117 @@ function printEnvStatus(filePath, requiredKeys, { optional = false } = {}) {
   }
 }
 
+function databaseTarget(databaseUrl) {
+  try {
+    const parsed = new URL(databaseUrl);
+    const protocol =
+      parsed.protocol === "postgres:" ? "postgresql:" : parsed.protocol;
+    const port = parsed.port || (protocol === "postgresql:" ? "5432" : "");
+    const schema = parsed.searchParams.get("schema") ?? "public";
+    return [
+      protocol,
+      parsed.hostname.toLowerCase(),
+      port,
+      parsed.pathname,
+      schema,
+    ].join("|");
+  } catch {
+    return databaseUrl.trim();
+  }
+}
+
+function isExampleDatabaseUrl(databaseUrl) {
+  try {
+    const parsed = new URL(databaseUrl);
+    const password = decodeURIComponent(parsed.password).toLowerCase();
+    const exampleValues = new Set([
+      "password",
+      "your_password",
+      "your-password",
+      "replace-with-a-real-password",
+      "replace_with_a_real_password",
+    ]);
+
+    return (
+      exampleValues.has(password) ||
+      password.startsWith("your_") ||
+      password.startsWith("your-") ||
+      password.startsWith("replace-") ||
+      password.startsWith("replace_")
+    );
+  } catch {
+    return false;
+  }
+}
+
+function validateIntegrationEnvironment() {
+  const integrationPath = path.join(repoRoot, "backend", ".env.integration");
+  const normalPath = path.join(repoRoot, "backend", ".env");
+
+  if (!fs.existsSync(integrationPath)) {
+    failure("backend/.env.integration does not exist.");
+    return false;
+  }
+
+  const integrationValues = parseEnvFile(
+    fs.readFileSync(integrationPath, "utf8"),
+  );
+  const integrationDatabaseUrl = integrationValues.DATABASE_URL?.trim();
+
+  if (!integrationDatabaseUrl) {
+    failure("backend/.env.integration is missing DATABASE_URL.");
+    return false;
+  }
+
+  let parsedIntegrationUrl;
+  try {
+    parsedIntegrationUrl = new URL(integrationDatabaseUrl);
+  } catch {
+    failure("backend/.env.integration has an invalid DATABASE_URL.");
+    return false;
+  }
+
+  if (
+    !["postgres:", "postgresql:"].includes(parsedIntegrationUrl.protocol) ||
+    !parsedIntegrationUrl.hostname ||
+    !parsedIntegrationUrl.pathname ||
+    parsedIntegrationUrl.pathname === "/"
+  ) {
+    failure(
+      "backend/.env.integration DATABASE_URL must point to a PostgreSQL database.",
+    );
+    return false;
+  }
+
+  if (isExampleDatabaseUrl(integrationDatabaseUrl)) {
+    failure(
+      "backend/.env.integration DATABASE_URL still contains example placeholder values.",
+    );
+    return false;
+  }
+
+  if (fs.existsSync(normalPath)) {
+    const normalDatabaseUrl = parseEnvFile(
+      fs.readFileSync(normalPath, "utf8"),
+    ).DATABASE_URL?.trim();
+
+    if (
+      normalDatabaseUrl &&
+      databaseTarget(normalDatabaseUrl) === databaseTarget(integrationDatabaseUrl)
+    ) {
+      failure(
+        "backend/.env.integration points to the same database and schema as backend/.env.",
+      );
+      return false;
+    }
+  }
+
+  success(
+    "Integration DATABASE_URL is configured and separate from the normal database",
+  );
+  return true;
+}
+
 function formatCommandFailure(error) {
   if (error instanceof CommandFailed) {
     return `${error.command} failed${error.code === null ? "" : ` with exit code ${error.code}`}.`;
@@ -663,7 +774,7 @@ async function runEnvironmentStage() {
   info("MICROSOFT_ENTRA_REDIRECT_URI, MICROSOFT_ENTRA_SCOPES, FRONTEND_URL");
   info("");
   info(
-    "Local redirect URI: http://localhost:3000/authentication/microsoft/callback",
+    "Local redirect URI: http://localhost:3000/api/authentication/microsoft/callback",
   );
   info("Default frontend URL: http://localhost:5173");
   info("Default scopes: openid profile email");
@@ -672,8 +783,13 @@ async function runEnvironmentStage() {
     "Eurisko Academy instructors can check their Week 3 email for identity provider credentials.",
   );
   info("");
-  info("AI assistant variables (required for AI responses and npm run eval):");
-  info("GROQ_API_KEY, GROQ_MODEL, AI_RETRY_DELAY_MS");
+  info("AI assistant configuration (optional for core application setup):");
+  info(
+    "GROQ_API_KEY is required only for live model responses and npm run eval.",
+  );
+  info(
+    "GROQ_MODEL is optional and defaults to qwen/qwen3.8-27b; AI_RETRY_DELAY_MS controls retry timing.",
+  );
   info("The API key stays in backend/.env and is never sent to the frontend.");
   info("");
   info("Email notification variables (optional; required to send email):");
@@ -733,6 +849,21 @@ async function runEnvironmentStage() {
     "MICROSOFT_ENTRA_SCOPES",
     "FRONTEND_URL",
   ]);
+
+  info("");
+  info("Integration test database:");
+  printEnvStatus(
+    path.join(repoRoot, "backend", ".env.integration"),
+    ["DATABASE_URL"],
+  );
+  info(
+    "The integration DATABASE_URL must point to a real PostgreSQL database different from the normal database.",
+  );
+  if (!validateIntegrationEnvironment()) {
+    warning(
+      "Integration tests and test-mode startup will remain unavailable until backend/.env.integration is corrected.",
+    );
+  }
 
   info("");
   info("Optional AI configuration:");
@@ -818,6 +949,12 @@ async function runTestsStage() {
   if (effect === "skip") {
     warning("Tests skipped");
     return;
+  }
+
+  if (!validateIntegrationEnvironment()) {
+    throw new Error(
+      "Integration environment is not ready. Fix backend/.env.integration and run setup again.",
+    );
   }
 
   await runCommand(["run", "test"], { label: "npm run test" });
@@ -915,6 +1052,13 @@ async function runBulkSeedStage() {
 async function runStartStage() {
   section(7, "Start Application");
   info(
+    "This wizard handles local application setup and optional local startup only.",
+  );
+  info(
+    "For deployment, the release gate, live onboarding, health, monitoring, recovery, and evidence, read README.md after setup.",
+  );
+  info("");
+  info(
     "Normal mode uses backend/.env, your configured application database, and Microsoft Entra sign-in.",
   );
   info(
@@ -961,7 +1105,11 @@ async function runStartStage() {
 
   if (startMode === DECISIONS.skip) {
     info("");
-    info("Nexus setup completed.");
+    info("Nexus local setup completed.");
+    info("");
+    info(
+      "Read README.md for additional testing, deployment, release, health, monitoring, recovery, and evidence procedures.",
+    );
     info("");
     info("Start the application normally with:");
     info("");
@@ -974,6 +1122,12 @@ async function runStartStage() {
     info("Backend:  http://localhost:3000");
     info("Frontend: http://localhost:5173");
     return;
+  }
+
+  if (startMode === "test" && !validateIntegrationEnvironment()) {
+    throw new Error(
+      "Integration environment is not ready. Fix backend/.env.integration and run setup again.",
+    );
   }
 
   await runBulkSeedStage();
@@ -994,6 +1148,9 @@ async function runSetup() {
   info("");
   info(
     "This wizard will help you install dependencies, configure your local environment, prepare PostgreSQL, optionally seed users and bulk load-test data, run tests, and start the application.",
+  );
+  info(
+    "It is for local application setup only. Read README.md for additional product onboarding, deployment, release-gate, health, monitoring, recovery, and evidence work.",
   );
   info("");
   info(
