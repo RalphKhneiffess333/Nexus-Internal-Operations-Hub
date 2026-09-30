@@ -89,6 +89,12 @@ header or secret is misconfigured and should be corrected.
 
 Monitoring should complement the release gate rather than replace it: the gate validates a candidate before release, while monitoring detects changes in the running target after release.
 
+### Controlled failure and recovery
+
+As a controlled failure test, Neon PostgreSQL was deactivated while Nexus was running. Nexus logged the database failure without exposing credentials, `/api/health` returned `503`, and UptimeRobot was expected to email the configured recipient after its next five-minute check. Users received controlled failure messages and could not complete database-dependent actions; raw database errors were not shown.
+
+Recovery consisted of restoring database availability and, where needed, restarting the Railway service. We confirmed recovery by checking that `/api/health` returned `200`, reviewing logs for recurring errors, and completing the ticket golden path successfully.
+
 ## 7. Failure Recovery
 
 | Failure | Expected behavior | Recovery strategy |
