@@ -1,68 +1,145 @@
 # Nexus
 
-## 1. What is Nexus
-
 Nexus is an internal operations service hub. Employees submit requests to departments such as IT and HR. Those requests become tickets that can be claimed, tracked, closed, reopened, modified, or cancelled.
 
-This repository contains a NestJS backend and a React/Vite frontend. Ticket, user, department, and identity-provider data is stored in PostgreSQL. Authentication currently uses Microsoft Entra ID with a server-side session cookie.
+The repository contains a NestJS backend and a React/Vite frontend. Ticket, user, department, and identity-provider data is stored in PostgreSQL. Authentication uses Microsoft Entra ID with a server-side session cookie.
 
-Sections 2 to 12 cover app setup while sections 13 to 16 cover app behavior and testing workflow.
+This README explains how to run, configure, test, deploy, and operate Nexus. Product and implementation details are also available in the [documentation](#live-app-and-project-evidence).
 
-The current HTTP and Socket.io routes, query parameters, request bodies, response envelopes, and intentionally unexposed routes are documented in [docs/api-contract.md](docs/api-contract.md). The longer workflow documents in `docs/agentic-workflows/` contain historical implementation guidance where explicitly noted.
+## Live app and project evidence
 
-### Evidence Map
+### Live app
 
-Use this map to move from the product intent to the implementation and release
-proof without searching the repository manually.
+- **Live URL:** [https://nexus-hub.up.railway.app](https://nexus-hub.up.railway.app/)
+- **Demo access:** Demo access details and role credentials are sent to Eurisko Academy instructors in their Week 5 email.
+- **Roles:** The main application roles are `Employee`, `Agent`, and `Admin`.
+- **Local roles:** Local test-mode users are documented in [Local test authentication mode](#local-test-authentication-mode).
+- **Critical journey:** An employee submits a ticket, a department agent retrieves and claims it, the agent closes it with completion notes, and the employee verifies the persisted closure. The manual version is documented in [Manual end-to-end browser testing](#manual-end-to-end-browser-testing).
+
+### Evidence map
+
+Use this map to move from product intent to implementation and release proof without searching the repository manually.
 
 | Evidence stage | Direct documentation | What it proves | Direct proof |
 | --- | --- | --- | --- |
 | Week 1 — product foundation | [Product specs](docs/product-specs.md), [Architecture](docs/architecture.md), [Data model](docs/data-model.md) | Product scope, system boundaries, module responsibilities, persistence model, and core invariants | [API contract](docs/api-contract.md) |
-| Week 2 — agentic workflow | [Week 2 agentic workflow](docs/week2-agentic-workflow.md) | The intended end-to-end workflow and module handoffs | [Agentic workflow documents](docs/agentic-workflows/) |
+| Week 2 — agentic workflow | [Week 2 agentic workflow](docs/week2-agentic-workflow.md) | Intended end-to-end workflow and module handoffs | [Agentic workflow documents](docs/agentic-workflows/) |
 | Week 3 — full-stack delivery | [Week 3 full-stack delivery](docs/week3-full-stack-delivery.md) | Connected frontend, backend, authentication, authorization, PostgreSQL persistence, and ticket lifecycle | [Golden-path browser test](backend/test/browser/golden-path.browser.e2e-spec.ts), [restart persistence test](backend/test/api/tickets.api.e2e-spec.ts) |
 | Week 4 — production AI | [Week 4 production AI](docs/week4-production-ai.md) | Bounded Groq integration, validated assistant responses, ticket-prefill safety, fallbacks, and AI evaluation | [AI service tests](backend/src/ai/ai.service.spec.ts), [AI model evaluation](backend/src/ai/ai-model.eval.ts) |
 | Week 5 — release operations | [Week 5 release operations](docs/week5-release-operations.md) | Health/readiness, monitoring signals, controlled failure recovery, release decisions, and recovery verification | [Health tests](backend/src/health/health.service.spec.ts), [API smoke suite](backend/test/smoke/api/core.smoke.e2e-spec.ts), [browser smoke suite](backend/test/smoke/browser/golden-path.smoke.e2e-spec.ts) |
 
-### Live App
+The longer workflow documents in `docs/agentic-workflows/` contain historical implementation guidance where explicitly noted.
 
-- **Live URL:** [https://nexus-hub.up.railway.app](https://nexus-hub.up.railway.app/)
-- **Demo access:** Demo access details and role credentials are sent to Eurisko Academy instructors in their Week 5 email.
-- **Roles:** The main application roles are `Employee`, `Agent`, and `Admin`. Local test-mode users for each role are documented in [Start in local test-authentication mode](#start-in-local-test-authentication-mode).
-- **Critical journey:** An employee submits a ticket, a department agent retrieves and claims it, the agent closes it with completion notes, and the employee verifies the persisted closure. The manual version is documented in [Manual production browser testing flow](#16-manual-production-browser-testing-flow).
+## Quick start
 
-## 2. Setup CLI
+There are three useful ways to start Nexus. Choose the one that matches what you need to test.
 
-It is recommended to run the setup CLI to help you with installation then skip to section 13.
-To run the setup CLI, from the root, call:
+### Option A: Use the setup wizard
+
+The setup wizard handles local application setup: prerequisites, dependency installation, environment files, database initialization, user setup, tests, optional bulk test data, and optional local startup. It does not replace deployment, release-gate, health, monitoring, recovery, or evidence procedures; read the rest of this README for those additional steps.
+
+From the repository root, run:
 
 ```bash
 npm run setup
 ```
 
-If setup CLI fails to run, continue reading this file for step by step initialization.
+The wizard can be skipped or cancelled at each optional stage. If it fails or you prefer manual setup, continue with the instructions below.
 
-## 3. What do I need
+### Option B: Start local test-authentication mode
 
-- Node.js v20+
+This is the fastest way to exercise the application locally without Microsoft accounts. It uses an isolated PostgreSQL database, fixed test users, and test-only authentication endpoints.
+
+1. Install dependencies:
+
+   ```bash
+   npm install
+   ```
+
+2. Create the integration environment file.
+
+   macOS/Linux:
+
+   ```bash
+   cp backend/.env.integration.example backend/.env.integration
+   ```
+
+   Windows PowerShell:
+
+   ```powershell
+   Copy-Item backend/.env.integration.example backend/.env.integration
+   ```
+
+3. Edit `backend/.env.integration` and point `DATABASE_URL` at a PostgreSQL database reserved for testing.
+
+4. Start the backend and frontend:
+
+   ```bash
+   npm run start:test
+   ```
+
+5. Open [http://localhost:5173](http://localhost:5173). The landing page displays a **Test mode** user selector. Select a user and choose **Sign in as test user**.
+
+During startup, Nexus applies pending migrations, creates or updates seven test users, and creates an in-memory session for each user. The test users and their roles are listed in [Local test authentication](#local-test-authentication-mode).
+
+### Option C: Run with Microsoft Entra ID
+
+Use this path when you need to test the real authentication flow.
+
+1. Install dependencies with `npm install`.
+2. Create and configure `backend/.env` using [Backend environment configuration](#backend-environment-configuration).
+3. Create a PostgreSQL database and run:
+
+   ```bash
+   npm run db:setup
+   ```
+
+4. Start the application:
+
+   ```bash
+   npm run start
+   ```
+
+5. Open [http://localhost:5173](http://localhost:5173) and sign in through Microsoft Entra ID.
+
+Do not use the same PostgreSQL database for `backend/.env` and `backend/.env.integration`.
+
+### Local URLs
+
+- Frontend: [http://localhost:5173](http://localhost:5173)
+- Backend API: [http://localhost:3000/api](http://localhost:3000/api)
+- Socket.IO namespace: `/operations` at `/socket.io`
+
+If `PORT` is set in the backend environment, the backend uses that value instead of `3000`. In local Vite development, `/api` is proxied to the backend.
+
+### Stop the application
+
+In the terminal running the application, press **Ctrl+C**. Tickets, users, and departments remain in PostgreSQL after the process stops.
+
+## Prerequisites and installation
+
+### Required and optional services
+
+- Node.js v20 or later
 - npm
-- PostgreSQL (a local database you can create and connect to)
-- An identity provider organization (Microsoft Entra ID tenant for now)
-- A Groq API key if you want to use the AI assistant or run `npm run eval`
-- An SMTP provider account if you want transactional email notifications
+- PostgreSQL, either local or hosted
+- A Microsoft Entra ID organization and app registration when using real authentication
 
-The Groq API key and SMTP account are optional for the core ticket application.
-They are required only for their respective integrations. An API client such as
-Postman is also optional for manual testing.
+These integrations are optional for the core ticket application:
 
-## 4. How to install dependencies
+- A Groq API key for live AI responses or `npm run eval`
+- An SMTP provider account for transactional email notifications
+- An API client such as Postman for manual API testing
 
-Run all install commands from the repository root:
+### Install dependencies
+
+Run the install command from the repository root:
 
 ```bash
 npm install
 ```
 
-This single workspace install manages the root tooling, backend dependencies, and frontend dependencies with the root `package-lock.json`. The backend `postinstall` script generates the Prisma client.
+This workspace install manages the root tooling, backend dependencies, and frontend dependencies with the root `package-lock.json`. The backend `postinstall` script generates the Prisma client.
 
 Run an individual workspace script from the repository root with `--workspace`:
 
@@ -71,25 +148,43 @@ npm run start:dev --workspace=backend
 npm run dev --workspace=@nexus/frontend
 ```
 
-## 5. How to set up PostgreSQL
+## Environment configuration
 
-Create an empty PostgreSQL database (for example `nexus`). Then copy the example env file and fill in your connection details:
+Nexus uses separate environment profiles for the normal application and automated/test mode.
+
+| File | Used by | Purpose |
+| --- | --- | --- |
+| `backend/.env` | `npm run start`, `npm run db:setup`, `npm run seed:users`, normal deployment | Normal application database, Microsoft Entra authentication, and optional integrations |
+| `backend/.env.integration` | `npm run test`, E2E tests, smoke tests, `npm run start:test` | Isolated test database and test authentication |
+| `frontend/nexus/.env` | Optional frontend overrides | API origin and Vite development settings |
+
+Copy the appropriate example file before editing it. Never commit `.env` files or real credentials.
+
+### Backend environment configuration
+
+The complete templates are [backend/.env.example](backend/.env.example) and [backend/.env.integration.example](backend/.env.integration.example).
+
+#### PostgreSQL
+
+Create an empty PostgreSQL database, for example `nexus`, then create `backend/.env`.
+
+macOS/Linux:
 
 ```bash
 cd backend
 cp .env.example .env
 ```
 
-On Windows PowerShell:
+Windows PowerShell:
 
 ```powershell
 cd backend
 Copy-Item .env.example .env
 ```
 
-Edit `backend/.env`. Prisma migrate and seed use `DATABASE_URL`. The Nest app uses that URL when it is set, or builds one from the other variables.
+Edit `backend/.env` with the connection details for the normal application database:
 
-```
+```env
 DATABASE_HOST=localhost
 DATABASE_PORT=5432
 DATABASE_NAME=nexus
@@ -98,22 +193,29 @@ DATABASE_PASSWORD=your_password
 DATABASE_URL=postgresql://your_user:your_password@localhost:5432/nexus
 ```
 
-## 6. Testing Environment
+Prisma migrations and seeds use `DATABASE_URL`. The Nest application uses that URL when it is set, or builds a connection from the other database variables.
 
-Tests use a separate database from the one used in production. Create another database in your PostgreSQL and link it in `backend/.env.integration`, use `backend/.env.integration.example` for the template. The integration template keeps SMTP disabled by default; add a Groq key there only when you want AI responses while running `npm run start:test`.
+For tests, create a separate database and copy the integration template:
 
-## 7. How to configure Microsoft Entra ID
+```powershell
+Copy-Item backend/.env.integration.example backend/.env.integration
+```
+
+Set its `DATABASE_URL` to the test database. The integration template keeps SMTP disabled by default. Add a Groq key there only when you want AI responses during `npm run start:test` or external AI smoke checks.
+
+Test mode refuses to start when the normal and integration database URLs point to the same PostgreSQL database and schema.
+
+#### Microsoft Entra ID
 
 Nexus uses Microsoft Entra ID as its third-party identity provider. Create or use an Entra app registration and add this web redirect URI:
 
-```
+```text
 http://localhost:3000/api/authentication/microsoft/callback
 ```
 
-Then add the Microsoft configuration to `backend/.env`:
-NOTICE: For Eurisko Academy instructors, check your emails for Microsoft tenant credentials.
+Add the Microsoft configuration to `backend/.env`:
 
-```
+```env
 MICROSOFT_ENTRA_TENANT_ID=your_tenant_id
 MICROSOFT_ENTRA_CLIENT_ID=your_client_id
 MICROSOFT_ENTRA_CLIENT_SECRET=your_client_secret
@@ -122,18 +224,49 @@ MICROSOFT_ENTRA_SCOPES=openid profile email User.Read
 FRONTEND_URL=http://localhost:5173
 ```
 
-`User.Read` allows the backend to read the signed-in user's Microsoft Graph
-profile. If Microsoft returns a mobile or business phone number, it is saved
-when Nexus creates the local user account. The phone lookup is optional: a
-missing phone number or an unavailable profile lookup does not prevent login.
+Eurisko Academy instructors should check their course email for Microsoft tenant credentials.
 
-The seeded identity-provider record uses the code `MICROSOFT_ENTRA_ID`. Users are linked to Microsoft accounts by `identity_provider_id` and `identity_provider_user_id` after login.
+`User.Read` allows the backend to read the signed-in user's Microsoft Graph profile. If Microsoft returns a mobile or business phone number, Nexus saves it when creating the local user account. A missing phone number or unavailable profile lookup does not prevent login.
 
-In the organization-locked setup, users are checked through the configured Microsoft tenant to ensure only internal accounts can use the app.
+The seeded identity-provider record uses the code `MICROSOFT_ENTRA_ID`. After login, users are linked to Microsoft accounts by `identity_provider_id` and `identity_provider_user_id`.
 
-## 8. Optional Integrations
+In organization-locked setups, users are checked through the configured Microsoft tenant so only internal accounts can use the application.
 
-### Email Notifications
+#### Frontend configuration
+
+The frontend normally needs no environment file for local development because Vite proxies `/api` to the backend. If you need to override the API origin, copy the example:
+
+macOS/Linux:
+
+```bash
+cd frontend/nexus
+cp .env.example .env
+```
+
+Windows PowerShell:
+
+```powershell
+cd frontend/nexus
+Copy-Item .env.example .env
+```
+
+The available settings are:
+
+```env
+VITE_API_URL=
+VITE_DEV_API_URL=http://localhost:3000
+VITE_DEV_PORT=5173
+```
+
+`VITE_DEV_API_URL` controls the local Vite proxy target, and `VITE_DEV_PORT` controls the frontend development server port. Set `VITE_API_URL` when the browser should call a deployed backend directly rather than use the proxy. Its value must include the `/api` prefix, for example:
+
+```env
+VITE_API_URL=https://nexus.example.com/api
+```
+
+### Optional integrations
+
+#### Email notifications
 
 Nexus can send asynchronous transactional emails through Nodemailer over SMTP after successful ticket and handoff operations. Email delivery is isolated from the request path: missing configuration, provider failures, and exhausted retries are logged and dropped without failing the ticket operation.
 
@@ -154,17 +287,15 @@ EMAIL_RETRY_DELAY_MS=250
 APP_BASE_URL=http://localhost:5173
 ```
 
-The system emails ticket submission, claim, close, reopen, and handoff request/accept/reject events. It intentionally does not email ticket cancellation or automatic handoff-cancellation events. Email delivery has no database outbox or idempotency records; each successful domain operation schedules one best-effort notification with bounded retries.
+The system emails ticket submission, claim, close, reopen, and handoff request/accept/reject events. It intentionally does not email ticket cancellation or automatic handoff-cancellation events.
 
-`SMTP_HOST` and `SMTP_FROM_EMAIL` must be configured for delivery to be
-enabled. Set `SMTP_ENABLED=false` when running tests or when email is not
-needed. Port `465` is treated as secure automatically; otherwise set
-`SMTP_SECURE=true` when your provider requires TLS.
+Email delivery has no database outbox or idempotency records. Each successful domain operation schedules one best-effort notification with bounded retries. Dropped messages are not automatically resent.
 
-### AI Assistant (Groq)
+`SMTP_HOST` and `SMTP_FROM_EMAIL` must be configured for delivery to be enabled. Set `SMTP_ENABLED=false` when running tests or when email is not needed. Port `465` is treated as secure automatically; otherwise set `SMTP_SECURE=true` when the provider requires TLS.
 
-The Nexus assistant runs through Groq from the backend. Keep the API key in
-`backend/.env`; it must never be placed in the frontend environment.
+#### AI assistant
+
+The Nexus assistant runs through Groq from the backend. Keep the API key in `backend/.env`; never place it in the frontend environment.
 
 ```env
 GROQ_API_KEY=your_groq_api_key
@@ -172,17 +303,13 @@ GROQ_MODEL=qwen/qwen3.8-27b
 AI_RETRY_DELAY_MS=250
 ```
 
-`GROQ_API_KEY` is required for live assistant responses and `npm run eval`.
-`GROQ_MODEL` defaults to `qwen/qwen3.8-27b`, and
-`AI_RETRY_DELAY_MS` controls the delay between retry attempts. If the key is
-missing or Groq is unavailable, the rest of the application can still start,
-but AI requests return a conversational fallback and the technical failure is
-logged by the backend.
+`GROQ_API_KEY` is required for live assistant responses and `npm run eval`. `GROQ_MODEL` defaults to `qwen/qwen3.8-27b`, and `AI_RETRY_DELAY_MS` controls the delay between retry attempts.
 
-### Other backend settings
+If the key is missing or Groq is unavailable, the rest of the application can still start. AI requests return a conversational fallback, and the backend logs the technical failure.
 
-These settings are already included in `backend/.env.example` and can be
-adjusted when needed:
+#### Other backend settings
+
+These settings are included in `backend/.env.example` and can be adjusted when needed:
 
 ```env
 PORT=3000
@@ -194,124 +321,21 @@ UNCLAIMED_TICKET_REMINDER_INTERVAL_MS=300000
 FILE_ORPHAN_GRACE_PERIOD_MS=3600000
 ```
 
-`APP_BASE_URL` is used in email links and should point to the frontend URL in
-the environment where the application is running. The complete variable
-templates are [backend/.env.example](backend/.env.example),
-[backend/.env.integration.example](backend/.env.integration.example), and
-[frontend/nexus/.env.example](frontend/nexus/.env.example).
+`APP_BASE_URL` is used in email links and should point to the frontend URL for the environment where the application runs.
 
-### Health endpoints
+## Database and users
 
-`GET /api/health/ping` is a public liveness endpoint and returns `{ "status": "ok" }`
-when the backend process is running. It does not contact any dependencies.
+### Initialize the database
 
-`GET /api/health` is a protected readiness endpoint. Set a long, random
-`HEALTH_CHECK_SECRET` in `backend/.env` and send it as
-`Authorization: Bearer <HEALTH_CHECK_SECRET>`. It reports the backend version
-and the status of PostgreSQL, Microsoft Entra OpenID discovery, SMTP, and Groq.
-It does not send an email or generate an AI response. Disabled optional email or
-Groq integrations are reported as `disabled`; a required or configured service
-that cannot be reached produces an `unhealthy` report with HTTP status `503`.
-If `HEALTH_CHECK_SECRET` is missing in the running environment, the detailed
-health endpoint is disabled and returns HTTP `503` with an explicit configuration
-message. A configured endpoint with a missing or incorrect bearer token returns
-HTTP `401` instead.
-
-### Logs, signals, and monitoring
-
-The backend writes system-error logs with an operation, affected object, and
-safe diagnostic context. Sensitive values such as session cookies, Microsoft
-tokens, Groq keys, database credentials, and passwords are redacted. Important
-signals include:
-
-- `GET /api/health/ping` returning `200`, proving that the backend process is responding.
-- Authorized `GET /api/health` returning `200` with `status: "healthy"`, or `503` with `status: "unhealthy"`.
-- Repeated log entries for `health.check`, `application.bootstrap`, `process.uncaught-exception`, `process.unhandled-rejection`, database failures, or external-provider failures.
-- Frontend realtime state changing to `reconnecting` or `error`.
-
-Monitoring can be implemented with UptimeRobot by giving it the `/api/health` endpoint and giving the authorization header the `HEALTH_CHECK_SECRET` value so that it is authenticated. The program will automatically ping the endpoint every 5 minutes and send you an email if it returns 503.
-
-### Controlled failure and recovery
-
-Nexus isolates optional dependency failures from the core ticket workflow where
-possible:
-
-- **Backend/runtime:** restart or redeploy the service, inspect startup logs and environment variables, and roll back to the last known-good release if the deployment caused the failure.
-- **PostgreSQL:** restore database availability, connection limits, credentials, or `DATABASE_URL`; then restart the backend if needed. Do not reset or reseed production data. Transactional lifecycle operations protect against partial writes.
-- **Microsoft Entra ID:** transient authentication requests retry up to three times. Restore provider availability or OAuth configuration and ask new users to retry login; valid existing sessions may continue until expiry.
-- **Groq:** transient requests retry and then return an assistant fallback. Restore the key, quota, model, or network, or leave AI disabled while normal ticket operations continue.
-- **SMTP:** notification sends retry transient failures and then log and drop the message. Core ticket and handoff operations are not failed by email delivery; dropped messages are not automatically resent because there is no outbox.
-- **Files:** failed multipart uploads clean up files already written in that batch. Repair storage capacity or permissions and retry; restore missing local files from external backups if necessary.
-- **Realtime:** the browser reconnects and rejoins ticket/chat rooms. If an event was missed, refresh the page and use the persisted HTTP state as the source of truth.
-
-The controlled recovery sequence is: **HOLD**, identify the failed
-dependency from health and logs, restore or restart only the affected service,
-then run post-recovery verification. See the complete failure matrix in
-[Week 5 release operations](docs/week5-release-operations.md#7-failure-recovery).
-
-### Post-recovery verification
-
-Recovery is not complete merely because the process starts again. After a
-significant failure or restart:
-
-1. Confirm `GET /api/health/ping` responds successfully.
-2. Call authorized `GET /api/health` and verify the expected dependency states; check the response body, not only the HTTP code.
-3. Review startup and runtime logs for recurring errors.
-4. Re-authenticate users if the backend restarted, because production sessions are held in memory.
-5. Run the critical employee-to-agent-to-employee ticket journey and confirm the ticket remains persisted and the employee sees the final closure.
-6. For a release-related incident, verify or redeploy the last known-good candidate before declaring the system ready.
-
-For the isolated automated release smoke suite, run:
-
-```bash
-npm run test:smoke --workspace=backend
-```
-
-The full verification checklist is in [Week 5 recovery verification](docs/week5-release-operations.md#recovery-verification).
-
-## 9. Frontend Optional Configuration
-
-For the frontend, copy `frontend/nexus/.env.example` if you need to override the API origin:
-
-```bash
-cd frontend/nexus
-cp .env.example .env
-```
-
-On Windows PowerShell:
-
-```powershell
-cd frontend/nexus
-Copy-Item .env.example .env
-```
-
-In local Vite development you can leave this empty because `/api` is proxied to the backend:
-
-```
-VITE_API_URL=
-VITE_DEV_API_URL=http://localhost:3000
-VITE_DEV_PORT=5173
-```
-
-`VITE_DEV_API_URL` controls the local Vite proxy target, and `VITE_DEV_PORT`
-controls the frontend development server port. Set `VITE_API_URL` instead when
-the browser should call a deployed backend directly rather than use the proxy;
-the value must include the `/api` prefix, such as
-`https://nexus.example.com/api`.
-
-Do not commit `.env`. `.env.example` is the template without real credentials.
-
-## 10. Initializing Database
-
-From the repository root, apply migrations and load sample departments in one go:
+From the repository root, apply migrations and load the baseline departments and identity provider:
 
 ```bash
 npm run db:setup
 ```
 
-That root command runs the backend Prisma migrate script and then the seed script.
+The root command runs the backend Prisma migration script and then the seed script.
 
-You can also run the backend commands manually:
+The equivalent backend commands are:
 
 ```bash
 cd backend
@@ -319,12 +343,33 @@ npm run prisma:migrate
 npm run prisma:seed
 ```
 
-- `prisma:migrate` creates the schema. A fresh database reaches the required tables by running this once.
-- `prisma:seed` upserts the identity provider, IT/HR departments, and sample users. The API does **not** seed on startup. Re-running seed is safe; it will not wipe tickets.
+- `prisma:migrate` creates or updates the schema. A fresh database reaches the required tables by running this once.
+- `prisma:seed` upserts the identity provider, IT and HR departments, and sample users.
+- The API does not seed on startup.
+- Re-running the seed is safe; it does not wipe tickets.
 
-### Bulk load-test data
+### Manage users and roles
 
-Use the bulk seed commands when you want to exercise pagination, filtering, ticket history, chat history, and the UI with a larger dataset:
+When someone signs in with Microsoft Entra ID and no matching Nexus user exists, Nexus automatically creates a local user with the `Employee` role.
+
+Use the interactive users CLI to preconfigure users, promote users to `Agent` or `Admin`, or assign agents and administrators to departments:
+
+```bash
+npm run seed:users
+```
+
+The CLI uses `backend/.env`, connects to the configured `DATABASE_URL`, and can:
+
+- Add a user before their first login
+- Modify an existing user
+- Change a user's role between `Employee`, `Agent`, and `Admin`
+- Assign departments to `Agent` and `Admin` users
+
+This is useful for manual testing because ticket-pool and department views depend on the signed-in user's role and department memberships.
+
+### Generate bulk load-test data
+
+Use the bulk seed commands to exercise pagination, filtering, ticket history, chat history, and the UI with a larger dataset:
 
 ```bash
 # Uses backend/.env
@@ -336,7 +381,14 @@ npm run seed:bulk:test
 
 The test bulk seed refuses to run if `backend/.env.integration` points to the normal application database. Both commands apply pending migrations, preserve non-bulk data, and replace only the synthetic rows generated by the same profile when rerun.
 
-By default, the seed creates 30 employees, 15 agents, 5 admins, tickets for every active user across every active department and all four ticket states, 3 tickets per user/state/department combination, and 20 chat messages per ticket. Claimed tickets also receive synthetic handoff requests distributed across Pending, Accepted, Rejected, and Cancelled states. Synthetic ticket events and chat read receipts are created in batches as well.
+By default, the seed creates:
+
+- 30 employees, 15 agents, and 5 admins
+- Tickets for every active user across every active department and all four ticket states
+- 3 tickets per user, state, and department combination
+- 20 chat messages per ticket
+- Synthetic handoff requests for claimed tickets, distributed across Pending, Accepted, Rejected, and Cancelled states
+- Synthetic ticket events and chat read receipts in batches
 
 Adjust the volume before running a command with these environment variables:
 
@@ -349,36 +401,84 @@ BULK_CHAT_MESSAGES_PER_TICKET=20
 BULK_BATCH_SIZE=500
 ```
 
-The setup wizard asks whether to bulk seed the normal database, the test database, both, or neither immediately before starting the app. If one selected database fails, the wizard reports the error, attempts the remaining target, and asks whether to continue startup or cancel.
+The setup wizard asks whether to bulk seed the normal database, the test database, both, or neither before starting the app. If one selected database fails, the wizard reports the error, attempts the remaining target, and asks whether to continue startup or cancel.
 
-## 11. Managing users and roles
+## Local test authentication mode
 
-When someone signs in with Microsoft Entra ID and no matching Nexus user exists yet, Nexus automatically creates a local user record with the `Employee` role.
+Test mode lets you exercise authenticated browser and API behavior without signing in through Microsoft Entra ID.
 
-Use the interactive users CLI when you need to preconfigure users, promote a user to `Agent` or `Admin`, or assign an agent/admin to departments:
+Before starting it, configure `backend/.env.integration` with a PostgreSQL database reserved for testing. Create it from `backend/.env.integration.example` if it does not exist.
+
+From the repository root, run:
 
 ```bash
-npm run seed:users
+npm run start:test
 ```
 
-The CLI uses `backend/.env`, connects to the configured `DATABASE_URL`, and can:
+The command starts the backend and frontend together. The backend uses `backend/.env.integration` instead of the normal `backend/.env`. During startup it:
 
-- Add a new user before their first login.
-- Modify an existing user.
-- Change a user's role between `Employee`, `Agent`, and `Admin`.
-- Assign departments to `Agent` and `Admin` users.
+1. Verifies that the integration and normal `DATABASE_URL` values do not target the same PostgreSQL database and schema.
+2. Applies pending Prisma migrations to the integration database.
+3. Creates or updates seven test users and their department memberships.
+4. Starts test-only authentication endpoints.
+5. Creates an in-memory session for every test user and prints a directly usable `Cookie` header value for each one.
 
-This is especially useful for manual testing because ticket pool and department views depend on the signed-in user's role and department memberships.
+Test-mode session identifiers are deterministic per user, so the printed cookie values remain stable across restarts. The sessions themselves are held in memory and recreated each time the server starts.
 
-## 12. Testing with commands
+The seeded users are:
 
-To run all unit, integration, API E2E, and browser E2E tests, from the root, run:
+| User | Role | Department |
+| --- | --- | --- |
+| Employee 1 | `Employee` | None |
+| Employee 2 | `Employee` | None |
+| IT Agent 1 | `Agent` | Information Technology |
+| IT Agent 2 | `Agent` | Information Technology |
+| HR Agent 1 | `Agent` | Human Resources |
+| HR Agent 2 | `Agent` | Human Resources |
+| Admin | `Admin` | Information Technology |
+
+### Sign in through the frontend
+
+Open [http://localhost:5173](http://localhost:5173). When the test backend is running, the landing page detects it and displays a **Test mode** user selector. Select a user and choose **Sign in as test user**.
+
+The backend creates a fresh session, sets the normal secure HTTP-only `nexus_session` cookie, and uses the regular authentication and authorization flow for the rest of the application.
+
+### Authenticate an API client
+
+The backend prints an entry like this for every seeded user:
+
+```text
+IT Agent 1 (Agent)
+Cookie: nexus_session=SESSION_ID
+```
+
+Copy only the cookie name and value into the API client's `Cookie` header:
+
+```http
+Cookie: nexus_session=SESSION_ID
+```
+
+Do not copy cookie attributes such as `Path`, `Expires`, `HttpOnly`, `Secure`, or `SameSite` into the request header. If you use a browser-issued cookie instead, copy the `nexus_session` name/value pair from DevTools.
+
+Restarting the backend invalidates in-memory sessions and prints new values. Restarting test mode does not clear existing test tickets from the integration database.
+
+## Testing
+
+All test commands use `backend/.env.integration` and therefore require a separate PostgreSQL database. Each command applies Prisma migrations once before its test run. Individual tests seed sample users and departments and reset ticket data for isolation.
+
+### Expected console errors during testing
+
+The browser or backend console may display error messages while tests are running. Some tests intentionally submit invalid, unauthorized, conflicting, or otherwise unwanted requests to verify that the application rejects them safely. These messages are expected when the test runner reports the test as passing. Investigate console errors when the corresponding test fails, the error is unexpected, or the test command exits unsuccessfully.
+
+### Test commands
+
+Run unit, integration, API E2E, and browser E2E tests from the repository root:
 
 ```bash
 npm run test
 ```
 
-To individually run the backend tests from the repository root:
+Run backend test categories individually:
 
 ```bash
 npm run test --workspace=backend
@@ -388,24 +488,23 @@ npm run test:browser:e2e --workspace=backend
 npm run test:e2e --workspace=backend
 ```
 
-The dedicated release smoke suite runs a small API and browser E2E subset:
+The commands mean:
+
+- `npm test` runs Jest unit tests and `.spec.ts` files in `backend/src`.
+- `npm run test:integration` runs the Jest integration suite.
+- `npm run test:api:e2e` runs Playwright API E2E tests against a built Nest app.
+- `npm run test:browser:e2e` runs Playwright browser E2E tests against the backend and frontend.
+- `npm run test:e2e` runs both API E2E and browser E2E tests.
+
+### Release smoke tests
+
+The isolated release smoke suite runs a small API and browser E2E subset:
 
 ```bash
 npm run test:smoke --workspace=backend
 ```
 
-It uses the isolated integration database, test-mode sessions, the real NestJS
-API, PostgreSQL, frontend, and Chromium. The optional external AI smoke check
-is enabled with `SMOKE_AI=true`; otherwise the suite verifies the local AI
-fallback when Groq is not configured.
-
-All require `backend/.env.integration` pointing at a separate PostgreSQL database. Each test command applies Prisma migrations once before its test run. Individual tests then seed sample users/departments and reset ticket data for isolation.
-
-- `npm test` runs Jest unit tests and any `.spec.ts` tests in `backend/src`.
-- `npm run test:integration` runs the Jest integration suite.
-- `npm run test:api:e2e` runs Playwright API E2E tests against a built Nest app.
-- `npm run test:browser:e2e` runs Playwright browser E2E tests against the backend and frontend.
-- `npm run test:e2e` runs both API E2E and browser E2E tests.
+It uses the isolated integration database, test-mode sessions, the real NestJS API, PostgreSQL, the frontend, and Chromium. Set `SMOKE_AI=true` to enable the optional external AI smoke check. Otherwise, the suite verifies the local AI fallback when Groq is not configured.
 
 ### Model-backed AI evaluations
 
@@ -415,60 +514,65 @@ Run the representative AI evaluations from the repository root:
 npm run eval
 ```
 
-This command runs only the model-backed AI eval runner. It uses the existing Groq provider, so `backend/.env` must contain `GROQ_API_KEY`; `GROQ_MODEL` is optional. The runner supplies fixed in-memory departments and priorities as assistant context, so it does not require PostgreSQL or a running Nexus server. It makes real Groq requests and reports the clear, thin, ambiguous, trusted-context, conditional-prefill, supplied-evidence, and repeatability cases separately.
+This command runs only the model-backed AI evaluation runner. It uses the existing Groq provider, so `backend/.env` must contain `GROQ_API_KEY`; `GROQ_MODEL` is optional.
+
+The runner supplies fixed in-memory departments and priorities as assistant context, so it does not require PostgreSQL or a running Nexus server. It makes real Groq requests and reports clear, thin, ambiguous, trusted-context, conditional-prefill, supplied-evidence, and repeatability cases separately.
 
 If Groq responds with `429`, the runner respects its `Retry-After` value and retries that model request up to three times. `AI_EVAL_MAX_RATE_LIMIT_RETRIES` and `AI_EVAL_MAX_RATE_LIMIT_WAIT_MS` can change those defaults. The runner stops instead of waiting longer than the configured maximum, which avoids hanging when a daily quota is exhausted.
 
-### Release verification
+### Full release verification
 
-Run the full release gate from the repository root:
+Run the complete release gate from the repository root:
 
 ```bash
 npm run verify:release
 ```
 
-It builds and type-checks both workspaces, then runs backend unit, integration, API/browser E2E, and model-backed AI eval checks. It exits at the first failed check; a passing exit code means all release checks passed. It requires the test database, Playwright browsers, and a Groq API key with enough available quota.
+It builds and type-checks both workspaces, then runs backend unit, integration, API/browser E2E, and model-backed AI evaluation checks. It exits at the first failed check; a passing exit code means all release checks passed.
 
-## 13. How to run the app
+The command requires the test database, Playwright browsers, and a Groq API key with enough available quota.
 
-### Build and deployment workflows
+## Build and deployment
 
-Build both workspaces from the repository root:
+### Build both workspaces
+
+From the repository root:
 
 ```bash
 npm run build
 ```
 
-The backend build is written to `backend/dist`. The frontend build is written
-to `frontend/nexus/dist`. In the bundled deployment mode, the NestJS backend
-serves that frontend build from the domain root and keeps HTTP API routes under
-`/api`.
+The backend build is written to `backend/dist`. The frontend build is written to `frontend/nexus/dist`.
 
-For the backend, run the interactive deployment workflow:
+In bundled deployment mode, the NestJS backend serves the frontend build from the domain root and keeps HTTP API routes under `/api`.
+
+### Interactive backend deployment
+
+Run the interactive deployment workflow with:
 
 ```bash
 npm run deploy:backend
 ```
 
-It runs these steps in order using `backend/.env`:
+Using `backend/.env`, it:
 
-1. Build the NestJS backend.
-2. Apply pending Prisma migrations with `prisma migrate deploy`.
-3. Run the idempotent baseline seed.
-4. Ask whether you want to add or modify an application user.
-5. Run the backend test suite. Tests use `backend/.env.integration`.
-6. Start the compiled backend with `start:prod`.
+1. Builds the NestJS backend.
+2. Applies pending Prisma migrations with `prisma migrate deploy`.
+3. Runs the idempotent baseline seed.
+4. Asks whether you want to add or modify an application user.
+5. Runs the backend test suite, which uses `backend/.env.integration`.
+6. Starts the compiled backend with `start:prod`.
 
-The non-interactive preparation workflow is useful for CI or deployment
-platforms that start the process separately:
+For CI or deployment platforms that start the process separately, use:
 
 ```bash
 npm run deploy:ci --workspace=backend
 npm run start:prod --workspace=backend
 ```
 
-For a single Railway service that serves both applications, configure the
-repository root as the service root and use:
+### Railway single-service deployment
+
+For one Railway service serving both applications, configure the repository root as the service root and use:
 
 ```text
 Root directory: /
@@ -477,200 +581,170 @@ Pre-deploy command: npm run prisma:migrate --workspace=backend
 Start command: npm run start:prod --workspace=backend
 ```
 
-The deployed site is served at `/`, while NestJS HTTP routes are served under
-`/api`. Socket.IO remains at `/socket.io` with the `/operations` namespace.
+The deployed site is served at `/`, while NestJS HTTP routes are served under `/api`.
 
-For the frontend, build and type-check the deployable static assets with:
+### Frontend-only build and preview
+
+Build and type-check the deployable frontend assets with:
 
 ```bash
 npm run deploy:frontend
 ```
 
-To preview those assets locally:
+Preview those assets locally with:
 
 ```bash
 npm run start:prod --workspace=@nexus/frontend
 ```
 
-To run the frontend build followed by the interactive backend deployment:
+To build the frontend and then run the interactive backend deployment:
 
 ```bash
 npm run deploy
 ```
 
-The deployment scripts do not create a hosting service, container, or cloud
-resource automatically. They prepare the frontend artifact and start the
-backend process; the hosting platform or process supervisor remains
-responsible for serving/restarting them.
+These deployment scripts do not create a hosting service, container, or cloud resource automatically. They prepare the frontend artifact and start the backend process; the hosting platform or process supervisor remains responsible for serving and restarting the application.
 
-From the repository root:
+## Health, monitoring, and recovery
 
-```bash
-npm run start
+### Health endpoints
+
+`GET /api/health/ping` is a public liveness endpoint. It returns:
+
+```json
+{ "status": "ok" }
 ```
 
-That runs the NestJS backend and the Vite frontend at the same time. Run migrate and seed first, or the API will fail when it talks to PostgreSQL.
+It confirms that the backend process is running and does not contact dependencies.
 
-Conversely you can also run
-
-```bash
-npm run start:test
-```
-
-To run the server in test mode allowing you to bypass third party authentication.
-
-### Start in local test-authentication mode
-
-Use test mode when you want to exercise authenticated browser or API behavior
-without signing in through Microsoft Entra. First configure
-`backend/.env.integration` with a PostgreSQL database reserved for testing. You
-can create it from `backend/.env.integration.example` if it does not exist yet.
-
-From the repository root, run:
-
-```bash
-npm run start:test
-```
-
-The command starts the backend and frontend together, just like `npm run start`,
-but the backend uses `backend/.env.integration` instead of the normal
-`backend/.env` database configuration. During startup it:
-
-1. Verifies that the integration and normal `DATABASE_URL` values do not target
-   the same PostgreSQL database and schema.
-2. Applies pending Prisma migrations to the integration database.
-3. Creates or updates the seven test users and their department memberships.
-4. Starts test-only authentication endpoints.
-5. Creates an in-memory session for every test user and prints a directly usable
-   `Cookie` header value for each one.
-
-The test-mode session identifiers are deterministic per user, so the printed
-cookie values remain stable across restarts. The sessions themselves are still
-held in memory and recreated each time the server starts.
-
-The seeded users are:
-
-| User       | Role       | Department             |
-| ---------- | ---------- | ---------------------- |
-| Employee 1 | `Employee` | None                   |
-| Employee 2 | `Employee` | None                   |
-| IT Agent 1 | `Agent`    | Information Technology |
-| IT Agent 2 | `Agent`    | Information Technology |
-| HR Agent 1 | `Agent`    | Human Resources        |
-| HR Agent 2 | `Agent`    | Human Resources        |
-| Admin      | `Admin`    | Information Technology |
-
-#### Sign in through the frontend
-
-Open [http://localhost:5173](http://localhost:5173). When the test backend is
-running, the landing page automatically detects it and displays a **Test mode**
-user selector. Select a user and choose **Sign in as test user**. The backend
-creates a fresh session, sets the normal secure HTTP-only `nexus_session`
-cookie, and the rest of the application uses the regular authentication and
-authorization flow.
-
-#### Authenticate an API client
-
-The backend prints an entry like this for every seeded user:
-
-```text
-IT Agent 1 (Agent)
-Cookie: nexus_session=SESSION_ID
-```
-
-Copy the complete key-value pair into an API client's `Cookie` header:
+`GET /api/health` is a protected readiness endpoint. Set a long, random `HEALTH_CHECK_SECRET` in `backend/.env` and send it as:
 
 ```http
-Cookie: nexus_session=SESSION_ID
+Authorization: Bearer HEALTH_CHECK_SECRET
 ```
 
-The printed sessions are stored in memory. Restarting the backend invalidates
-them and prints new values. Restarting test mode does not clear existing test
-tickets from the integration database.
+The endpoint reports the backend version and the status of PostgreSQL, Microsoft Entra OpenID discovery, SMTP, and Groq. It does not send email or generate an AI response.
 
-## 14. What URLs does the app open on
+- Disabled optional email or Groq integrations are reported as `disabled`.
+- A required or configured service that cannot be reached produces an `unhealthy` report with HTTP status `503`.
+- If `HEALTH_CHECK_SECRET` is missing, the detailed endpoint is disabled and returns HTTP `503` with an explicit configuration message.
+- If the endpoint is configured but the bearer token is missing or incorrect, it returns HTTP `401`.
 
-The API listens on [http://localhost:3000/api](http://localhost:3000/api)
+### Logs and monitoring signals
 
-The frontend listens on [http://localhost:5173](http://localhost:5173)
+The backend writes system-error logs with an operation, affected object, and safe diagnostic context. Sensitive values such as session cookies, Microsoft tokens, Groq keys, database credentials, and passwords are redacted.
 
-If `PORT` is set in the backend environment, that value is used instead of `3000`.
+Important signals include:
 
-## 15. Which folders to look at first
+- `GET /api/health/ping` returning `200`, which proves that the backend is responding
+- Authorized `GET /api/health` returning `200` with `status: "healthy"`, or `503` with `status: "unhealthy"`
+- Repeated log entries for `health.check`, `application.bootstrap`, `process.uncaught-exception`, `process.unhandled-rejection`, database failures, or external-provider failures
+- Frontend realtime state changing to `reconnecting` or `error`
 
-| Path                                                | Why                                                               |
-| --------------------------------------------------- | ----------------------------------------------------------------- |
-| `docs/`                                             | Product specs, architecture, data model, and the current workflow |
-| `backend/src/tickets/`                              | Ticket API: controller, service, policies, DTOs, tests            |
-| `backend/src/authentication/`                       | Microsoft Entra login, session handling, and request auth         |
-| `backend/src/authorization/`                        | Global authorization guard, public routes, and role decorators    |
-| `backend/src/database/`                             | Prisma connection, error mapping, and seed data                   |
-| `backend/prisma/`                                   | Schema and migrations                                             |
-| `frontend/nexus/src/`                               | React frontend pages, ticket views, API client, and layout        |
-| `backend/src/users/` and `backend/src/departments/` | Supporting repositories used by tickets                           |
+UptimeRobot can monitor `/api/health`. Give it the `HEALTH_CHECK_SECRET` value as the authorization header so the request is authenticated. The program can ping the endpoint every five minutes and send an email when it returns `503`.
 
-Start with `backend/src/tickets/tickets.controller.ts` to see the routes, then `tickets.service.ts` and `tickets/policies/`.
+### Controlled failure and recovery
 
-## 16. Manual production browser testing flow
+Nexus isolates optional dependency failures from the core ticket workflow where possible:
 
-For a simple end-to-end manual test covering microsoft authentication, start with two Microsoft accounts:
+- **Backend/runtime:** Restart or redeploy the service, inspect startup logs and environment variables, and roll back to the last known-good release if the deployment caused the failure.
+- **PostgreSQL:** Restore database availability, connection limits, credentials, or `DATABASE_URL`; then restart the backend if needed. Do not reset or reseed production data. Transactional lifecycle operations protect against partial writes.
+- **Microsoft Entra ID:** Transient authentication requests retry up to three times. Restore provider availability or OAuth configuration and ask new users to retry login. Valid existing sessions may continue until expiry.
+- **Groq:** Transient requests retry and then return an assistant fallback. Restore the key, quota, model, or network, or leave AI disabled while normal ticket operations continue.
+- **SMTP:** Notification sends retry transient failures and then log and drop the message. Core ticket and handoff operations are not failed by email delivery; dropped messages are not automatically resent because there is no outbox.
+- **Files:** Failed multipart uploads clean up files already written in that batch. Repair storage capacity or permissions and retry; restore missing local files from external backups if necessary.
+- **Realtime:** The browser reconnects and rejoins ticket and chat rooms. If an event was missed, refresh the page and use persisted HTTP state as the source of truth.
 
-1. Configure an employee user.
-   - Either let the first account sign in normally, which creates an `Employee` record automatically, or preconfigure it with `npm run seed:users`.
-2. Configure an agent user.
-   - Run `npm run seed:users`.
-   - Add or modify the second account.
-   - Set its role to `Agent`.
-   - Assign it to a department, for example `Information Technology (IT)`.
+The controlled recovery sequence is: **HOLD**, identify the failed dependency from health and logs, restore or restart only the affected service, then run post-recovery verification. See the complete failure matrix in [Week 5 release operations](docs/week5-release-operations.md#7-failure-recovery).
+
+### Post-recovery verification
+
+Recovery is not complete merely because the process starts again. After a significant failure or restart:
+
+1. Confirm that `GET /api/health/ping` responds successfully.
+2. Call authorized `GET /api/health` and verify the expected dependency states. Check the response body, not only the HTTP code.
+3. Review startup and runtime logs for recurring errors.
+4. Re-authenticate users if the backend restarted because production sessions are held in memory.
+5. Run the critical employee-to-agent-to-employee ticket journey and confirm that the ticket remains persisted and the employee sees the final closure.
+6. For a release-related incident, verify or redeploy the last known-good candidate before declaring the system ready.
+
+For the isolated automated release smoke suite, run:
+
+```bash
+npm run test:smoke --workspace=backend
+```
+
+The complete checklist is in [Week 5 recovery verification](docs/week5-release-operations.md#recovery-verification).
+
+## Manual end-to-end browser testing
+
+The critical journey is: an employee submits a ticket, a department agent retrieves and claims it, the agent closes it with completion notes, and the employee verifies the persisted closure.
+
+When testing the live app, use appropriate demo accounts because this flow creates real tickets. For local testing without Microsoft accounts, use [test-authentication mode](#local-test-authentication-mode).
+
+For a Microsoft Entra browser test, start with two Microsoft accounts:
+
+1. Configure an employee user. Either let the first account sign in normally, which creates an `Employee` record automatically, or preconfigure it with `npm run seed:users`.
+2. Configure an agent user. Run `npm run seed:users`, add or modify the second account, set its role to `Agent`, and assign it to a department such as Information Technology (`IT`).
 3. Start the app with `npm run start`.
 4. Sign in as the employee account.
 5. Submit a ticket to the agent's department.
 6. Sign out.
 7. Sign in as the agent account.
 8. Open the ticket pool or department tickets view.
-9. Claim the employee's ticket, then try closing it with completion notes.
+9. Claim the employee's ticket, then close it with completion notes.
+10. Sign in again as the employee and verify the persisted closure.
 
-This flow verifies Microsoft login, local user resolution, role-based navigation, department-based ticket visibility, ticket submission, claiming, and closing.
+This flow verifies Microsoft login, local user resolution, role-based navigation, department-based ticket visibility, ticket submission, claiming, closing, and persistence.
 
-## 17. Manually testing the backend API (URLs, payloads, data to use)
+## Manual API testing
 
-Base URL: `http://localhost:3000/api`
+Base URL:
 
-Seeded data (loaded by `npm run prisma:seed`, not on every process start):
+```text
+http://localhost:3000/api
+```
 
-Priority must be one of: `LOW`, `MODERATE`, `HIGH`.
+The seeded data is loaded by `npm run prisma:seed`, not on every process start.
 
-Use `Content-Type: application/json` on requests that have a body. Replace `:id` with the `ticketId` returned on submit.
+Priority must be one of `LOW`, `MODERATE`, or `HIGH`. Use `Content-Type: application/json` on requests with a body. Replace `:id` with the `ticketId` returned on submission.
 
-Authenticated routes require the `nexus_session` cookie created by signing in through Microsoft.
+Authenticated routes require the `nexus_session` cookie created by signing in through Microsoft Entra ID or test mode.
 
 ### Authenticate Postman requests
 
 To query authenticated endpoints in Postman:
 
-1. Run the app in test mode with `npm run start:test`
-2. Copy the cookie value for the specific user you want to send requests as
-3. **Notice:** Postman needs the cookie in this format:
+1. Run the app in test mode with `npm run start:test`.
+2. Copy the cookie value for the user you want to use.
+3. Send only the cookie name/value pair:
 
-```text
-nexus_session=SESSION_CODE; Path=/; Expires=Thu, 24 Sep 2026 09:06:43 GMT; HttpOnly; Secure; SameSite=Lax;
+   ```http
+   Cookie: nexus_session=SESSION_CODE
+   ```
+
+If using a third-party provider account instead:
+
+1. Log in to the app normally through the browser.
+2. Open browser DevTools while logged in.
+3. Copy the `nexus_session` cookie name and value.
+4. Add it to Postman's cookie jar for `localhost` so Postman sends it with each request.
+
+### Ticket endpoints
+
+#### List tickets
+
+```http
+GET /tickets
 ```
 
-Replace `SESSION_CODE` with the value of the `nexus_session` cookie from DevTools. The expiration date should match the cookie currently issued by the backend (7 days after interaction).
+#### Submit a ticket
 
-Conversely, if you want to use third party provider accounts:
+The ticket starts in `OPEN` status with no agent assigned.
 
-1. Log in to the app normally using the browser.
-2. While logged in, open the browser DevTools and copy the `nexus_session` cookie information.
-3. In Postman, add the cookie to the cookie jar for `localhost` so Postman sends it with every request.
-
-### List tickets
-
-`GET /tickets`
-
-### Submit a ticket (status becomes `OPEN`, no agent)
-
-`POST /tickets`
+```http
+POST /tickets
+```
 
 ```json
 {
@@ -681,13 +755,19 @@ Conversely, if you want to use third party provider accounts:
 }
 ```
 
-### Get one ticket
+#### Get one ticket
 
-`GET /tickets/:id`
+```http
+GET /tickets/:id
+```
 
-### Modify an OPEN ticket
+#### Modify an open ticket
 
-`PATCH /tickets/:id`
+Only `OPEN` tickets can be modified. All fields are optional, but at least one is required.
+
+```http
+PATCH /tickets/:id
+```
 
 ```json
 {
@@ -698,17 +778,21 @@ Conversely, if you want to use third party provider accounts:
 }
 ```
 
-All fields are optional, but at least one is required. Only `OPEN` tickets can be modified.
+#### Claim a ticket
 
-### Claim (OPEN or REOPENED → CLAIMED)
+An `OPEN` or `REOPENED` ticket becomes `CLAIMED` and is assigned to the authenticated agent or administrator. No request body is required.
 
-`POST /tickets/:id/claim`
+```http
+POST /tickets/:id/claim
+```
 
-No request body is required. The ticket is assigned to the authenticated agent/admin.
+#### Close a ticket
 
-### Close (CLAIMED → CLOSED, agent is cleared)
+A `CLAIMED` ticket becomes `CLOSED` and its agent is cleared. `completionNotes` is optional.
 
-`POST /tickets/:id/close`
+```http
+POST /tickets/:id/close
+```
 
 ```json
 {
@@ -716,11 +800,13 @@ No request body is required. The ticket is assigned to the authenticated agent/a
 }
 ```
 
-`completionNotes` is optional.
+#### Reopen a ticket
 
-### Reopen (CLOSED → REOPENED, no agent)
+A `CLOSED` ticket becomes `REOPENED` with no agent. If sent, `description` replaces the ticket description.
 
-`POST /tickets/:id/reopen`
+```http
+POST /tickets/:id/reopen
+```
 
 ```json
 {
@@ -728,14 +814,27 @@ No request body is required. The ticket is assigned to the authenticated agent/a
 }
 ```
 
-`description` is optional. If sent, it replaces the ticket description.
+#### Cancel a ticket
 
-### Cancel
+```http
+POST /tickets/:id/cancel
+```
 
-`POST /tickets/:id/cancel`
+The complete HTTP and Socket.IO contract, including query parameters, request bodies, response envelopes, and intentionally unexposed routes, is documented in [docs/api-contract.md](docs/api-contract.md).
 
-## How to stop the app
+## Project structure
 
-In the terminal where `npm start` is running, press **Ctrl+C**.
+| Path | Purpose |
+| --- | --- |
+| `docs/` | Product, architecture, data-model, workflow, API, and release documentation |
+| `backend/src/` | NestJS backend modules, domain logic, integrations, shared infrastructure, and HTTP/WebSocket APIs |
+| `backend/src/tickets/` | Core ticket lifecycle, access policies, assignments, handoffs, events, queries, and realtime updates |
+| `backend/src/authentication/` and `backend/src/authorization/` | Microsoft Entra login, sessions, request authentication, roles, and access control |
+| `backend/src/ai/`, `backend/src/chat/`, `backend/src/files/`, `backend/src/notifications/`, and `backend/src/realtime/` | Assistant, ticket conversations, attachments, email delivery, and live updates |
+| `backend/src/administration/`, `backend/src/dashboard/`, `backend/src/users/`, `backend/src/departments/`, `backend/src/filters/`, and `backend/src/priorities/` | Administration, dashboards, user and department management, filtering, and configurable priorities |
+| `backend/src/database/`, `backend/prisma/`, `backend/src/common/`, `backend/src/config/`, `backend/src/health/`, `backend/src/audit/`, and `backend/src/background-workers/` | Persistence, migrations, shared validation/logging, configuration, health checks, audit records, and scheduled maintenance |
+| `backend/test/` | Integration, API E2E, browser E2E, smoke tests, and test support |
+| `frontend/nexus/src/` | React application pages, components, feature modules, API clients, authentication, and realtime UI |
+| `scripts/`, `backend/scripts/`, and `postman/` | Setup, deployment, smoke-check, and API testing tooling |
 
-Tickets, users, and departments stay in PostgreSQL after the process stops.
+Start with `backend/src/tickets/tickets.controller.ts` to see the routes, then read `tickets.service.ts` and `tickets/policies/`.
