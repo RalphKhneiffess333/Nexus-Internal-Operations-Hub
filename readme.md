@@ -25,8 +25,8 @@ proof without searching the repository manually.
 
 ### Live App
 
-- **Live URL:** `<LIVE_APP_URL>` — replace this placeholder with the deployed application URL.
-- **Demo access:** Demo access details and role credentials are sent to Eurisko Academy instructors in their Week 5 email. Do not commit demo credentials to this repository.
+- **Live URL:** [https://nexus-hub.up.railway.app](https://nexus-hub.up.railway.app/)
+- **Demo access:** Demo access details and role credentials are sent to Eurisko Academy instructors in their Week 5 email.
 - **Roles:** The main application roles are `Employee`, `Agent`, and `Admin`. Local test-mode users for each role are documented in [Start in local test-authentication mode](#start-in-local-test-authentication-mode).
 - **Critical journey:** An employee submits a ticket, a department agent retrieves and claims it, the agent closes it with completion notes, and the employee verifies the persisted closure. The manual version is documented in [Manual production browser testing flow](#16-manual-production-browser-testing-flow).
 
@@ -229,12 +229,7 @@ signals include:
 - Repeated log entries for `health.check`, `application.bootstrap`, `process.uncaught-exception`, `process.unhandled-rejection`, database failures, or external-provider failures.
 - Frontend realtime state changing to `reconnecting` or `error`.
 
-The current repository does not include a dedicated production monitoring
-platform. A monitor should poll `/api/health`, inspect both the HTTP status and
-the JSON body, and alert after consecutive unhealthy checks rather than on one
-transient failure. For the deployed application, use the hosting provider's
-runtime logs together with the application logs. The full operational context
-is in [Week 5 release operations](docs/week5-release-operations.md#6-failure-signals-and-monitoring).
+Monitoring can be implemented with UptimeRobot by giving it the `/api/health` endpoint and giving the authorization header the `HEALTH_CHECK_SECRET` value so that it is authenticated. The program will automatically ping the endpoint every 5 minutes and send you an email if it returns 503.
 
 ### Controlled failure and recovery
 

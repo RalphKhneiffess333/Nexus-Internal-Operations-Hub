@@ -79,7 +79,13 @@ The release gate proves the **candidate commit**, not the future health of the r
 
 Nexus logs internal failures with useful diagnostic context such as the timestamp, error, and related domain object where appropriate. Logs do not expose session cookies, Microsoft tokens, Groq API keys, database credentials, or other secrets.
 
-The current project does not include a dedicated production monitoring platform. A future monitoring service should periodically query `/api/health`, inspect both the HTTP result and returned health state, and alert an administrator after a defined number of consecutive unhealthy/degraded checks (for example, three) to avoid reacting to a single transient failure. The administrator can then use application and provider logs to identify the failing component.
+Production monitoring is implemented through **UptimeRobot**. Every five minutes,
+UptimeRobot sends an authenticated `GET /api/health` request using the configured
+health-check bearer secret. A healthy response returns HTTP `200`; if the health
+endpoint returns HTTP `503`, UptimeRobot sends an email alert to the configured
+recipient. The recipient can then use the application and provider logs to identify
+the failing component. A `401` response indicates that the UptimeRobot authorization
+header or secret is misconfigured and should be corrected.
 
 Monitoring should complement the release gate rather than replace it: the gate validates a candidate before release, while monitoring detects changes in the running target after release.
 
@@ -109,4 +115,7 @@ Recovery is not complete when the process merely starts again. After any signifi
 
 Nexus should continue to follow several reliability rules during maintenance: related database writes must remain transactional; concurrency-sensitive operations such as ticket claiming and handoff acceptance must remain atomic; external-service failures should be isolated from unrelated functionality; migrations must remain reproducible; and secrets must remain outside source control.
 
-The current recovery model is intentionally simple for the project scope. As Nexus grows, the main operational improvements should be automated uptime/health monitoring and alerting, durable external backups, durable cloud object storage for attachments, and more formal rollback/recovery procedures.
+The current recovery model is intentionally simple for the project scope. UptimeRobot
+provides automated uptime/health monitoring and email alerting; future operational
+improvements should include durable external backups, durable cloud object storage
+for attachments, and more formal rollback/recovery procedures.

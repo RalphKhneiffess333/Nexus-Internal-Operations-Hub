@@ -4,9 +4,9 @@ author: "Ralph Khneiffess"
 ---
 
 # Agentic Workflow - Nexus
-NOTICE: This file is best treated as a historical archive for Eurisko Academy instructors as it may contain stale file references since major application updates have been implemented since the creation of this file. To properly follow its implementation, it is recommended to revert to commit 9e46642f1a39b8984802a7d3597b73e2b4431ad2 on Sep 8, 2026.
+NOTICE: This file is best treated as a historical archive for Eurisko Academy instructors because most of its workflow and implementation guidance describes the original development slice. The current ticket API section below has been synchronized with the deployed implementation; the complete current contract remains in [api-contract.md](api-contract.md).
 
-The current implementation has since added PostgreSQL persistence, authentication, authorization, files, Ticket Events, handoffs, Chat, administration, and realtime delivery. The current API is documented in [api-contract.md](api-contract.md). The API table later in this archived workflow describes the original development slice and must not be used as the current contract.
+The current implementation has since added PostgreSQL persistence, authentication, authorization, files, Ticket Events, handoffs, Chat, administration, and realtime delivery. Sections outside the current ticket API below may still describe the original development assumptions and should be read as historical context.
 
 ## Objective
 - The implementation must remain intentionally small and modular. Do not implement future architecture or features unless explicitly requested.
@@ -251,36 +251,59 @@ Reopening a non closed ticket
 Invalid assignment state
 Other invariants defined in the product specifications
 
-## Original API (historical)
-| Action | Endpoint | Payload |
-| -------- | :--------: | :--------: |
-| Submit ticket   | POST /tickets   | Title, description, priority, department, submittedBy (only for testing purposes as authorization functionality will automatically fill this field in the future)|
-| Get ticket/s  | GET /tickets, /tickets:id | X |
-| modify ticket | PATCH /tickets/:id | Title, description, priority, department |
-| Claim ticket | POST /tickets/:id/claim | Agent ID (only for testing purposes as authorization functionality will automatically fill this field in the future) |
-| close ticket | POST /tickets/:id/close | Completion Notes |
-| reopen ticket | POST /tickets/:id/reopen | Description |
-| cancel ticket | POST /tickets/:id/cancel | X |
+## Current Ticket API
 
-Every endpoint response has the same structure:
+The routes below are relative to the global `/api` prefix and require an
+authenticated session cookie unless stated otherwise. Role restrictions are
+enforced by the authorization module. The acting user is derived from the
+session; clients do not submit `submittedBy` or `agentId` values for lifecycle
+operations.
+
+`POST /tickets` accepts JSON for text-only submissions or multipart form data
+when files are attached. The JSON fields are:
+
+```json
 {
-  "ticketId": "uuid",
-  "ticketCode": "TKT-0001",
-  "title": "string",
-  "description": "string",
-  "priority": "priority code managed by the administrator",
-  "status": "OPEN | CLAIMED | CLOSED | REOPENED",
-  "departmentId": "string",
-  "submittedBy": "string",
-  "agentId": "string | null",
-  "active": true,
-  "completionNotes": "string | null",
-  "createdAt": "ISO-8601",
-  "updatedAt": "ISO-8601",
-  "closedAt": "ISO-8601 | null"
+  "title": "Badge access",
+  "description": "Need building access",
+  "priority": "MODERATE",
+  "departmentId": "dept-it"
 }
+```
 
-The current API no longer accepts client-supplied `submittedBy`, does not use one response shape for every list/detail route, and returns pagination envelopes for list endpoints. See [api-contract.md](api-contract.md).
+| Method | Route | Access | Body/query |
+| --- | --- | --- | --- |
+| POST | `/tickets` | Employee, Agent, Admin | `title`, `description`, `priority`, `departmentId`, optional repeated `files` fields |
+| GET | `/tickets` | Employee, Agent, Admin | Optional `scope`, `page`, `pageSize`, `search`, `status`, `departmentId`, `priority`, `includeInactive` |
+| GET | `/tickets/pool/count` | Agent, Admin | No body |
+| GET | `/tickets/:id` | Employee, Agent, Admin | Optional `view=chat` |
+| PATCH | `/tickets/:id` | Employee, Agent, Admin | Optional `title`, `description`, `priority`, `departmentId`, `removedAttachmentIds`, and `files` |
+| POST | `/tickets/:id/claim` | Agent, Admin | No body; actor becomes the assigned agent |
+| POST | `/tickets/:id/close` | Agent, Admin | Optional `completionNotes` and `files` |
+| POST | `/tickets/:id/reopen` | Employee, Agent, Admin | Optional `description` and `files` |
+| POST | `/tickets/:id/cancel` | Employee, Agent, Admin | No body; performs a soft cancellation |
+
+Ticket statuses are `OPEN`, `CLAIMED`, `CLOSED`, and `REOPENED`. Cancellation
+sets `active` to `false` and records a server-generated delete event; it does
+not add a separate `CANCELLED` status. List responses use pagination envelopes,
+while detail and mutation responses include ticket data, related department and
+user profiles, and computed permissions.
+
+### Ticket history, attachments, and handoffs
+
+| Method | Route | Access | Contract |
+| --- | --- | --- | --- |
+| GET | `/tickets/:id/events?page=&pageSize=` | Employee, Agent, Admin | Paginated event summaries |
+| GET | `/tickets/:id/events/:eventId` | Employee, Agent, Admin | Full server-generated event with safe details and attachment metadata |
+| GET | `/tickets/:id/attachments` | Employee, Agent, Admin | Latest attachment-event summary |
+| GET | `/tickets/:id/events/:eventId/attachments/:attachmentId` | Employee, Agent, Admin | Authorized streamed file download |
+| GET | `/tickets/:id/handoffs/eligible-agents` | Agent, Admin | Eligible target-agent summaries |
+| GET | `/tickets/:id/handoffs?...` | Agent, Admin | Handoffs for one ticket |
+| POST | `/tickets/:id/handoffs` | Agent, Admin | `{ requestedAgentId, message? }`; requester is derived from the session |
+
+Lifecycle services create ticket events server-side. There is no generic
+client-controlled ticket-event create, update, or delete endpoint. The complete
+response and query contract is maintained in [api-contract.md](api-contract.md).
 
 ## Implementation Process
 The coding agent must follow this process.
